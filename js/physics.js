@@ -1,0 +1,403 @@
+/*
+ * Wobble City physics.
+ *
+ * Small-step XPBD (Macklin et al. 2019): many tiny substeps, one constraint pass each.
+ * Real-world scale: 100 px = 1 m, so gravity is 981 px/s^2, a goose weighs ~4 kg,
+ * and every number in here is in kg / px / seconds.
+ *
+ *  - Constraints carry real compliance (m/N), so a neck is genuinely soft rather than "damped".
+ *  - Contact uses Coulomb friction: tangential deceleration is capped at mu * (normal push).
+ *  - Water gives buoyancy (Archimedes, scaled by relative density) plus viscous drag.
+ *  - Air gives quadratic drag, which is also what makes glide work: lift ~ v^2.
+ *  - The body is a braced quad; the neck is a 20-link chain with bending compliance and weak
+ *    "muscle" springs. Muscle forces are reacted back onto the body (Newton's third law), so a
+ *    swinging head really does throw the goose around.
+ */
+(function (root) {
+  'use strict';
+
+  const GRAVITY = 981;
+  const MAX_V = 3200;
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+  class Particle {
+    constructor(x, y, o) {
+      o = o || {};
+      this.x = x; this.y = y; this.ox = x; this.oy = y;
+      this.vx = 0; this.vy = 0;
+      this.m = o.m || 1;
+      this.im = o.fixed ? 0 : 1 / this.m;
+      this.r = o.r || 0;
+      this.mu = o.mu == null ? 0.8 : o.mu;
+      this.drag = o.drag == null ? 0.05 : o.drag;      // linear air drag, 1/s
+      this.cd = o.cd == null ? 0 : o.cd;               // quadratic air drag
+      this.rho = o.rho == null ? 1 : o.rho;            // density relative to water
+      this.fx = 0; this.fy = 0;                        // external force, kg px/s^2, held for the whole step
+      this.nx = 0; this.ny = 0; this.pen = 0;          // contact accumulator (per substep)
+      this.groundT = -10;                              // last time something solid was under this particle
+      this.wet = 0;                                    // 0..1 submerged fraction
+    }
+  }
+
+  class World {
+    constructor() {
+      this.particles = [];
+      this.links = [];
+      this.solids = [];   // static boxes {x,y,w,h}
+      this.waters = [];   // {x,y,w,h} surface at y
+      this.near = [];
+      this.nearWater = [];
+      this.substeps = 10;
+      this.time = 0;
+      this.hooks = [];    // called at the start of every substep: apply state-dependent forces here
+    }
+
+    particle(x, y, o) {
+      const p = new Particle(x, y, o);
+      this.particles.push(p);
+      return p;
+    }
+
+    // mode: 'rigid' | 'rope' (resists stretch only) | 'strut' (resists compression only)
+    link(a, b, o) {
+      o = o || {};
+      const c = {
+        a, b,
+        len: o.len == null ? Math.hypot(a.x - b.x, a.y - b.y) : o.len,
+        compliance: o.compliance || 0,                 // m/N-ish; 0 = hard
+        mode: o.mode || 'rigid',
+        lambda: 0,
+      };
+      this.links.push(c);
+      return c;
+    }
+
+    step(dt) {
+      const ps = this.particles;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (const p of ps) {
+        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+      }
+      x0 -= 80; y0 -= 80; x1 += 80; y1 += 80;
+      this.near.length = 0; this.nearWater.length = 0;
+      for (const s of this.solids) if (s.x < x1 && s.x + s.w > x0 && s.y < y1 && s.y + s.h > y0) this.near.push(s);
+      for (const w of this.waters) if (w.x < x1 && w.x + w.w > x0 && w.y < y1 && w.y + w.h > y0) this.nearWater.push(w);
+
+      const n = this.substeps, h = dt / n;
+      for (let s = 0; s < n; s++) this._sub(h);
+    }
+
+    _sub(h) {
+      const ps = this.particles, ls = this.links;
+      const nw = this.nearWater;
+      for (const fn of this.hooks) fn(h);
+
+      for (const p of ps) {
+        p.nx = 0; p.ny = 0; p.pen = 0;
+        if (p.im === 0) continue;
+        p.ox = p.x; p.oy = p.y;
+
+        // water: buoyancy = rho_water * V * g, weight = rho * V * g  ->  net up accel = g * (1/rho - 1) * wet
+        let wet = 0;
+        for (const w of nw) {
+          if (p.x > w.x && p.x < w.x + w.w && p.y + p.r > w.y) {
+            wet = Math.max(wet, clamp((p.y + p.r - w.y) / Math.max(2 * p.r, 12), 0, 1));
+          }
+        }
+        p.wet = wet;
+        let ax = p.fx * p.im;
+        let ay = p.fy * p.im + GRAVITY - GRAVITY * (1 / p.rho) * wet;
+        p.vx += ax * h; p.vy += ay * h;
+
+        const sp = Math.hypot(p.vx, p.vy);
+        const k = 1 / (1 + (p.drag + p.cd * sp + wet * (4 + 0.02 * sp)) * h);
+        p.vx *= k; p.vy *= k;
+        if (sp > MAX_V) { p.vx *= MAX_V / sp; p.vy *= MAX_V / sp; }
+
+        p.x += p.vx * h; p.y += p.vy * h;
+        p.fx = 0; p.fy = 0;
+      }
+
+      for (const c of ls) c.lambda = 0;
+      for (const c of ls) this._solve(c, h);
+      for (const p of ps) if (p.r > 0 && p.im > 0) this._collide(p);
+
+      for (const p of ps) {
+        if (p.im === 0) continue;
+        p.vx = (p.x - p.ox) / h;
+        p.vy = (p.y - p.oy) / h;
+        if (p.pen > 0) {
+          const nl = Math.hypot(p.nx, p.ny) || 1;
+          const nx = p.nx / nl, ny = p.ny / nl;
+          const vn = p.vx * nx + p.vy * ny;
+          const tx = p.vx - vn * nx, ty = p.vy - vn * ny;
+          const tl = Math.hypot(tx, ty);
+          if (tl > 1e-9) {
+            // Coulomb: the normal impulse this substep is ~ pen / h (as a velocity change)
+            const red = Math.min(tl, (p.mu * p.pen) / h);
+            p.vx -= (tx / tl) * red;
+            p.vy -= (ty / tl) * red;
+          }
+          if (ny < -0.5) p.groundT = this.time;
+        }
+      }
+      this.time += h;
+    }
+
+    _solve(c, h) {
+      const a = c.a, b = c.b;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1e-6;
+      if (c.mode === 'rope' && d <= c.len) return;
+      if (c.mode === 'strut' && d >= c.len) return;
+      const w = a.im + b.im;
+      if (w === 0) return;
+      const at = c.compliance / (h * h);
+      const dl = (-(d - c.len) - at * c.lambda) / (w + at);
+      c.lambda += dl;
+      const nx = dx / d, ny = dy / d;
+      a.x -= nx * dl * a.im; a.y -= ny * dl * a.im;
+      b.x += nx * dl * b.im; b.y += ny * dl * b.im;
+    }
+
+    _collide(p) {
+      const near = this.near;
+      for (let i = 0; i < near.length; i++) {
+        const s = near[i];
+        const cx = clamp(p.x, s.x, s.x + s.w), cy = clamp(p.y, s.y, s.y + s.h);
+        const dx = p.x - cx, dy = p.y - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= p.r * p.r && d2 > 1e-9) continue;
+        let nx, ny, pen;
+        if (d2 > 1e-9) {
+          const d = Math.sqrt(d2);
+          nx = dx / d; ny = dy / d; pen = p.r - d;
+        } else {
+          const l = p.x - s.x, r = s.x + s.w - p.x, t = p.y - s.y, b = s.y + s.h - p.y;
+          const m = Math.min(l, r, t, b);
+          nx = 0; ny = 0;
+          if (m === t) ny = -1; else if (m === b) ny = 1; else if (m === l) nx = -1; else nx = 1;
+          pen = m + p.r;
+        }
+        p.x += nx * pen; p.y += ny * pen;
+        p.nx += nx * pen; p.ny += ny * pen; p.pen += pen;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------
+
+  const NECK_SEGS = 20;
+  const SEG = 7;            // px per link -> neck is 1.4 m end to end
+
+  class Goose {
+    constructor(world, x, y, opt) {
+      opt = opt || {};
+      this.world = world;
+      this.wobble = opt.wobble == null ? 1 : opt.wobble;   // 1 normal; <1 floppier, >1 stiffer
+      this.facing = 1; this.faceBlend = 1;
+      this.phase = 0; this.mv = 0;
+      this.stamina = 5; this.flapCd = 0; this.flapT = 0; this.honkT = 0;
+      this.grounded = false; this.airT = 0; this.swimming = false;
+      this.rest = [];
+
+      const mk = (ox, oy, o) => {
+        const p = world.particle(x + ox, y + oy, o);
+        this.rest.push([p, ox, oy]);
+        return p;
+      };
+
+      // body: 4 kg braced quad. Slightly buoyant: rho 0.75 of water.
+      const bo = { m: 1, r: 8, mu: 0.9, drag: 0.02, cd: 0.0006, rho: 0.75 };
+      this.bodyRest = [[-28, 13], [28, 13], [28, -13], [-28, -13]];
+      this.body = this.bodyRest.map((r) => mk(r[0], r[1], bo));
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) world.link(this.body[i], this.body[j]);
+
+      // legs
+      this.hipX = [-13, 13]; this.hipY = 8; this.L0 = 30;
+      this.hips = this.hipX.map((hx) => mk(hx, this.hipY, { m: 0.3, drag: 0.02 }));
+      this.hips.forEach((h) => this.body.forEach((b) => world.link(h, b)));
+      this.feet = this.hipX.map((hx) => mk(hx, this.hipY + this.L0, { m: 0.2, r: 5, mu: 1.3, drag: 0.05, rho: 1.4 }));
+      this.feet.forEach((f, i) => {
+        world.link(this.hips[i], f, { mode: 'rope', len: 40 });
+        world.link(this.hips[i], f, { mode: 'strut', len: 14 });
+      });
+
+      // neck
+      const ax = 24, ay = -17;
+      this.neck = [];
+      for (let i = 0; i <= NECK_SEGS; i++) {
+        let o;
+        if (i === 0) o = { m: 0.2, drag: 0.1 };
+        else if (i < NECK_SEGS) o = { m: 0.05, r: 3.5, mu: 0.4, drag: 0.4, cd: 0.002, rho: 1.05 };
+        else o = { m: 0.4, r: 9, mu: 0.6, drag: 0.5, cd: 0.001, rho: 0.9 };
+        this.neck.push(mk(ax, ay - i * SEG, o));
+      }
+      for (let i = 0; i < NECK_SEGS; i++) world.link(this.neck[i], this.neck[i + 1], { len: SEG });
+      // bending stiffness: soft links skipping a vertebra (compliance scales with floppiness)
+      this.bend = [];
+      for (let i = 0; i < NECK_SEGS - 1; i++) {
+        this.bend.push(world.link(this.neck[i], this.neck[i + 2], { len: SEG * 1.985, compliance: 0.004 / this.wobble }));
+      }
+      this.mount = this.body.map((b, i) => ({
+        c: world.link(b, this.neck[0], { len: Math.hypot(ax - this.bodyRest[i][0], ay - this.bodyRest[i][1]) }),
+        rx: this.bodyRest[i][0], ry: this.bodyRest[i][1],
+      }));
+      this.head = this.neck[NECK_SEGS];
+      this.move = 0; this.glide = false; this.aim = null;
+      world.hooks.push(() => this.apply());
+    }
+
+    center() {
+      let x = 0, y = 0;
+      for (const b of this.body) { x += b.x; y += b.y; }
+      return { x: x / 4, y: y / 4 };
+    }
+
+    velocity() {
+      let x = 0, y = 0;
+      for (const b of this.body) { x += b.vx; y += b.vy; }
+      return { x: x / 4, y: y / 4 };
+    }
+
+    axes() {
+      const [P0, P1, P2, P3] = this.body;
+      let ux = (P1.x - P0.x) + (P2.x - P3.x), uy = (P1.y - P0.y) + (P2.y - P3.y);
+      const l = Math.hypot(ux, uy) || 1;
+      ux /= l; uy /= l;
+      return { ux, uy, vx: -uy, vy: ux };
+    }
+
+    reset(x, y) {
+      for (const [p, ox, oy] of this.rest) {
+        p.x = p.ox = x + ox; p.y = p.oy = y + oy;
+        p.vx = p.vy = 0; p.fx = p.fy = 0;
+      }
+      this.facing = 1; this.faceBlend = 1; this.phase = 0; this.mv = 0;
+      this.stamina = 5; this.flapCd = 0; this.flapT = 0;
+    }
+
+    impulse(p, vx, vy) { p.vx += vx; p.vy += vy; }
+
+    honk() {
+      this.honkT = 0.35;
+      this.impulse(this.head, 0, -300);
+      for (let i = NECK_SEGS - 5; i < NECK_SEGS; i++) this.impulse(this.neck[i], 0, -160);
+    }
+
+    /* Per frame: discrete decisions. inp: { move: -1..1, flap: bool (edge), glide: bool, aim: null | {x,y} } */
+    update(dt, inp) {
+      const W = this.world, body = this.body;
+      const v = this.velocity();
+      this.move = clamp(inp.move || 0, -1, 1);
+      this.glide = !!inp.glide;
+      this.aim = inp.aim || null;
+
+      this.grounded = this.feet.some((f) => W.time - f.groundT < 0.08) || body.some((b) => W.time - b.groundT < 0.08);
+      this.swimming = body.filter((b) => b.wet > 0.3).length >= 2;
+      this.airT = this.grounded || this.swimming ? 0 : this.airT + dt;
+
+      if (this.move !== 0) this.facing = Math.sign(this.move);
+      this.faceBlend += (this.facing - this.faceBlend) * Math.min(1, dt * 6);
+      const mx = 24 * this.faceBlend, my = -17;
+      for (const m of this.mount) m.c.len = Math.hypot(mx - m.rx, my - m.ry);
+
+      this.mv += (Math.abs(this.move) - this.mv) * Math.min(1, dt * 8);
+      if (this.grounded) this.phase += dt * 2 * Math.PI * 2.4 * Math.abs(this.move);
+
+      this.flapCd -= dt;
+      this.flapT = Math.max(0, this.flapT - dt);
+      this.honkT = Math.max(0, this.honkT - dt);
+      if (this.grounded) this.stamina = Math.min(5, this.stamina + 2.5 * dt);
+      if (this.swimming) this.stamina = Math.min(5, this.stamina + 1.2 * dt);
+      if (inp.flap && this.stamina >= 1 && this.flapCd <= 0) {
+        this.stamina -= 1; this.flapCd = 0.26; this.flapT = 0.35;
+        const dvy = -(520 + Math.max(0, v.y) * 0.5);
+        const all = body.concat(this.hips, this.feet);
+        for (const p of all) this.impulse(p, this.move * 70, dvy);
+        this.impulse(this.neck[0], 0, dvy * 0.8);
+        this.flapped = true;
+      }
+    }
+
+    /* Per substep: every force that depends on state (so damping uses fresh velocities). */
+    apply() {
+      const body = this.body;
+      const A = this.axes(), c = this.center(), v = this.velocity();
+      const tilt = Math.atan2(A.uy, A.ux);
+      const move = this.move, f = this.facing;
+
+      // vestibular balance: PD torque on the body, capped like a real muscle
+      let inertia = 0, ang = 0;
+      for (const b of body) {
+        const rx = b.x - c.x, ry = b.y - c.y;
+        inertia += b.m * (rx * rx + ry * ry);
+        ang += b.m * (rx * (b.vy - v.y) - ry * (b.vx - v.x));
+      }
+      inertia = Math.max(inertia, 1);
+      const omega = ang / inertia;
+      const tau = clamp(-(this.swimming ? 90000 : 130000) * tilt - 7000 * omega, -90000, 90000);
+      for (const b of body) {
+        const rx = b.x - c.x, ry = b.y - c.y;
+        const r2 = Math.max(1, rx * rx + ry * ry);
+        b.fx += (tau * -ry) / (4 * r2);
+        b.fy += (tau * rx) / (4 * r2);
+      }
+
+      // legs: spring-damper toward the walk-cycle target
+      for (let i = 0; i < 2; i++) {
+        const th = this.phase + i * Math.PI;
+        let tx = this.hipX[i] + f * 22 * Math.cos(th) * this.mv;
+        let ty = this.hipY + this.L0 - 12 * Math.max(0, -Math.sin(th)) * this.mv;
+        if (!this.grounded) { tx = this.hipX[i] - f * 4; ty = this.hipY + (this.swimming ? 30 : 18); }
+        const Tx = c.x + A.ux * tx + A.vx * ty, Ty = c.y + A.uy * tx + A.vy * ty;
+        const foot = this.feet[i], hip = this.hips[i];
+        const Fx = 1400 * (Tx - foot.x) - 100 * (foot.vx - hip.vx);
+        const Fy = 1400 * (Ty - foot.y) - 100 * (foot.vy - hip.vy);
+        foot.fx += Fx; foot.fy += Fy; hip.fx -= Fx; hip.fy -= Fy;
+      }
+
+      // locomotion: velocity governor limited by what the feet can grip (mu * m * g)
+      const mass = 4.5;
+      const vmax = this.swimming ? 130 : 300;
+      const cap = this.grounded ? 1.1 * GRAVITY * mass : this.swimming ? 160 * mass : 230 * mass;
+      const Fd = clamp(14 * mass * (move * vmax - v.x), -cap, cap);
+      if (move !== 0 || this.grounded) for (const b of body) b.fx += Fd / 4;
+
+      // glide: wings out, lift ~ v^2
+      if (this.glide && !this.grounded && !this.swimming && v.y > 60) {
+        const lift = 0.0011 * v.y * v.y * mass;
+        for (const b of body) b.fy -= lift / 4;
+        this.flapT = Math.max(this.flapT, 0.1);
+      }
+
+      // neck muscles: strong at the base, almost nothing at the tip
+      const aim = this.aim, n = NECK_SEGS;
+      let ang0, bend, boost = 1;
+      if (aim && Math.hypot(aim.x, aim.y) > 0.2) {
+        ang0 = Math.atan2(aim.y, aim.x); bend = 0; boost = 1.8;
+      } else {
+        const a = (-98 * Math.PI) / 180, step = (4.2 * Math.PI) / 180;
+        ang0 = f > 0 ? a : Math.PI - a; bend = f > 0 ? step : -step;
+      }
+      const base = this.neck[0];
+      let tx = base.x, ty = base.y, a = ang0, rx = 0, ry = 0;
+      const kBase = 260 * this.wobble * boost, kTip = 11 * this.wobble * boost;
+      for (let i = 1; i <= n; i++) {
+        a += bend; tx += Math.cos(a) * SEG; ty += Math.sin(a) * SEG;
+        const t = i / n;
+        const ks = kTip + kBase * (1 - t) * (1 - t) * (1 - t);
+        const p = this.neck[i];
+        const Fx = ks * (tx - p.x) - 0.9 * p.vx * Math.sqrt(ks * p.m);
+        const Fy = ks * (ty - p.y) - 0.9 * p.vy * Math.sqrt(ks * p.m);
+        p.fx += Fx; p.fy += Fy; rx -= Fx; ry -= Fy;
+      }
+      for (const b of body) { b.fx += rx / 4; b.fy += ry / 4; }
+    }
+  }
+
+  const api = { World, Goose, Particle, GRAVITY, NECK_SEGS, SEG };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Physics = api;
+})(typeof window !== 'undefined' ? window : globalThis);

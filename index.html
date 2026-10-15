@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#8fd0ff">
+<title>Wobble City</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%AA%BF%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --ink: #1f2a36; --orange: #ff9b2f; --cream: #fff8ea; --sky: #8fd0ff; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--sky); color: var(--ink);
+    font-family: ui-rounded, "Trebuchet MS", system-ui, sans-serif;
+    touch-action: none; user-select: none; -webkit-user-select: none; overscroll-behavior: none;
+  }
+  canvas { position: fixed; inset: 0; display: block; }
+
+  #hud {
+    position: fixed; top: max(8px, env(safe-area-inset-top)); left: 0; right: 0; z-index: 2;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+    padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-right));
+    pointer-events: none; font-weight: 800;
+  }
+  .pill { background: rgba(255,255,255,.85); border-radius: 999px; padding: 6px 14px; font-size: 14px; box-shadow: 0 2px 0 rgba(0,0,0,.14); white-space: nowrap; }
+  #stamina { display: inline-flex; gap: 4px; vertical-align: middle; margin-left: 10px; }
+  #stamina i { width: 12px; height: 12px; border-radius: 50%; background: #e3e8ee; border: 2px solid var(--ink); display: block; }
+  #stamina i.on { background: var(--orange); }
+  #hudBtns { display: flex; gap: 6px; pointer-events: auto; }
+  .mini {
+    width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--ink); background: rgba(255,255,255,.85);
+    font-size: 18px; font-weight: 800; color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0,0,0,.2); touch-action: none;
+  }
+  .mini.on { background: var(--ink); color: #fff; }
+
+  .btn {
+    position: fixed; z-index: 2; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; border: 3px solid var(--ink); background: rgba(255,255,255,.72); color: var(--ink);
+    font-weight: 800; touch-action: none; box-shadow: 0 4px 0 rgba(0,0,0,.2);
+  }
+  .btn.down { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.2); background: #fff; }
+  #btnL, #btnR { width: 76px; height: 76px; bottom: max(18px, env(safe-area-inset-bottom)); font-size: 30px; }
+  #btnL { left: max(14px, env(safe-area-inset-left)); }
+  #btnR { left: calc(max(14px, env(safe-area-inset-left)) + 90px); }
+  #btnFlap { right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); width: 100px; height: 100px; background: rgba(255,155,47,.92); font-size: 17px; }
+  #btnHonk { right: calc(max(18px, env(safe-area-inset-right)) + 112px); bottom: max(18px, env(safe-area-inset-bottom)); width: 56px; height: 56px; font-size: 12px; }
+  #neckpad {
+    position: fixed; z-index: 2; width: 128px; height: 128px; border-radius: 50%;
+    right: max(18px, env(safe-area-inset-right)); bottom: calc(max(18px, env(safe-area-inset-bottom)) + 116px);
+    border: 3px dashed rgba(31,42,54,.55); background: rgba(255,255,255,.35); touch-action: none;
+  }
+  #neckpad span { position: absolute; left: 50%; top: -20px; transform: translateX(-50%); font-size: 11px; font-weight: 800; letter-spacing: .08em; opacity: .75; white-space: nowrap; }
+  #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: #fff; border: 3px solid var(--ink); pointer-events: none; }
+
+  .overlay { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(143,208,255,.85); padding: 16px; text-align: center; }
+  .overlay.hidden { display: none; }
+  .card { background: var(--cream); border: 3px solid var(--ink); border-radius: 22px; padding: 20px 24px; max-width: 460px; width: 100%; box-shadow: 0 6px 0 rgba(0,0,0,.2); max-height: 100%; overflow: auto; }
+  h1 { margin: 0 0 2px; font-size: 36px; letter-spacing: .01em; }
+  h2 { margin: 0 0 6px; font-size: 26px; }
+  p { margin: 6px 0 12px; line-height: 1.35; }
+  .big { display: inline-block; background: var(--orange); border: 3px solid var(--ink); border-radius: 14px; padding: 10px 28px; font: inherit; font-weight: 800; font-size: 20px; color: var(--ink); box-shadow: 0 4px 0 rgba(0,0,0,.25); cursor: pointer; }
+  .big:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  .seg { display: flex; gap: 6px; justify-content: center; margin: 6px 0 14px; flex-wrap: wrap; }
+  .seg button { font: inherit; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+  .seg button.sel { background: var(--ink); color: #fff; }
+  .small { font-size: 13px; opacity: .78; }
+  #levels { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 4px 0 14px; }
+  #levels button { width: 40px; height: 40px; border-radius: 12px; border: 2px solid var(--ink); background: #fff; font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
+  #levels button.locked { opacity: .35; cursor: default; }
+  #toast { position: fixed; z-index: 4; left: 50%; top: 58px; transform: translateX(-50%); max-width: min(92vw, 520px); background: rgba(31,42,54,.9); color: #fff; padding: 8px 16px; border-radius: 14px; font-size: 14px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  .touch-only { display: none; }
+  @media (pointer: coarse) { .touch-only { display: flex; } .desktop-only { display: none; } }
+  #rotate { display: none; position: fixed; inset: 0; z-index: 9; background: var(--ink); color: #fff; align-items: center; justify-content: center; text-align: center; font-size: 20px; font-weight: 800; padding: 24px; }
+  @media (pointer: coarse) and (orientation: portrait) { #rotate { display: flex; } }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="pill" id="levelName">Level 1</div>
+  <div class="pill"><span id="breadCount">🍞 0/0</span><span id="stamina"></span></div>
+  <div class="pill" id="speed">0.0 m/s</div>
+  <div id="hudBtns">
+    <div class="mini" id="btnSlow" title="Slow motion (T)">🐢</div>
+    <div class="mini" id="btnReset" title="Respawn (R)">↻</div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<div class="btn touch-only" id="btnL">◀</div>
+<div class="btn touch-only" id="btnR">▶</div>
+<div class="btn touch-only" id="btnFlap">FLAP</div>
+<div class="btn touch-only" id="btnHonk">HONK</div>
+<div id="neckpad" class="touch-only"><span>NECK</span><div id="knob"></div></div>
+
+<div class="overlay" id="title">
+  <div class="card">
+    <h1>🪿 Wobble City</h1>
+    <p>You are a goose. Your neck is not under control. Touch the golden egg with your <b>head</b>.</p>
+    <div class="small">Neck wobble</div>
+    <div class="seg" id="wobbleSeg">
+      <button data-v="1.5">Mild</button>
+      <button data-v="1" class="sel">Normal</button>
+      <button data-v="0.5">Extra</button>
+      <button data-v="0.25">Ridiculous</button>
+    </div>
+    <div class="small">Level</div>
+    <div id="levels"></div>
+    <button class="big" id="startBtn">Play</button>
+    <p class="small desktop-only">← → / A D walk · Space flap (hold to glide) · hold mouse to aim neck · H honk · T slow-mo · R respawn</p>
+    <p class="small touch-only" style="justify-content:center">Left thumb walks, right thumb flaps. Drag the NECK pad to aim your neck.</p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="done">
+  <div class="card">
+    <h2 id="doneTitle">Egg acquired!</h2>
+    <p id="doneText"></p>
+    <button class="big" id="nextBtn">Next level</button>
+  </div>
+</div>
+
+<div id="rotate">Rotate your phone sideways to play 🪿</div>
+
+<script src="js/physics.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
