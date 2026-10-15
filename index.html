@@ -16,26 +16,29 @@
     font-family: ui-rounded, "Trebuchet MS", system-ui, sans-serif;
     touch-action: none; user-select: none; -webkit-user-select: none; overscroll-behavior: none;
   }
-  canvas { position: fixed; inset: 0; display: block; }
+  canvas#game { position: fixed; inset: 0; display: block; }
 
-  #hud {
+  /* ---------- HUDs ---------- */
+  .hud {
     position: fixed; top: max(8px, env(safe-area-inset-top)); left: 0; right: 0; z-index: 2;
     display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
     padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-right));
     pointer-events: none; font-weight: 800;
   }
+  #mgHud { display: none; }
   .pill { background: rgba(255,255,255,.85); border-radius: 999px; padding: 6px 14px; font-size: 14px; box-shadow: 0 2px 0 rgba(0,0,0,.14); white-space: nowrap; }
   #stamina { display: inline-flex; gap: 4px; vertical-align: middle; margin-left: 10px; }
   #stamina i { width: 12px; height: 12px; border-radius: 50%; background: #e3e8ee; border: 2px solid var(--ink); display: block; }
   #stamina i.on { background: var(--orange); }
-  #hudBtns { display: flex; gap: 6px; pointer-events: auto; }
+  .hudBtns { display: flex; gap: 6px; pointer-events: auto; }
   .mini {
-    width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--ink); background: rgba(255,255,255,.85);
+    width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--ink); background: rgba(255,255,255,.9);
     font-size: 18px; font-weight: 800; color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: 0 3px 0 rgba(0,0,0,.2); touch-action: none;
+    box-shadow: 0 3px 0 rgba(0,0,0,.2); touch-action: none; user-select: none;
   }
   .mini.on { background: var(--ink); color: #fff; }
 
+  /* ---------- on-screen controls ---------- */
   .btn {
     position: fixed; z-index: 2; display: flex; align-items: center; justify-content: center;
     border-radius: 50%; border: 3px solid var(--ink); background: rgba(255,255,255,.72); color: var(--ink);
@@ -54,41 +57,103 @@
   }
   #neckpad span { position: absolute; left: 50%; top: -20px; transform: translateX(-50%); font-size: 11px; font-weight: 800; letter-spacing: .08em; opacity: .75; white-space: nowrap; }
   #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: #fff; border: 3px solid var(--ink); pointer-events: none; }
-
-  .overlay { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(143,208,255,.85); padding: 16px; text-align: center; }
-  .overlay.hidden { display: none; }
-  .card { background: var(--cream); border: 3px solid var(--ink); border-radius: 22px; padding: 20px 24px; max-width: 460px; width: 100%; box-shadow: 0 6px 0 rgba(0,0,0,.2); max-height: 100%; overflow: auto; }
-  h1 { margin: 0 0 2px; font-size: 36px; letter-spacing: .01em; }
-  h2 { margin: 0 0 6px; font-size: 26px; }
-  p { margin: 6px 0 12px; line-height: 1.35; }
-  .big { display: inline-block; background: var(--orange); border: 3px solid var(--ink); border-radius: 14px; padding: 10px 28px; font: inherit; font-weight: 800; font-size: 20px; color: var(--ink); box-shadow: 0 4px 0 rgba(0,0,0,.25); cursor: pointer; }
-  .big:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
-  .seg { display: flex; gap: 6px; justify-content: center; margin: 6px 0 14px; flex-wrap: wrap; }
-  .seg button { font: inherit; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
-  .seg button.sel { background: var(--ink); color: #fff; }
-  .small { font-size: 13px; opacity: .78; }
-  #levels { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 4px 0 14px; }
-  #levels button { width: 40px; height: 40px; border-radius: 12px; border: 2px solid var(--ink); background: #fff; font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
-  #levels button.locked { opacity: .35; cursor: default; }
-  #toast { position: fixed; z-index: 4; left: 50%; top: 58px; transform: translateX(-50%); max-width: min(92vw, 520px); background: rgba(31,42,54,.9); color: #fff; padding: 8px 16px; border-radius: 14px; font-size: 14px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
-  #toast.show { opacity: 1; }
   .touch-only { display: none; }
   @media (pointer: coarse) { .touch-only { display: flex; } .desktop-only { display: none; } }
+  /* which control set is showing */
+  body[data-ctl="custom"] #btnL, body[data-ctl="custom"] #btnR, body[data-ctl="custom"] #btnFlap, body[data-ctl="custom"] #btnHonk, body[data-ctl="custom"] #neckpad,
+  body[data-ctl="none"] #btnL, body[data-ctl="none"] #btnR, body[data-ctl="none"] #btnFlap, body[data-ctl="none"] #btnHonk, body[data-ctl="none"] #neckpad { display: none !important; }
+  body[data-ctl="std"] #mgControls, body[data-ctl="none"] #mgControls { display: none; }
+  #mgControls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; pointer-events: none; }
+  .mgside { position: fixed; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; }
+  .mgside.left { left: max(14px, env(safe-area-inset-left)); }
+  .mgside.right { right: max(18px, env(safe-area-inset-right)); }
+  .mgbtn { position: static; width: 72px; height: 72px; font-size: 26px; flex: none; }
+  .mgbtn.bigbtn { width: 100px; height: 100px; font-size: 17px; background: rgba(255,155,47,.92); }
+
+  /* ---------- overlays ---------- */
+  .overlay { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(143,208,255,.82); padding: 12px; text-align: center; }
+  .overlay.hidden { display: none; }
+  .overlay.clear { background: rgba(143,208,255,.55); }
+  .card { background: var(--cream); border: 3px solid var(--ink); border-radius: 22px; padding: 18px 22px; max-width: 460px; width: 100%; box-shadow: 0 6px 0 rgba(0,0,0,.2); max-height: 100%; overflow: auto; }
+  .card.wide { max-width: 760px; }
+  h1 { margin: 0 0 2px; font-size: 34px; letter-spacing: .01em; }
+  h2 { margin: 0 0 6px; font-size: 24px; }
+  h3 { margin: 0 0 6px; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+  p { margin: 6px 0 12px; line-height: 1.35; }
+  .pre { white-space: pre-line; }
+  .big { display: inline-block; background: var(--orange); border: 3px solid var(--ink); border-radius: 14px; padding: 10px 28px; font: inherit; font-weight: 800; font-size: 20px; color: var(--ink); box-shadow: 0 4px 0 rgba(0,0,0,.25); cursor: pointer; }
+  .big:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  .big:disabled { opacity: .5; cursor: default; }
+  .big.small-btn { font-size: 15px; padding: 6px 18px; border-radius: 12px; }
+  .ghost { background: #fff; }
+  .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+  .sec { font: inherit; font-weight: 800; font-size: 14px; padding: 8px 14px; border-radius: 12px; border: 3px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.2); }
+  .sec:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.2); }
+  .sec.dim { opacity: .65; }
+  .seg { display: flex; gap: 6px; justify-content: center; margin: 6px 0; flex-wrap: wrap; }
+  .seg button, .tabs button { font: inherit; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+  .seg button.sel, .tabs button.sel { background: var(--ink); color: #fff; }
+  .small { font-size: 13px; opacity: .78; }
+  .breadpill { display: inline-block; background: #fff; border: 2px solid var(--ink); border-radius: 999px; padding: 2px 12px; font-weight: 800; font-size: 15px; }
+  #levels { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
+  #levels button { width: 38px; height: 38px; border-radius: 12px; border: 2px solid var(--ink); background: #fff; font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
+  #levels button.sel { background: var(--ink); color: #fff; }
+  #levels button.locked { opacity: .35; }
+  .menugrid { display: grid; grid-template-columns: 1fr; gap: 6px 22px; }
+  @media (min-width: 620px) { .menugrid { grid-template-columns: 1fr 1fr; align-items: center; } .card.menu { max-width: 700px; } }
+
+  /* ---------- store ---------- */
+  .storewrap { display: flex; gap: 16px; align-items: stretch; text-align: left; }
+  #storeCanvas { width: 260px; height: 300px; border-radius: 16px; border: 3px solid var(--ink); flex: none; }
+  .storeright { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  #storeGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; overflow: auto; max-height: 232px; padding: 2px; }
+  .item { background: #fff; border: 2px solid var(--ink); border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .item b { font-size: 12px; line-height: 1.1; }
+  .item span { font-size: 12px; opacity: .8; }
+  .item .ic { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .item .ic canvas { width: 48px; height: 48px; }
+  .item.on { background: #fff3c4; }
+  .item.sel { outline: 3px solid var(--orange); }
+  #buyBar { margin-top: 8px; display: flex; gap: 10px; align-items: center; justify-content: space-between; background: #fff; border: 2px solid var(--ink); border-radius: 12px; padding: 6px 10px; font-weight: 800; font-size: 14px; }
+  #buyBar.hidden { display: none; }
+  @media (max-width: 640px) { .storewrap { flex-direction: column; align-items: center; } #storeCanvas { width: 200px; height: 230px; } #storeGrid { max-height: 150px; } }
+  @media (max-height: 460px) and (min-width: 560px) { #storeCanvas { width: 200px; height: 230px; } #storeGrid { max-height: 150px; } .card { padding: 12px 16px; } }
+
+  /* ---------- minigame menu ---------- */
+  #mgList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; text-align: center; }
+  .mgcard { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .mgcard .mgi { font-size: 30px; }
+  .mgcard p { margin: 0; font-size: 12px; opacity: .8; min-height: 32px; }
+  .mgcard span { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+
+  /* ---------- toast, code box, rotate hint ---------- */
+  #toast { position: fixed; z-index: 7; left: 50%; top: 58px; transform: translateX(-50%); max-width: min(92vw, 520px); background: rgba(31,42,54,.9); color: #fff; padding: 8px 16px; border-radius: 14px; font-size: 14px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #codeModal { z-index: 8; background: rgba(31,42,54,.55); }
+  #codeInput { font: inherit; font-weight: 800; font-size: 22px; text-align: center; letter-spacing: .12em; width: 100%; padding: 8px; border-radius: 12px; border: 3px solid var(--ink); background: #fff; color: var(--ink); user-select: text; -webkit-user-select: text; }
+  #codeMsg { min-height: 22px; font-weight: 700; margin: 8px 0 0; }
   #rotate { display: none; position: fixed; inset: 0; z-index: 9; background: var(--ink); color: #fff; align-items: center; justify-content: center; text-align: center; font-size: 20px; font-weight: 800; padding: 24px; }
   @media (pointer: coarse) and (orientation: portrait) { #rotate { display: flex; } }
 </style>
 </head>
-<body>
+<body data-ctl="none">
 <canvas id="game"></canvas>
 
-<div id="hud">
+<div class="hud" id="hud">
   <div class="pill" id="levelName">Level 1</div>
   <div class="pill"><span id="breadCount">🍞 0/0</span><span id="stamina"></span></div>
   <div class="pill" id="speed">0.0 m/s</div>
-  <div id="hudBtns">
+  <div class="hudBtns">
     <div class="mini" id="btnSlow" title="Slow motion (T)">🐢</div>
     <div class="mini" id="btnReset" title="Respawn (R)">↻</div>
+    <div class="mini" id="btnMenu" title="Menu (Esc)">☰</div>
   </div>
+</div>
+<div class="hud" id="mgHud">
+  <div class="pill" id="mgTitle">Minigame</div>
+  <div class="pill" id="mgScore"></div>
+  <div class="hudBtns"><div class="mini" id="mgMenuBtn" title="Menu (Esc)">☰</div></div>
 </div>
 <div id="toast"></div>
 
@@ -97,31 +162,102 @@
 <div class="btn touch-only" id="btnFlap">FLAP</div>
 <div class="btn touch-only" id="btnHonk">HONK</div>
 <div id="neckpad" class="touch-only"><span>NECK</span><div id="knob"></div></div>
+<div id="mgControls"></div>
 
+<!-- main menu -->
 <div class="overlay" id="title">
-  <div class="card">
-    <h1>🪿 Wobble City</h1>
-    <p>You are a goose. Your neck is not under control. Touch the golden egg with your <b>head</b>.</p>
-    <div class="small">Neck wobble</div>
-    <div class="seg" id="wobbleSeg">
-      <button data-v="1.5">Mild</button>
-      <button data-v="1" class="sel">Normal</button>
-      <button data-v="0.5">Extra</button>
-      <button data-v="0.25">Ridiculous</button>
+  <div class="card menu">
+    <div class="menugrid">
+      <div>
+        <h1>🪿 Wobble City</h1>
+        <p class="small" style="margin-top:0">You are a goose. Your neck is not under control. Touch the golden egg with your <b>head</b>.</p>
+        <div class="breadpill" id="menuBread">🍞 0</div>
+        <div class="row">
+          <button class="sec" id="mgOpenBtn">🎮 Minigames</button>
+          <button class="sec" id="storeBtn">👕 Store</button>
+          <button class="sec" id="codeBtn">🔑 Code</button>
+        </div>
+        <p class="small desktop-only" style="margin-bottom:0">← → / A D walk · Space flap (hold to glide) · hold mouse to aim neck · H honk · T slow-mo · R respawn · Esc menu</p>
+        <p class="small touch-only" style="justify-content:center;margin-bottom:0">Left thumb walks, right thumb flaps. Drag the NECK pad to aim your neck.</p>
+      </div>
+      <div>
+        <h3>Difficulty (neck wobble)</h3>
+        <div class="seg" id="diffSeg"></div>
+        <div class="small" id="diffDesc" style="margin-bottom:6px"></div>
+        <h3>Level: <span id="levelTitle"></span></h3>
+        <div id="levels"></div>
+        <div style="margin-top:10px"><button class="big" id="startBtn">Play</button></div>
+      </div>
     </div>
-    <div class="small">Level</div>
-    <div id="levels"></div>
-    <button class="big" id="startBtn">Play</button>
-    <p class="small desktop-only">← → / A D walk · Space flap (hold to glide) · hold mouse to aim neck · H honk · T slow-mo · R respawn</p>
-    <p class="small touch-only" style="justify-content:center">Left thumb walks, right thumb flaps. Drag the NECK pad to aim your neck.</p>
   </div>
 </div>
 
+<!-- level complete -->
 <div class="overlay hidden" id="done">
   <div class="card">
     <h2 id="doneTitle">Egg acquired!</h2>
-    <p id="doneText"></p>
-    <button class="big" id="nextBtn">Next level</button>
+    <p class="pre" id="doneText"></p>
+    <div class="row">
+      <button class="big" id="nextBtn">Next level</button>
+      <button class="big ghost" id="doneMenuBtn">Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- clothing store -->
+<div class="overlay hidden" id="store">
+  <div class="card wide">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <button class="sec" id="storeBack">◀ Back</button>
+      <h2 style="margin:0">👕 Goose Boutique</h2>
+      <div class="breadpill" id="storeBread">🍞 0</div>
+    </div>
+    <div class="storewrap">
+      <canvas id="storeCanvas"></canvas>
+      <div class="storeright">
+        <div class="tabs" id="storeTabs"></div>
+        <div id="storeGrid"></div>
+        <div id="buyBar" class="hidden"><span id="buyText"></span><button class="big small-btn" id="buyBtn">Buy</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- minigame list -->
+<div class="overlay hidden" id="mgMenu">
+  <div class="card wide">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <button class="sec" id="mgBack">◀ Menu</button>
+      <h2 style="margin:0">🎮 Minigames</h2>
+      <span style="width:80px"></span>
+    </div>
+    <div id="mgList"></div>
+  </div>
+</div>
+
+<!-- minigame result -->
+<div class="overlay hidden clear" id="mgDone">
+  <div class="card">
+    <h2 id="mgDoneTitle">Minigame</h2>
+    <p class="pre" id="mgDoneText"></p>
+    <div class="row">
+      <button class="big" id="mgAgain">Play again</button>
+      <button class="big ghost" id="mgDoneList">Minigames</button>
+      <button class="big ghost" id="mgDoneMenu">Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- secret code -->
+<div class="overlay hidden" id="codeModal">
+  <div class="card" style="max-width:340px">
+    <h2>🔑 Enter a code</h2>
+    <input id="codeInput" type="text" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="code">
+    <div id="codeMsg"></div>
+    <div class="row">
+      <button class="big small-btn" id="codeGo">Go</button>
+      <button class="big small-btn ghost" id="codeClose">Close</button>
+    </div>
   </div>
 </div>
 
@@ -129,6 +265,8 @@
 
 <script src="js/physics.js"></script>
 <script src="js/levels.js"></script>
+<script src="js/clothes.js"></script>
+<script src="js/minigames.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

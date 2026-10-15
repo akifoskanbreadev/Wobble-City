@@ -36,6 +36,8 @@
       this.nx = 0; this.ny = 0; this.pen = 0;          // contact accumulator (per substep)
       this.groundT = -10;                              // last time something solid was under this particle
       this.wet = 0;                                    // 0..1 submerged fraction
+      this.cs = null;                                  // last solid touched (for moving-platform friction)
+      this.sf = 1;                                     // surface friction factor of that solid (ice < 1)
     }
   }
 
@@ -43,7 +45,10 @@
     constructor() {
       this.particles = [];
       this.links = [];
-      this.solids = [];   // static boxes {x,y,w,h}
+      this.solids = [];   // boxes {x,y,w,h,mu?,vx,vy}
+      this.segs = [];     // terrain segments (solid below the line, left to right)
+      this.movers = [];   // moving platforms: {s, x0, y0, ax, ay, per, ph}
+      this.nearSegs = [];
       this.waters = [];   // {x,y,w,h} surface at y
       this.near = [];
       this.nearWater = [];
@@ -80,8 +85,9 @@
         if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
       }
       x0 -= 80; y0 -= 80; x1 += 80; y1 += 80;
-      this.near.length = 0; this.nearWater.length = 0;
+      this.near.length = 0; this.nearWater.length = 0; this.nearSegs.length = 0;
       for (const s of this.solids) if (s.x < x1 && s.x + s.w > x0 && s.y < y1 && s.y + s.h > y0) this.near.push(s);
+      for (const g of this.segs) if (g.maxx > x0 && g.minx < x1 && g.maxy > y0 && g.miny < y1) this.nearSegs.push(g);
       for (const w of this.waters) if (w.x < x1 && w.x + w.w > x0 && w.y < y1 && w.y + w.h > y0) this.nearWater.push(w);
 
       const n = this.substeps, h = dt / n;
@@ -91,6 +97,12 @@
     _sub(h) {
       const ps = this.particles, ls = this.links;
       const nw = this.nearWater;
+      for (const m of this.movers) {
+        const s = m.s, t = this.time + h;
+        const nx = m.x0 + m.ax * Math.sin((t / m.per + m.ph) * 6.2831853);
+        const ny = m.y0 + m.ay * Math.sin((t / m.per + m.ph) * 6.2831853);
+        s.vx = (nx - s.x) / h; s.vy = (ny - s.y) / h; s.x = nx; s.y = ny;
+      }
       for (const fn of this.hooks) fn(h);
 
       for (const p of ps) {
@@ -130,12 +142,14 @@
         if (p.pen > 0) {
           const nl = Math.hypot(p.nx, p.ny) || 1;
           const nx = p.nx / nl, ny = p.ny / nl;
-          const vn = p.vx * nx + p.vy * ny;
-          const tx = p.vx - vn * nx, ty = p.vy - vn * ny;
+          const cs = p.cs, svx = cs ? cs.vx || 0 : 0, svy = cs ? cs.vy || 0 : 0;
+          const rx = p.vx - svx, ry = p.vy - svy;
+          const vn = rx * nx + ry * ny;
+          const tx = rx - vn * nx, ty = ry - vn * ny;
           const tl = Math.hypot(tx, ty);
           if (tl > 1e-9) {
             // Coulomb: the normal impulse this substep is ~ pen / h (as a velocity change)
-            const red = Math.min(tl, (p.mu * p.pen) / h);
+            const red = Math.min(tl, (p.mu * p.sf * p.pen) / h);
             p.vx -= (tx / tl) * red;
             p.vy -= (ty / tl) * red;
           }
@@ -182,6 +196,24 @@
         }
         p.x += nx * pen; p.y += ny * pen;
         p.nx += nx * pen; p.ny += ny * pen; p.pen += pen;
+        p.cs = s; p.sf = s.mu == null ? 1 : s.mu;
+      }
+      const segs = this.nearSegs;
+      for (let i = 0; i < segs.length; i++) {
+        const g = segs[i];
+        const dx = g.x2 - g.x1, dy = g.y2 - g.y1;
+        let t = ((p.x - g.x1) * dx + (p.y - g.y1) * dy) / g.len2;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const vx = p.x - (g.x1 + t * dx), vy = p.y - (g.y1 + t * dy);
+        const d2 = vx * vx + vy * vy;
+        if (d2 >= p.r * p.r) continue;
+        const side = vx * g.nx + vy * g.ny;
+        let nx, ny, pen;
+        if (side >= 0 && d2 > 1e-9) { const d = Math.sqrt(d2); nx = vx / d; ny = vy / d; pen = p.r - d; }
+        else { nx = g.nx; ny = g.ny; pen = p.r - side; }
+        p.x += nx * pen; p.y += ny * pen;
+        p.nx += nx * pen; p.ny += ny * pen; p.pen += pen;
+        p.cs = g; p.sf = g.mu == null ? 1 : g.mu;
       }
     }
   }
@@ -196,6 +228,8 @@
       opt = opt || {};
       this.world = world;
       this.wobble = opt.wobble == null ? 1 : opt.wobble;   // 1 normal; <1 floppier, >1 stiffer
+      this.tremor = opt.tremor || 0;                       // random neck twitching, 0 = none
+      this.noiseT = Math.random() * 100;
       this.facing = 1; this.faceBlend = 1;
       this.phase = 0; this.mv = 0;
       this.stamina = 5; this.flapCd = 0; this.flapT = 0; this.honkT = 0;
@@ -290,6 +324,7 @@
     update(dt, inp) {
       const W = this.world, body = this.body;
       const v = this.velocity();
+      this.noiseT += dt;
       this.move = clamp(inp.move || 0, -1, 1);
       this.glide = !!inp.glide;
       this.aim = inp.aim || null;
@@ -306,6 +341,16 @@
       this.mv += (Math.abs(this.move) - this.mv) * Math.min(1, dt * 8);
       if (this.grounded) this.phase += dt * 2 * Math.PI * 2.4 * Math.abs(this.move);
 
+      this.padCd = (this.padCd || 0) - dt;
+      if (this.padCd <= 0) {
+        for (const f of this.feet) {
+          if (f.cs && f.cs.pad && W.time - f.groundT < 0.05) {
+            for (const [q] of this.rest) q.vy = Math.min(q.vy, -1280);
+            this.padCd = 0.5; this.bounced = true; this.stamina = 5; this.flapT = 0.35;
+            break;
+          }
+        }
+      }
       this.flapCd -= dt;
       this.flapT = Math.max(0, this.flapT - dt);
       this.honkT = Math.max(0, this.honkT - dt);
@@ -361,7 +406,9 @@
       // locomotion: velocity governor limited by what the feet can grip (mu * m * g)
       const mass = 4.5;
       const vmax = this.swimming ? 130 : 300;
-      const cap = this.grounded ? 1.1 * GRAVITY * mass : this.swimming ? 160 * mass : 230 * mass;
+      let grip = 1;
+      if (this.grounded) { grip = Math.min(this.feet[0].sf, this.feet[1].sf); if (this.feet[0].cs == null) grip = 1; }
+      const cap = this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? 160 * mass : 230 * mass;
       const Fd = clamp(14 * mass * (move * vmax - v.x), -cap, cap);
       if (move !== 0 || this.grounded) for (const b of body) b.fx += Fd / 4;
 
@@ -392,12 +439,60 @@
         const Fx = ks * (tx - p.x) - 0.9 * p.vx * Math.sqrt(ks * p.m);
         const Fy = ks * (ty - p.y) - 0.9 * p.vy * Math.sqrt(ks * p.m);
         p.fx += Fx; p.fy += Fy; rx -= Fx; ry -= Fy;
+        if (this.tremor > 0) {
+          // smooth pseudo-noise, stronger toward the tip: the neck has a mind of its own
+          const q = this.noiseT, w = this.tremor * t * t;
+          const nxf = Math.sin(q * 3.1 + i * 0.7) * Math.sin(q * 1.3 + i * 0.31) + 0.5 * Math.sin(q * 7.3 + i * 1.9);
+          const nyf = Math.sin(q * 2.7 + i * 0.5 + 1.7) * Math.sin(q * 1.1 + i * 0.43) + 0.5 * Math.sin(q * 6.1 + i * 2.3);
+          p.fx += 60 * w * nxf * Math.sqrt(p.m / 0.05); p.fy += 60 * w * nyf * Math.sqrt(p.m / 0.05);
+        }
       }
       for (const b of body) { b.fx += rx / 4; b.fy += ry / 4; }
     }
   }
 
-  const api = { World, Goose, Particle, GRAVITY, NECK_SEGS, SEG };
+  // Builds the physics world for a level description. Returns the non-physical extras.
+  function buildLevel(world, lv) {
+    const box = (x, y, w, h, o) => {
+      const s = { x, y, w, h, vx: 0, vy: 0 };
+      if (o) Object.assign(s, o);
+      world.solids.push(s);
+      return s;
+    };
+    for (const a of lv.solids || []) box(a[0], a[1], a[2], a[3], a[4]);
+    for (const t of lv.terrain || []) {
+      for (let i = 0; i + 1 < t.pts.length; i++) {
+        const [x1, y1] = t.pts[i], [x2, y2] = t.pts[i + 1];
+        const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+        world.segs.push({
+          x1, y1, x2, y2, len2: len * len, nx: dy / len, ny: -dx / len, mu: t.mu, vx: 0, vy: 0,
+          minx: Math.min(x1, x2), maxx: Math.max(x1, x2), miny: Math.min(y1, y2), maxy: Math.max(y1, y2),
+        });
+      }
+    }
+    for (const w of lv.water || []) world.waters.push({ x: w[0], y: w[1], w: w[2], h: w[3] });
+    const movers = [];
+    for (const m of lv.movers || []) {
+      const s = box(m.x, m.y, m.w, m.h, { mover: true, mu: 1.0 });
+      world.movers.push({ s, x0: m.x, y0: m.y, ax: m.ax || 0, ay: m.ay || 0, per: m.per || 4, ph: m.ph || 0 });
+      movers.push(s);
+    }
+    const pads = (lv.pads || []).map((p) => box(p[0], p[1], p[2], 14, { pad: true }));
+    return { pads, movers };
+  }
+
+  // does any body/foot particle overlap one of the hazard rectangles?
+  function touchesHazard(goose, hazards) {
+    const ps = goose.body.concat(goose.feet);
+    for (const h of hazards || []) {
+      for (const p of ps) {
+        if (p.x > h[0] - p.r * 0.5 && p.x < h[0] + h[2] + p.r * 0.5 && p.y > h[1] - p.r * 0.5 && p.y < h[1] + h[3] + p.r * 0.5) return true;
+      }
+    }
+    return false;
+  }
+
+  const api = { World, Goose, Particle, GRAVITY, NECK_SEGS, SEG, buildLevel, touchesHazard };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Physics = api;
 })(typeof window !== 'undefined' ? window : globalThis);
