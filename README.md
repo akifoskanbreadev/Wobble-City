@@ -2,6 +2,8 @@
 
 A mobile-first platform game about a goose with a **really** wobbly neck. Touch the golden egg with your *head*.
 
+The game:https://akifoskanbreadev.github.io/Wobble-City/
+
 Play it by opening `index.html` (or serving the folder with any static server, e.g. `python3 -m http.server`). Works on phones in landscape.
 
 ## Controls
