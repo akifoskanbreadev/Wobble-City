@@ -11,12 +11,17 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Keyboard:** ← → / A D walk, Space flap (hold to glide), hold mouse to aim the neck, H honk, T slow motion, R respawn, Esc menu.
 
 ## Features
-- **8 levels** with hills, valleys, ponds, bounce pads, thorns, ice, moving platforms, a tunnel and a vertical cliff climb.
-- **4 difficulties** (Easy / Normal / Hard / Insane): the harder it is, the harder the neck wobbles (and on Hard and Insane it twitches too).
+- **33 levels** with hills, valleys, ponds, bounce pads, thorns, ice, moving platforms, walls, a tunnel and tall climbs, in seven themes (meadow, desert, snow, sunset, night, candy, lava).
+- **5 difficulties** (Easy / Normal / Hard / Insane / **Spaghetti**): the harder it is, the harder the neck wobbles and twitches. Spaghetti is almost impossible: the neck whips about at random and the neck pad is haunted.
 - **Menu button** (☰) in every game brings you back to the main menu.
 - **Bread** is the currency. Collect it in levels and spend it in the **Goose Boutique** (27 hats, glasses, neckwear, capes and shoes).
-- **Minigames** unlock when you finish all 8 levels: Goose Tetris, Goose Up (5 minutes to climb as high as you can), Bread Rush, Flappy Goose and Honk Hero.
-- **Code box** in the menu: type `lol` to unlock all minigames instantly.
+- **Minigames** unlock when you finish all 33 levels: Goose Tetris, Goose Up (5 minutes to climb as high as you can), Bread Rush, Flappy Goose and Honk Hero.
+- **Code box** in the menu (type a code again to turn it off, `codes` lists the active ones):
+  - `lol`: unlock all minigames
+  - `speed`: super-fast goose
+  - `neck`: a much longer neck
+  - `money`: infinite bread for the shop
+  - `flaps`: infinite flaps
 - Progress is saved in `localStorage`.
 
 ## Physics
@@ -28,7 +33,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 ## Files
 - `index.html`: page, menus, HUD, touch controls
 - `js/physics.js`: engine and goose
-- `js/levels.js`: the 8 levels
+- `js/levels.js`: levels 1-8 by hand, levels 9-33 composed from reusable sections
 - `js/clothes.js`: boutique items and how they are drawn
 - `js/minigames.js`: the five minigames
 - `js/game.js`: rendering, input, saves, store, game flow

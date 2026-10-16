@@ -230,6 +230,12 @@
       this.wobble = opt.wobble == null ? 1 : opt.wobble;   // 1 normal; <1 floppier, >1 stiffer
       this.tremor = opt.tremor || 0;                       // random neck twitching, 0 = none
       this.noiseT = Math.random() * 100;
+      this.speed = opt.speed || 1;                         // walking speed multiplier (code: speed)
+      this.neckMul = opt.neck || 1;                        // neck length multiplier (code: neck)
+      this.seg = SEG * this.neckMul;
+      this.infFlaps = !!opt.infFlaps;                      // never runs out of flaps (code: flaps)
+      this.chaos = !!opt.chaos;                            // Spaghetti mode: haunted neck steering + random whiplash
+      this.jerkT = 1;
       this.facing = 1; this.faceBlend = 1;
       this.phase = 0; this.mv = 0;
       this.stamina = 5; this.flapCd = 0; this.flapT = 0; this.honkT = 0;
@@ -266,13 +272,13 @@
         if (i === 0) o = { m: 0.2, drag: 0.1 };
         else if (i < NECK_SEGS) o = { m: 0.05, r: 3.5, mu: 0.4, drag: 0.4, cd: 0.002, rho: 1.05 };
         else o = { m: 0.4, r: 9, mu: 0.6, drag: 0.5, cd: 0.001, rho: 0.9 };
-        this.neck.push(mk(ax, ay - i * SEG, o));
+        this.neck.push(mk(ax, ay - i * this.seg, o));
       }
-      for (let i = 0; i < NECK_SEGS; i++) world.link(this.neck[i], this.neck[i + 1], { len: SEG });
+      for (let i = 0; i < NECK_SEGS; i++) world.link(this.neck[i], this.neck[i + 1], { len: this.seg });
       // bending stiffness: soft links skipping a vertebra (compliance scales with floppiness)
       this.bend = [];
       for (let i = 0; i < NECK_SEGS - 1; i++) {
-        this.bend.push(world.link(this.neck[i], this.neck[i + 2], { len: SEG * 1.985, compliance: 0.004 / this.wobble }));
+        this.bend.push(world.link(this.neck[i], this.neck[i + 2], { len: this.seg * 1.985, compliance: 0.004 / this.wobble }));
       }
       this.mount = this.body.map((b, i) => ({
         c: world.link(b, this.neck[0], { len: Math.hypot(ax - this.bodyRest[i][0], ay - this.bodyRest[i][1]) }),
@@ -328,6 +334,21 @@
       this.move = clamp(inp.move || 0, -1, 1);
       this.glide = !!inp.glide;
       this.aim = inp.aim || null;
+      if (this.chaos) {
+        // the neck pad is haunted: your aim direction drifts around and flips
+        if (this.aim) {
+          const t = this.noiseT, a = 2.6 * Math.sin(t * 0.8) + 1.4 * Math.sin(t * 2.1 + 1), c = Math.cos(a), s = Math.sin(a);
+          this.aim = { x: this.aim.x * c - this.aim.y * s, y: this.aim.x * s + this.aim.y * c };
+        }
+        // and every so often the head is yanked somewhere at random
+        this.jerkT -= dt;
+        if (this.jerkT <= 0) {
+          this.jerkT = 0.3 + Math.random() * 0.6;
+          const a = Math.random() * Math.PI * 2, m = 200 + Math.random() * 380;
+          this.impulse(this.head, Math.cos(a) * m, Math.sin(a) * m);
+          for (let i = NECK_SEGS - 6; i < NECK_SEGS; i++) this.impulse(this.neck[i], Math.cos(a) * m * 0.5, Math.sin(a) * m * 0.5);
+        }
+      }
 
       this.grounded = this.feet.some((f) => W.time - f.groundT < 0.08) || body.some((b) => W.time - b.groundT < 0.08);
       this.swimming = body.filter((b) => b.wet > 0.3).length >= 2;
@@ -339,7 +360,7 @@
       for (const m of this.mount) m.c.len = Math.hypot(mx - m.rx, my - m.ry);
 
       this.mv += (Math.abs(this.move) - this.mv) * Math.min(1, dt * 8);
-      if (this.grounded) this.phase += dt * 2 * Math.PI * 2.4 * Math.abs(this.move);
+      if (this.grounded) this.phase += dt * 2 * Math.PI * 2.4 * Math.abs(this.move) * (1 + 0.55 * (this.speed - 1));
 
       this.padCd = (this.padCd || 0) - dt;
       if (this.padCd <= 0) {
@@ -356,11 +377,12 @@
       this.honkT = Math.max(0, this.honkT - dt);
       if (this.grounded) this.stamina = Math.min(5, this.stamina + 2.5 * dt);
       if (this.swimming) this.stamina = Math.min(5, this.stamina + 1.2 * dt);
+      if (this.infFlaps) this.stamina = 5;
       if (inp.flap && this.stamina >= 1 && this.flapCd <= 0) {
         this.stamina -= 1; this.flapCd = 0.26; this.flapT = 0.35;
         const dvy = -(520 + Math.max(0, v.y) * 0.5);
         const all = body.concat(this.hips, this.feet);
-        for (const p of all) this.impulse(p, this.move * 70, dvy);
+        for (const p of all) this.impulse(p, this.move * 70 * this.speed, dvy);
         this.impulse(this.neck[0], 0, dvy * 0.8);
         this.flapped = true;
       }
@@ -405,10 +427,10 @@
 
       // locomotion: velocity governor limited by what the feet can grip (mu * m * g)
       const mass = 4.5;
-      const vmax = this.swimming ? 130 : 300;
+      const vmax = (this.swimming ? 130 : 300) * this.speed;
       let grip = 1;
       if (this.grounded) { grip = Math.min(this.feet[0].sf, this.feet[1].sf); if (this.feet[0].cs == null) grip = 1; }
-      const cap = this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? 160 * mass : 230 * mass;
+      const cap = (this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? 160 * mass : 230 * mass) * this.speed;
       const Fd = clamp(14 * mass * (move * vmax - v.x), -cap, cap);
       if (move !== 0 || this.grounded) for (const b of body) b.fx += Fd / 4;
 
@@ -432,7 +454,7 @@
       let tx = base.x, ty = base.y, a = ang0, rx = 0, ry = 0;
       const kBase = 260 * this.wobble * boost, kTip = 11 * this.wobble * boost;
       for (let i = 1; i <= n; i++) {
-        a += bend; tx += Math.cos(a) * SEG; ty += Math.sin(a) * SEG;
+        a += bend; tx += Math.cos(a) * this.seg; ty += Math.sin(a) * this.seg;
         const t = i / n;
         const ks = kTip + kBase * (1 - t) * (1 - t) * (1 - t);
         const p = this.neck[i];

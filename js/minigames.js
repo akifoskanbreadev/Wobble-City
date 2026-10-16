@@ -14,9 +14,9 @@
   }
 
   function makeWorld(host, x, y) {
-    const P = host.Physics, d = host.wobble();
+    const P = host.Physics;
     const world = new P.World();
-    const goose = new P.Goose(world, x, y, { wobble: d.wobble, tremor: d.tremor });
+    const goose = new P.Goose(world, x, y, host.gooseOpts());
     const box = (bx, by, w, h, o) => { const s = { x: bx, y: by, w, h, vx: 0, vy: 0 }; if (o) Object.assign(s, o); world.solids.push(s); return s; };
     return { world, goose, box };
   }

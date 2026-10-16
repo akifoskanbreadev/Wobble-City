@@ -32,19 +32,29 @@
     normal: { name: 'Normal', wobble: 0.9,  tremor: 0.4, mult: 1, desc: 'Floppy, with occasional twitching.' },
     hard:   { name: 'Hard',   wobble: 0.5,  tremor: 1,   mult: 2, desc: 'Very wobbly. Double bread.' },
     insane: { name: 'Insane', wobble: 0.25, tremor: 2,   mult: 3, desc: 'A wet noodle with opinions. Triple bread.' },
+    noodle: { name: 'Spaghetti', wobble: 0.22, tremor: 9, chaos: true, mult: 5, desc: 'Almost impossible. The neck whips about and the neck pad is haunted. 5x bread.' },
   };
-  const DIFF_ORDER = ['easy', 'normal', 'hard', 'insane'];
-  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal' });
+  const DIFF_ORDER = ['easy', 'normal', 'hard', 'insane', 'noodle'];
+  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {} });
   let save = defaults();
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) save = Object.assign(defaults(), JSON.parse(raw));
   } catch (e) { /* storage unavailable: play without saving */ }
   if (!DIFFS[save.diff]) save.diff = 'normal';
+  if (!save.cheats || typeof save.cheats !== 'object') save.cheats = {};
   save.unlocked = Math.max(1, Math.min(LEVELS.length, save.unlocked | 0));
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
   const mgUnlocked = () => !!(save.mg || save.allDone);
   const diff = () => DIFFS[save.diff];
+  // secret codes (type them in the Code box; type again to turn off)
+  const CHEATS = { speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps' };
+  const rich = () => !!save.cheats.money;
+  const money = () => (rich() ? '∞' : save.bread);
+  function gooseOpts() {
+    const d = diff(), c = save.cheats;
+    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: c.speed ? 2.3 : 1, neck: c.neck ? 2.2 : 1, infFlaps: !!c.flaps };
+  }
 
   // ---------------------------------------------------------------- audio
   let actx = null;
@@ -100,7 +110,8 @@
     world = new World();
     extras = buildLevel(world, level);
     const d = diff();
-    goose = new Goose(world, level.spawn[0], level.spawn[1], { wobble: d.wobble, tremor: d.tremor });
+    goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
+    th = THEMES[level.theme] || THEMES.meadow;
     checkpoint = { x: level.spawn[0], y: level.spawn[1] };
     bread = level.bread.map((b) => ({ x: b[0], y: b[1], got: false }));
     breadGot = 0; deaths = 0; splashes = [];
@@ -192,11 +203,23 @@
     ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
   }
 
+  const THEMES = {
+    meadow: { top: '#8fd0ff', bot: '#eaf8ff', cloud: 'rgba(255,255,255,.85)', h1: '#b8e4a8', h2: '#90d380', grass: '#5fc24c', grass2: '#7ad862', d1: '#a4723f', d2: '#6b4426' },
+    desert: { top: '#ffcf8a', bot: '#fff1d0', cloud: 'rgba(255,255,255,.6)', h1: '#f0c98a', h2: '#e0b068', grass: '#d9a74e', grass2: '#ecc374', d1: '#c98f52', d2: '#8a5a30' },
+    snow:   { top: '#b9dcff', bot: '#f4fbff', cloud: 'rgba(255,255,255,.95)', h1: '#dcecf7', h2: '#c3dcee', grass: '#eaf6ff', grass2: '#ffffff', d1: '#9cc3e0', d2: '#5f8fb8' },
+    sunset: { top: '#ff8e72', bot: '#ffd9a0', cloud: 'rgba(255,230,210,.8)', h1: '#d58a8a', h2: '#b86a7a', grass: '#7fb04a', grass2: '#a0cf66', d1: '#8a5a48', d2: '#523038' },
+    night:  { top: '#0f1740', bot: '#3a4c8a', cloud: 'rgba(170,190,255,.35)', h1: '#2a3566', h2: '#1d2552', grass: '#3e9a6a', grass2: '#58bd88', d1: '#4a4668', d2: '#272540', stars: true },
+    candy:  { top: '#ffb6e1', bot: '#fff0fa', cloud: 'rgba(255,255,255,.9)', h1: '#ffc9ec', h2: '#f3a2d8', grass: '#ff7ac3', grass2: '#ff9fd6', d1: '#c46ba0', d2: '#83406a' },
+    lava:   { top: '#3a0f14', bot: '#a8321c', cloud: 'rgba(255,150,100,.3)', h1: '#6e2018', h2: '#4a1612', grass: '#d9522b', grass2: '#ff8a4d', d1: '#4a2a28', d2: '#2a1514', stars: true },
+  };
+  let th = THEMES.meadow;
+
   function drawSky(cx, cy) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#8fd0ff'); g.addColorStop(1, '#eaf8ff');
+    g.addColorStop(0, th.top); g.addColorStop(1, th.bot);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    if (th.stars) { ctx.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < 46; i++) ctx.fillRect(((i * 197 + 40) % W), ((i * 89) % (H * 0.7)), 2, 2); }
+    ctx.fillStyle = th.cloud;
     for (let i = 0; i < 7; i++) {
       const span = VW + 600;
       let wx = ((i * 520 + 100) - cx * 0.12) % span; if (wx < -300) wx += span;
@@ -208,8 +231,8 @@
       ctx.fill();
     }
     const base = (540 - cy) * S;
-    hills(0.2, '#b8e4a8', 70, 0.004, base - 40 * S);
-    hills(0.45, '#90d380', 50, 0.007, base + 10 * S);
+    hills(0.2, th.h1, 70, 0.004, base - 40 * S);
+    hills(0.45, th.h2, 50, 0.007, base + 10 * S);
   }
 
   function drawTerrain(t) {
@@ -223,15 +246,15 @@
     const bottom = Math.max(maxy + 900, camY + VH + 60);
     const ice = t.mu != null && t.mu < 0.5;
     const dg = ctx.createLinearGradient(0, miny, 0, miny + 420);
-    if (ice) { dg.addColorStop(0, '#cdeeff'); dg.addColorStop(1, '#7fb9e0'); } else { dg.addColorStop(0, '#a4723f'); dg.addColorStop(1, '#6b4426'); }
+    if (ice) { dg.addColorStop(0, '#cdeeff'); dg.addColorStop(1, '#7fb9e0'); } else { dg.addColorStop(0, th.d1); dg.addColorStop(1, th.d2); }
     ctx.fillStyle = dg;
     ctx.beginPath(); ctx.moveTo(pts[i0][0], bottom);
     for (let i = i0; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = ice ? '#eaf8ff' : '#5fc24c'; ctx.lineWidth = 12; trace(6); ctx.stroke();
-    ctx.strokeStyle = ice ? '#ffffff' : '#7ad862'; ctx.lineWidth = 5; trace(3); ctx.stroke();
+    ctx.strokeStyle = ice ? '#eaf8ff' : th.grass; ctx.lineWidth = 12; trace(6); ctx.stroke();
+    ctx.strokeStyle = ice ? '#ffffff' : th.grass2; ctx.lineWidth = 5; trace(3); ctx.stroke();
     ctx.strokeStyle = INK; ctx.lineWidth = 3; trace(0); ctx.stroke();
   }
 
@@ -254,10 +277,10 @@
       return;
     }
     const dg = ctx.createLinearGradient(0, s.y, 0, s.y + Math.min(s.h, 300));
-    dg.addColorStop(0, '#a4723f'); dg.addColorStop(1, '#6b4426');
+    dg.addColorStop(0, th.d1); dg.addColorStop(1, th.d2);
     ctx.fillStyle = dg; ctx.fillRect(s.x, s.y, s.w, s.h);
-    ctx.fillStyle = '#5fc24c'; ctx.fillRect(s.x, s.y, s.w, 12);
-    ctx.fillStyle = '#7ad862'; ctx.fillRect(s.x, s.y, s.w, 5);
+    ctx.fillStyle = th.grass; ctx.fillRect(s.x, s.y, s.w, 12);
+    ctx.fillStyle = th.grass2; ctx.fillRect(s.x, s.y, s.w, 5);
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.strokeRect(s.x, s.y, s.w, Math.min(s.h, 700));
   }
@@ -599,7 +622,7 @@
   }
 
   function refreshMenu() {
-    $('menuBread').textContent = '🍞 ' + save.bread;
+    $('menuBread').textContent = '🍞 ' + money();
     $('mgOpenBtn').textContent = (mgUnlocked() ? '🎮' : '🔒') + ' Minigames';
     $('mgOpenBtn').classList.toggle('dim', !mgUnlocked());
     DIFF_ORDER.forEach((k) => {
@@ -607,6 +630,9 @@
       if (b) b.classList.toggle('sel', k === save.diff);
     });
     $('diffDesc').textContent = diff().desc;
+    const ac = activeCodes();
+    $('menuBread').title = ac.length ? 'Codes on: ' + ac.join(', ') : '';
+    $('menuBread').textContent = '🍞 ' + money() + (ac.length ? '  ✨' + ac.length : '');
   }
 
   function buildLevelPicker() {
@@ -624,6 +650,8 @@
       });
       box.appendChild(b);
     });
+    const selBtn = box.querySelector('.sel');
+    if (selBtn) { const top = selBtn.offsetTop - box.offsetTop; if (top < box.scrollTop || top > box.scrollTop + box.clientHeight - 36) box.scrollTop = Math.max(0, top - 30); }
     $('levelTitle').textContent = LEVELS[pick].name;
   }
 
@@ -664,16 +692,21 @@
     $('codeInput').value = '';
     setTimeout(() => { try { $('codeInput').focus(); } catch (e) { /* ignore */ } }, 50);
   }
+  function activeCodes() { return Object.keys(CHEATS).filter((k) => save.cheats[k]).map((k) => CHEATS[k]); }
   function submitCode() {
     const c = $('codeInput').value.trim().toLowerCase();
     if (!c) return;
+    const msg = $('codeMsg');
     if (c === 'lol') {
-      if (save.mg) { $('codeMsg').textContent = 'Already unlocked. Go honk about it!'; snd.no(); }
-      else {
-        save.mg = true; persist(); refreshMenu(); snd.egg();
-        $('codeMsg').textContent = '🎮 Code accepted! All minigames unlocked!';
-      }
-    } else { $('codeMsg').textContent = 'Hmm, that is not a code.'; snd.no(); }
+      if (save.mg) { msg.textContent = 'Already unlocked. Go honk about it!'; snd.no(); }
+      else { save.mg = true; persist(); refreshMenu(); snd.egg(); msg.textContent = '🎮 Code accepted! All minigames unlocked!'; }
+    } else if (CHEATS[c]) {
+      save.cheats[c] = !save.cheats[c];
+      persist(); refreshMenu(); loadLevel(pick); save.cheats[c] ? snd.egg() : snd.tick();
+      msg.textContent = (save.cheats[c] ? '✅ ' + CHEATS[c] + ' ON' : '⛔ ' + CHEATS[c] + ' off') + ' (type it again to toggle)';
+    } else if (c === 'codes') {
+      msg.textContent = 'Active: ' + (activeCodes().join(', ') || 'none');
+    } else { msg.textContent = 'Hmm, that is not a code.'; snd.no(); }
     $('codeInput').value = '';
   }
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
@@ -734,7 +767,7 @@
   }
 
   function renderStore() {
-    $('storeBread').textContent = '🍞 ' + save.bread;
+    $('storeBread').textContent = '🍞 ' + money();
     const tabs = $('storeTabs');
     tabs.innerHTML = '';
     CATS.forEach((cat) => {
@@ -778,16 +811,18 @@
     if (it && !save.owned[it.id]) {
       bar.classList.remove('hidden');
       $('buyText').textContent = 'Try on: ' + it.name + ' · 🍞 ' + it.price;
-      $('buyBtn').disabled = save.bread < it.price;
-      $('buyBtn').textContent = save.bread >= it.price ? 'Buy' : 'Need ' + (it.price - save.bread) + ' more';
+      const can = rich() || save.bread >= it.price;
+      $('buyBtn').disabled = !can;
+      $('buyBtn').textContent = can ? 'Buy' : 'Need ' + (it.price - save.bread) + ' more';
     } else bar.classList.add('hidden');
   }
 
   $('buyBtn').addEventListener('click', () => {
     const it = selectedItem ? BY_ID[selectedItem] : null;
     if (!it || save.owned[it.id]) return;
-    if (save.bread < it.price) { snd.no(); return; }
-    save.bread -= it.price; save.owned[it.id] = true; save.equip[it.cat] = it.id;
+    if (!rich() && save.bread < it.price) { snd.no(); return; }
+    if (!rich()) save.bread -= it.price;
+    save.owned[it.id] = true; save.equip[it.cat] = it.id;
     delete tryOn[it.cat]; selectedItem = null; persist(); snd.buy(); refreshMenu(); renderStore();
     toast('Bought ' + it.name + '!', 1.5);
   });
@@ -838,6 +873,7 @@
     drawSky,
     roundRect: (x, y, w, h, r) => roundRect(ctx, x, y, w, h, r),
     wobble: () => diff(),
+    gooseOpts,
     toast,
     hud(o) {
       $('mgTitle').textContent = o.title || '';
@@ -869,7 +905,7 @@
     hideAll();
     mgDef = window.Minigames.list.find((m) => m.id === id);
     if (!mgDef) return;
-    state = 'mg'; acc = 0;
+    state = 'mg'; acc = 0; th = THEMES.meadow;
     setMode('std', 'mg');
     mgInst = mgDef.create(host);
   }

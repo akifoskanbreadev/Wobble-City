@@ -178,6 +178,202 @@
     });
   }
 
+  // ==================================================================================
+  // Levels 9+ are composed from sections. Each section starts at the cursor (c.x, c.y = ground height),
+  // adds geometry, and leaves the cursor on flat ground to the right. Every piece is built from a shape
+  // proven in levels 1-8, with its size turned up as the game goes on.
+  // ==================================================================================
+  const S = {};
+  const sync = (c, p) => { c.x = p.x; c.y = p.y; };
+  const cont = (c) => { if (!c.p) { c.p = path(c.x, c.y); c.lv.terrain.push({ pts: c.p.pts() }); } return c.p; };
+  const brk = (c) => { c.p = null; };
+  const low = (c, y) => { c.low = Math.max(c.low, y); };
+  const br = (c, x, y) => { c.lv.bread.push([Math.round(x), Math.round(y)]); };
+  const pit = (c, x0, w, y) => {   // thorn pit floor with its thorns
+    c.lv.solids.push([x0, y + 300, w, 500]);
+    c.lv.hazards.push([x0 + 6, y + 270, w - 12, 30]);
+    low(c, y + 800);
+  };
+
+  S.flat = (len) => (c) => { const p = cont(c), x0 = c.x; p.flat(len); sync(c, p); if (len >= 300) br(c, x0 + len / 2, c.y - 75); };
+  S.hills = (n, h) => (c) => {
+    const p = cont(c);
+    for (let i = 0; i < n; i++) {
+      const x0 = p.x + 70, w = 240 + i * 20, up = i % 2 === 0;
+      p.flat(70).bump(w, up ? h : -Math.min(45, h * 0.6));
+      br(c, x0 + w / 2, p.y - (up ? h + 60 : 90));
+    }
+    sync(c, p);
+  };
+  S.climb = (n, dy) => (c) => {
+    const p = cont(c);
+    for (let i = 0; i < n; i++) { p.flat(130).step(200, -dy); br(c, p.x - 100, p.y - 70); }
+    sync(c, p);
+  };
+  S.descend = (n, dy) => (c) => {
+    const p = cont(c);
+    for (let i = 0; i < n; i++) { p.flat(100).step(220, dy); br(c, p.x - 110, p.y - 90); }
+    sync(c, p); low(c, c.y);
+  };
+  S.pond = (len) => (c) => {
+    const p = cont(c), x0 = c.x, y = c.y;
+    p.step(150, 60).flat(len).step(150, -60);
+    c.lv.water.push([x0 + 50, y - 6, len + 200, 200]);
+    br(c, x0 + 150 + len / 2, y - 70); sync(c, p); low(c, y + 200);
+  };
+  S.stones = (n) => (c) => {
+    brk(c);
+    const x0 = c.x, y = c.y, len = 100 + n * 190, tops = [10, 35, 5, 45, 15, 50, 25, 55];
+    c.lv.solids.push([x0, y + 40, len, 600]);
+    c.lv.water.push([x0, y - 20, len, 400]);
+    for (let i = 0; i < n; i++) {
+      const top = y - tops[i % 8];
+      c.lv.solids.push([x0 + 100 + i * 190, top, 115, 24]);
+      if (i % 2 === 0) br(c, x0 + 157 + i * 190, top - 60);
+    }
+    c.x = x0 + len; low(c, y + 640);
+  };
+  S.gap = (n, gw) => (c) => {
+    brk(c);
+    const x0 = c.x, y = c.y, W = gw * (n + 1) + 110 * n, tops = [0, 30, 10, 40, 0, 25];
+    pit(c, x0, W, y);
+    for (let i = 0; i < n; i++) {
+      const px = x0 + gw * (i + 1) + 110 * i, top = y - tops[i % 6];
+      c.lv.solids.push([px, top, 110, 22]);
+      br(c, px + 55, top - 70);
+      if (n >= 5 && i === Math.floor(n / 2)) c.lv.checkpoints.push([px + 40, top - 45]);   // halfway checkpoint on long gaps
+    }
+    c.x = x0 + W;
+  };
+  S.movers = (n, fast) => (c) => {
+    brk(c);
+    const x0 = c.x, y = c.y, W = 120 + n * 370 + 60;
+    pit(c, x0, W, y);
+    const pat = [[80, 0, 4.5, 0], [0, 55, 3.6, 0.25], [90, 0, 5, 0.5], [0, 60, 4.2, 0]];
+    for (let i = 0; i < n; i++) {
+      const q = pat[i % 4], mx = x0 + 120 + i * 370, my = y - 10 - (i % 2) * 60;
+      c.lv.movers.push({ x: mx, y: my, w: 160, h: 24, ax: q[0], ay: q[1], per: q[2] * (fast ? 0.8 : 1), ph: q[3] });
+      br(c, mx + 80, my - 80);
+    }
+    c.x = x0 + W;
+  };
+  S.ice = (len, pitW) => (c) => {
+    brk(c);
+    const p = path(c.x, c.y);
+    c.lv.terrain.push({ pts: p.pts(), mu: 0.06 });
+    const x0 = c.x; p.flat(len); c.x = p.x;
+    br(c, x0 + len * 0.35, c.y - 70); br(c, x0 + len * 0.75, c.y - 70);
+    if (pitW) { pit(c, c.x, pitW, c.y); c.x += pitW; c.y += 40; }
+    brk(c);
+  };
+  S.gorge = () => (c) => {    // level 3's pad gorge, as a section
+    brk(c);
+    const x0 = c.x, y = c.y;
+    c.lv.solids.push([x0, y + 300, 1500, 400], [x0 + 440, y - 230, 220, 800], [x0 + 1100, y - 150, 200, 800]);
+    c.lv.pads.push([x0 + 120, y + 286, 200], [x0 + 780, y + 286, 200]);
+    for (const [hx, hw] of [[10, 110], [320, 120], [660, 120], [980, 120], [1300, 200]]) c.lv.hazards.push([x0 + hx, y + 270, hw, 30]);
+    br(c, x0 + 200, y + 100); br(c, x0 + 550, y - 300); br(c, x0 + 880, y - 60); br(c, x0 + 1200, y - 230);
+    c.lv.checkpoints.push([x0 + 460, y - 275], [x0 + 1120, y - 195]);   // one on each ledge, like level 3
+    c.x = x0 + 1500; c.y = y - 20; low(c, y + 700);
+  };
+  S.bounceUp = (h) => (c) => {
+    const p = cont(c), x0 = c.x, y = c.y;
+    p.flat(380);
+    c.lv.pads.push([x0 + 60, y - 14, 200]);
+    c.lv.solids.push([x0 + 380, y - h, 320, h + 500]);
+    br(c, x0 + 160, y - 200); br(c, x0 + 540, y - h - 60);
+    c.x = x0 + 700; c.y = y - h; brk(c);
+  };
+  S.drop = (h) => (c) => {
+    brk(c);
+    br(c, c.x + 40, c.y + h / 2);
+    c.y += h; low(c, c.y);
+  };
+  S.walls = (n, h) => (c) => {
+    const p = cont(c);
+    for (let i = 0; i < n; i++) {
+      p.flat(200);
+      c.lv.solids.push([p.x, p.y - h, 70, h]);
+      br(c, p.x + 35, p.y - h - 70);
+      p.flat(70);
+    }
+    sync(c, p);
+  };
+  // Final sections: they place the egg themselves.
+  S.tower = (k) => (c) => {
+    const p = cont(c); p.flat(150); sync(c, p);
+    const dx = c.x - 300, dy = c.y - G, lv = c.lv;
+    const L = [[250, 42, 70, 42, 0], [320, 90, 170, 28], [160, 190, 150, 28], [330, 290, 160, 28], [520, 390, 150, 28],
+      [330, 490, 150, 28], [140, 590, 160, 28], [330, 690, 160, 28], [540, 780, 420, 28]];
+    lv.wp = [];
+    const n = Math.min(8, k);
+    lv.solids.push([250 + dx, G - 42 + dy, 70, 42]);
+    for (let i = 1; i <= n; i++) {
+      const [lx, up, w, h] = L[i];
+      let x = lx, ww = w;
+      if (i === n && n < 8) {   // widen the top ledge AWAY from the one below it, so there is room to hop up from the side
+        const prevMid = L[i - 1][0] + L[i - 1][2] / 2;
+        if (prevMid < lx + w / 2) ww = w + 260; else { x = lx - 260; ww = w + 260; }
+      }
+      lv.solids.push([x + dx, G - up + dy, ww, h]);
+      lv.wp.push([lx + w / 2 + dx, G - up + dy]);
+      if (i < n || n === 8) br(c, lx + w / 2 + dx, G - up + dy - 50);
+      if (i % 3 === 1 && i < n) lv.checkpoints.push([lx + w / 2 + dx - 30, G - up + dy - 45]);
+      if (i === n) lv.egg = n === 8 ? [880 + dx, G - 810 + dy] : [(x === lx ? lx + w + 150 : lx - 150) + dx, G - up + dy - 30];
+    }
+    c.x += 800; low(c, c.y + 400);
+  };
+  S.tunnel = () => (c) => {
+    const p = cont(c); p.flat(520); sync(c, p);
+    const x0 = c.x, y = c.y;
+    c.lv.solids.push([x0, y - 452, 300, 400], [x0 + 240, y - 452, 60, 452]);
+    p.flat(300); sync(c, p);
+    c.lv.egg = [x0 + 75, y - 24]; c.lv.tunnel = true;
+  };
+
+  function compose(name, hint, theme, secs) {
+    const lv = { name, hint, theme, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null };
+    const c = { x: -400, y: G, p: null, low: G, lv };
+    S.flat(700)(c);
+    secs.forEach((f, i) => {
+      f(c);
+      if (lv.egg) return;
+      if (i < secs.length - 1) { S.flat(170)(c); lv.checkpoints.push([c.x - 70, c.y - 45]); }
+    });
+    if (!lv.egg) { S.flat(260)(c); lv.egg = [c.x - 120, c.y - 28]; }
+    lv.deathY = c.low + 650;
+    return lv;
+  }
+
+  const D = (name, hint, theme, secs) => LEVELS.push(compose(name, hint, theme, secs));
+  const s = S;
+  D('Sunny Side Up', 'A gentle start: hills, a pond, more hills.', 'meadow', [s.hills(3, 60), s.pond(300), s.hills(2, 80)]);
+  D('Hay Bale Hurdles', 'Flap over the walls, then hop the stones.', 'meadow', [s.walls(3, 90), s.hills(2, 70), s.stones(4)]);
+  D('Pad Parade', 'Red pads launch you skyward. Aim for the ledge.', 'meadow', [s.bounceUp(220), s.hills(2, 70), s.bounceUp(260), s.hills(1, 60)]);
+  D('Duck Pond Derby', 'So much water. Flap out when you need to.', 'meadow', [s.pond(500), s.stones(6), s.pond(300)]);
+  D('Dune Run', 'Climb the dunes and slide down the other side.', 'desert', [s.hills(4, 90), s.climb(3, 70), s.descend(3, 70)]);
+  D('Cactus Gap', 'Thorn pits with little platforms. Do not look down.', 'desert', [s.gap(3, 80), s.hills(2, 60), s.gap(4, 110)]);
+  D('Oasis Hop', 'Stones, walls and a long swim.', 'desert', [s.stones(8), s.walls(3, 110), s.pond(400)]);
+  D('Pyramid Pass', 'Up the sandy steps, over the edge, then the tall climb.', 'desert', [s.climb(5, 80), s.drop(200), s.tower(5)]);
+  D('Frosty Start', 'Ice! Plan your braking before the thorns.', 'snow', [s.ice(500), s.hills(2, 60), s.ice(500, 260)]);
+  D('Snowdrift Shuffle', 'Walls, then a long slide, then a thorny gap.', 'snow', [s.walls(4, 100), s.ice(600), s.gap(3, 100)]);
+  D('Glacier Gap', 'Slide, hop the moving floes, slide again.', 'snow', [s.ice(400, 300), s.movers(3), s.ice(450, 320)]);
+  D('Icicle Climb', 'Bounce up, slide along, then climb the ice tower.', 'snow', [s.bounceUp(300), s.ice(500), s.tower(6)]);
+  D('Blizzard Bridge', 'Long thorn gaps with a skating rink in the middle.', 'snow', [s.gap(5, 130), s.ice(700, 340), s.gap(4, 150)]);
+  D('Sunset Strip', 'Big hills, a pond and tall walls.', 'sunset', [s.hills(5, 100), s.pond(400), s.walls(3, 110), s.hills(3, 90)]);
+  D('Canyon Crossing', 'The gorge again, then moving platforms.', 'sunset', [s.gorge(), s.hills(2, 80), s.movers(3)]);
+  D('Red Rock Rise', 'Climb, bounce to the high ledge, drop down, hurdle walls.', 'sunset', [s.climb(4, 85), s.bounceUp(380), s.drop(250), s.walls(3, 120)]);
+  D('Twilight Tumble', 'Faster platforms, wider gaps, and the gorge to finish.', 'sunset', [s.movers(4, true), s.gap(5, 140), s.gorge()]);
+  D('Moonlit Meadow', 'A long night walk with everything in it.', 'night', [s.hills(4, 100), s.stones(7), s.walls(4, 120), s.pond(500)]);
+  D('Spooky Spires', 'Launch, hurdle, ride the platforms, then climb the spire.', 'night', [s.bounceUp(420), s.walls(3, 120), s.movers(3, true), s.tower(7)]);
+  D('Starfall Slide', 'Two huge ice slides with thorn gaps between.', 'night', [s.ice(600, 300), s.gap(6, 140), s.ice(700, 360), s.hills(2, 80)]);
+  D('Midnight Tunnel', 'Gaps, then a tunnel too low to walk into. Use the NECK pad.', 'night', [s.hills(3, 80), s.gap(4, 130), s.tunnel()]);
+  D('Candy Climb', 'Sticky sweet steps and a very tall tower.', 'candy', [s.climb(5, 90), s.walls(4, 120), s.tower(8)]);
+  D('Sugar Rush', 'Fast platforms, a slippery slide, the gorge and a gap.', 'candy', [s.movers(4, true), s.ice(700, 340), s.gorge(), s.gap(5, 150)]);
+  D('Lava Leap', 'Do NOT fall. Long gaps, fast platforms, tall walls.', 'lava', [s.gap(6, 160), s.movers(5, true), s.walls(4, 120), s.gorge()]);
+  D('The Final Honk', 'Everything. All of it. Then the tallest tower of all.', 'lava',
+    [s.hills(4, 100), s.pond(500), s.ice(600, 320), s.gorge(), s.movers(4, true), s.climb(4, 85), s.walls(3, 120), s.tower(8)]);
+
   if (typeof module !== 'undefined' && module.exports) module.exports = LEVELS;
   else root.Levels = LEVELS;
 })(typeof window !== 'undefined' ? window : globalThis);
