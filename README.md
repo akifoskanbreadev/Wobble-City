@@ -16,12 +16,15 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Menu button** (☰) in every game brings you back to the main menu.
 - **Bread** is the currency. Collect it in levels and spend it in the **Goose Boutique** (27 hats, glasses, neckwear, capes and shoes).
 - **Minigames** unlock when you finish all 33 levels: Goose Tetris, Goose Up (5 minutes to climb as high as you can), Bread Rush, Flappy Goose and Honk Hero.
-- **Code box** in the menu (type a code again to turn it off, `codes` lists the active ones):
+- **Code box** in the menu (type a code again to turn it off):
   - `lol`: unlock all minigames
   - `speed`: super-fast goose
   - `neck`: a much longer neck
   - `money`: infinite bread for the shop
   - `flaps`: infinite flaps
+  - `levels`: every level available
+  - `admin`: turns on every code at once and adds admin tools (god mode, +1000 bread, own every item, and a ⏭ button / N key that wins the current level)
+  - The **Active codes** button lists what's on, with a red ✕ next to each to remove it
 - Progress is saved in `localStorage`.
 
 ## Physics

@@ -45,15 +45,21 @@
   if (!save.cheats || typeof save.cheats !== 'object') save.cheats = {};
   save.unlocked = Math.max(1, Math.min(LEVELS.length, save.unlocked | 0));
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
-  const mgUnlocked = () => !!(save.mg || save.allDone);
+  if (save.mg) { save.cheats.lol = true; save.mg = false; }   // older saves: the minigame code is now a normal, removable code
+  const mgUnlocked = () => !!(has('lol') || save.allDone);
   const diff = () => DIFFS[save.diff];
   // secret codes (type them in the Code box; type again to turn off)
-  const CHEATS = { speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps' };
-  const rich = () => !!save.cheats.money;
+  const CHEATS = {
+    lol: 'All minigames', levels: 'All levels', speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps',
+    admin: 'Everything + admin tools',
+  };
+  const has = (k) => !!(save.cheats[k] || save.cheats.admin);   // admin switches on every code
+  const levelOpen = (i) => has('levels') || i < save.unlocked;
+  const rich = () => has('money');
   const money = () => (rich() ? '∞' : save.bread);
   function gooseOpts() {
-    const d = diff(), c = save.cheats;
-    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: c.speed ? 2.3 : 1, neck: c.neck ? 2.2 : 1, infFlaps: !!c.flaps };
+    const d = diff();
+    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: has('neck') ? 2.2 : 1, infFlaps: has('flaps') };
   }
 
   // ---------------------------------------------------------------- audio
@@ -157,7 +163,7 @@
       }
     }
     if (c.y > level.deathY) { snd.splash(); deaths++; respawn(); toast('Whoops. Back to the last checkpoint.', 2); }
-    else if (touchesHazard(goose, level.hazards)) { snd.ouch(); deaths++; respawn(); toast('Ouch! Thorns.', 1.6); }
+    else if (!(save.cheats.admin && save.cheats.god) && touchesHazard(goose, level.hazards)) { snd.ouch(); deaths++; respawn(); toast('Ouch! Thorns.', 1.6); }
 
     for (const b of bread) {
       if (b.got) continue;
@@ -581,6 +587,7 @@
     } else if (e.code === 'KeyH' || e.code === 'KeyE') { if (!e.repeat) input.honkQueue = true; }
     else if (e.code === 'KeyR') { if (state === 'play') respawn(); }
     else if (e.code === 'KeyT') { if (state === 'play') $('btnSlow').click(); }
+    else if (e.code === 'KeyN') { if (state === 'play' && save.cheats.admin) finishLevel(); }
     else if (e.code === 'Escape') { if (state === 'play' || state === 'mg') showMenu(); }
   });
   window.addEventListener('keyup', (e) => {
@@ -623,6 +630,7 @@
 
   function refreshMenu() {
     $('menuBread').textContent = '🍞 ' + money();
+    $('btnWin').classList.toggle('hidden', !save.cheats.admin);
     $('mgOpenBtn').textContent = (mgUnlocked() ? '🎮' : '🔒') + ' Minigames';
     $('mgOpenBtn').classList.toggle('dim', !mgUnlocked());
     DIFF_ORDER.forEach((k) => {
@@ -642,10 +650,10 @@
       const b = document.createElement('button');
       b.textContent = i + 1;
       b.title = lv.name;
-      if (i >= save.unlocked) b.classList.add('locked');
+      if (!levelOpen(i)) b.classList.add('locked');
       if (i === pick) b.classList.add('sel');
       b.addEventListener('click', () => {
-        if (i < save.unlocked) { pick = i; buildLevelPicker(); if (state === 'title') loadLevel(i); }
+        if (levelOpen(i)) { pick = i; buildLevelPicker(); if (state === 'title') loadLevel(i); }
         else toast('Finish level ' + i + ' first.', 1.6);
       });
       box.appendChild(b);
@@ -688,27 +696,54 @@
   // ---------------------------------------------------------------- code box
   function openCode() {
     $('codeModal').classList.remove('hidden');
-    $('codeMsg').textContent = '';
+    say('');
     $('codeInput').value = '';
+    $('codeList').classList.add('hidden'); $('codeShow').textContent = 'Active codes'; renderCodes();
     setTimeout(() => { try { $('codeInput').focus(); } catch (e) { /* ignore */ } }, 50);
   }
   function activeCodes() { return Object.keys(CHEATS).filter((k) => save.cheats[k]).map((k) => CHEATS[k]); }
-  function submitCode() {
-    const c = $('codeInput').value.trim().toLowerCase();
-    if (!c) return;
-    const msg = $('codeMsg');
-    if (c === 'lol') {
-      if (save.mg) { msg.textContent = 'Already unlocked. Go honk about it!'; snd.no(); }
-      else { save.mg = true; persist(); refreshMenu(); snd.egg(); msg.textContent = '🎮 Code accepted! All minigames unlocked!'; }
-    } else if (CHEATS[c]) {
-      save.cheats[c] = !save.cheats[c];
-      persist(); refreshMenu(); loadLevel(pick); save.cheats[c] ? snd.egg() : snd.tick();
-      msg.textContent = (save.cheats[c] ? '✅ ' + CHEATS[c] + ' ON' : '⛔ ' + CHEATS[c] + ' off') + ' (type it again to toggle)';
-    } else if (c === 'codes') {
-      msg.textContent = 'Active: ' + (activeCodes().join(', ') || 'none');
-    } else { msg.textContent = 'Hmm, that is not a code.'; snd.no(); }
-    $('codeInput').value = '';
+  function say(text, good) { const m = $('codeMsg'); m.textContent = text; m.className = good === undefined ? '' : good ? 'ok' : 'bad'; }
+  function renderCodes() {
+    const list = $('codeList'), on = Object.keys(CHEATS).filter((k) => save.cheats[k]);
+    list.innerHTML = '';
+    if (!on.length) { const n = document.createElement('div'); n.className = 'none'; n.textContent = 'No active codes'; list.appendChild(n); }
+    on.forEach((k) => {
+      const r = document.createElement('div'); r.className = 'crow';
+      const nm = document.createElement('span'); nm.innerHTML = '<b></b> <small></small>';
+      nm.firstChild.textContent = k; nm.lastChild.textContent = CHEATS[k];
+      const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Remove ' + k;
+      x.addEventListener('click', () => removeCode(k));
+      r.append(nm, x); list.appendChild(r);
+    });
+    $('adminPanel').classList.toggle('hidden', !save.cheats.admin);
+    $('admGod').classList.toggle('on', !!save.cheats.god);
   }
+  function applyCodes() { persist(); refreshMenu(); buildLevelPicker(); if (state === 'title') loadLevel(pick); renderCodes(); }
+  function removeCode(k) {
+    delete save.cheats[k];
+    if (k === 'admin') delete save.cheats.god;
+    snd.tick(); applyCodes();
+    say('⛔ ' + k + ' removed', true);
+  }
+  function submitCode() {
+    const inp = $('codeInput'), c = inp.value.trim().toLowerCase();
+    if (!c) return;
+    if (CHEATS[c]) {
+      const turnOn = !save.cheats[c];
+      if (turnOn) save.cheats[c] = true; else { delete save.cheats[c]; if (c === 'admin') delete save.cheats.god; }
+      applyCodes(); turnOn ? snd.egg() : snd.tick();
+      say(turnOn ? '✅ ' + c + ': ' + CHEATS[c] + ' ON' : '⛔ ' + c + ' removed', true);
+      $('codeList').classList.remove('hidden');
+    } else if (c === 'codes') {
+      renderCodes(); $('codeList').classList.remove('hidden'); say(activeCodes().length ? 'Your active codes:' : 'You have no active codes yet.');
+    } else { say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
+    inp.value = '';
+  }
+  $('codeShow').addEventListener('click', () => { const l = $('codeList'); const show = l.classList.contains('hidden'); l.classList.toggle('hidden', !show); renderCodes(); $('codeShow').textContent = show ? 'Hide codes' : 'Active codes'; });
+  $('admGod').addEventListener('click', () => { save.cheats.god = !save.cheats.god; persist(); renderCodes(); say(save.cheats.god ? '🛡 God mode ON' : 'God mode off', true); });
+  $('admBread').addEventListener('click', () => { save.bread += 1000; persist(); refreshMenu(); say('+1000 🍞', true); snd.bread(); });
+  $('admItems').addEventListener('click', () => { for (const it of ITEMS) save.owned[it.id] = true; persist(); say('You own every item!', true); snd.buy(); });
+  $('btnWin').addEventListener('click', () => { if (state === 'play' && save.cheats.admin) finishLevel(); });
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
   $('codeGo').addEventListener('click', submitCode);
   $('codeClose').addEventListener('click', () => $('codeModal').classList.add('hidden'));
