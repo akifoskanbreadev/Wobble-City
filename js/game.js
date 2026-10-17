@@ -11,6 +11,7 @@
   const LEVELS = window.Levels;
   const { World, Goose, buildLevel, touchesHazard, NECK_SEGS } = window.Physics;
   const { ITEMS, CATS, BY_ID } = window.Clothes;
+  const SKINS = window.Skins;
 
   // ---------------------------------------------------------------- viewport
   let W = 0, H = 0, DPR = 1, S = 1, VW = 0, VH = 0;
@@ -35,7 +36,7 @@
     noodle: { name: 'Spaghetti', wobble: 0.22, tremor: 9, chaos: true, mult: 5, desc: 'Almost impossible. The neck whips about and the neck pad is haunted. 5x bread.' },
   };
   const DIFF_ORDER = ['easy', 'normal', 'hard', 'insane', 'noodle'];
-  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {} });
+  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {}, skin: 'goose', skins: { goose: true } });
   let save = defaults();
   try {
     const raw = localStorage.getItem(KEY);
@@ -43,6 +44,9 @@
   } catch (e) { /* storage unavailable: play without saving */ }
   if (!DIFFS[save.diff]) save.diff = 'normal';
   if (!save.cheats || typeof save.cheats !== 'object') save.cheats = {};
+  if (!SKINS.BY_ID[save.skin]) save.skin = 'goose';
+  if (!save.skins || typeof save.skins !== 'object') save.skins = {};
+  save.skins.goose = true;
   save.unlocked = Math.max(1, Math.min(LEVELS.length, save.unlocked | 0));
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
   if (save.mg) { save.cheats.lol = true; save.mg = false; }   // older saves: the minigame code is now a normal, removable code
@@ -59,7 +63,7 @@
   const money = () => (rich() ? '∞' : save.bread);
   function gooseOpts() {
     const d = diff();
-    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: has('neck') ? 2.2 : 1, infFlaps: has('flaps') };
+    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps') };
   }
 
   // ---------------------------------------------------------------- audio
@@ -341,7 +345,7 @@
     ctx.beginPath(); ctx.ellipse(-4, -6, 3, 6, 0.4, 0, 7); ctx.fill();
     ctx.restore();
 
-    drawGoose(ctx, goose, save.equip);
+    drawGoose(ctx, goose, save.equip, save.skin);
     if (honkText > 0) {
       const h = goose.head, f = goose.facing, t = 1 - honkText / 0.7;
       ctx.save();
@@ -376,28 +380,32 @@
     ctx.restore();
   }
 
-  // The goose. `cx` is any 2D context, `g` any object with the Goose drawing interface (so the store preview can fake one).
-  function drawGoose(cx, g, equip) {
+  // The goose. `cx` is any 2D context, `g` any object with the Goose drawing interface (so the store preview and
+  // remote players can fake one), `equip` the worn clothes and `skin` a skin id (or object).
+  function drawGoose(cx, g, equip, skin) {
     equip = equip || {};
+    const sk = typeof skin === 'object' && skin ? skin : (SKINS.BY_ID[skin] || SKINS.BY_ID.goose);
     const c = g.center(), A = g.axes();
     const ang = Math.atan2(A.uy, A.ux), f = g.facing, n = g.neck, nN = n.length;
     const it = (cat) => (equip[cat] ? BY_ID[equip[cat]] : null);
+    const bodyC = sk.body || '#ffffff';
     cx.lineCap = 'round'; cx.lineJoin = 'round';
 
     const bodyItem = it('body');
     if (bodyItem && bodyItem.back) { cx.save(); cx.translate(c.x, c.y); cx.rotate(ang); cx.scale(f, 1); bodyItem.draw(cx); cx.restore(); }
 
     // legs and feet
-    const shoes = it('shoes');
+    const shoes = it('shoes'), lw = sk.legW || 1;
     for (let i = 0; i < 2; i++) {
       const hip = g.hips[i], ft = g.feet[i];
-      cx.strokeStyle = INK; cx.lineWidth = 8.5;
+      cx.strokeStyle = INK; cx.lineWidth = 8.5 * lw;
       cx.beginPath(); cx.moveTo(hip.x, hip.y); cx.lineTo(ft.x, ft.y); cx.stroke();
-      cx.strokeStyle = '#ff9b2f'; cx.lineWidth = 5;
+      cx.strokeStyle = sk.legC || '#ff9b2f'; cx.lineWidth = 5 * lw;
       cx.beginPath(); cx.moveTo(hip.x, hip.y); cx.lineTo(ft.x, ft.y); cx.stroke();
       cx.save(); cx.translate(ft.x, ft.y); cx.scale(f, 1);
       if (shoes) shoes.draw(cx);
-      else { cx.fillStyle = '#ff9b2f'; cx.strokeStyle = INK; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(4, 2, 11, 4.5, 0, 0, 7); cx.fill(); cx.stroke(); }
+      else if (sk.foot) sk.foot(cx);
+      else { cx.fillStyle = sk.legC || '#ff9b2f'; cx.strokeStyle = INK; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(4, 2, 11, 4.5, 0, 0, 7); cx.fill(); cx.stroke(); }
       cx.restore();
     }
 
@@ -407,20 +415,26 @@
       for (let i = 1; i < nN - 1; i++) cx.quadraticCurveTo(n[i].x, n[i].y, (n[i].x + n[i + 1].x) / 2, (n[i].y + n[i + 1].y) / 2);
       cx.lineTo(n[nN - 1].x, n[nN - 1].y);
     };
-    cx.strokeStyle = INK; cx.lineWidth = 15; path(); cx.stroke();
-    cx.strokeStyle = '#ffffff'; cx.lineWidth = 10.5; path(); cx.stroke();
+    const nw = sk.neckW || 1;
+    cx.strokeStyle = INK; cx.lineWidth = 15 * nw; path(); cx.stroke();
+    cx.strokeStyle = sk.neckC || '#ffffff'; cx.lineWidth = 10.5 * nw; path(); cx.stroke();
+    if (sk.neckDeco) { cx.save(); sk.neckDeco(cx, n, nN); cx.restore(); }
 
     // body, tail, wing
     cx.save();
     cx.translate(c.x, c.y); cx.rotate(ang); cx.scale(f, 1);
-    cx.fillStyle = '#ffffff'; cx.strokeStyle = INK; cx.lineWidth = 3;
-    cx.beginPath(); cx.moveTo(-30, -8); cx.lineTo(-52, -20); cx.lineTo(-36, 6); cx.closePath(); cx.fill(); cx.stroke();
-    cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.fill(); cx.stroke();
+    cx.fillStyle = bodyC; cx.strokeStyle = INK; cx.lineWidth = 3;
+    if (sk.tail) { cx.save(); sk.tail(cx); cx.restore(); }
+    else { cx.beginPath(); cx.moveTo(-30, -8); cx.lineTo(-52, -20); cx.lineTo(-36, 6); cx.closePath(); cx.fill(); cx.stroke(); }
+    cx.fillStyle = bodyC; cx.strokeStyle = INK; cx.lineWidth = 3;
+    cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.fill();
+    if (sk.bodyDeco) { cx.save(); cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.clip(); sk.bodyDeco(cx); cx.restore(); }
+    cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.stroke();
     if (bodyItem && !bodyItem.back) bodyItem.draw(cx);
     const fp = g.flapT > 0 ? Math.sin((0.35 - g.flapT) * 36) : 0;
     cx.save();
     cx.translate(-4, -2); cx.rotate(-0.15 - fp * 0.9);
-    cx.fillStyle = '#e4edf5'; cx.strokeStyle = INK; cx.lineWidth = 3;
+    cx.fillStyle = sk.wing || '#e4edf5'; cx.strokeStyle = INK; cx.lineWidth = 3;
     cx.beginPath(); cx.ellipse(-8, 0, 20 + Math.abs(fp) * 6, 10, 0, 0, 7); cx.fill(); cx.stroke();
     cx.restore();
     cx.restore();
@@ -442,15 +456,22 @@
     const open = g.honkT > 0 ? 5 + Math.sin(g.honkT * 40) * 2 : 0;
     cx.save();
     cx.translate(h.x, h.y); cx.rotate(Math.atan2(by, bx)); cx.scale(1, f);
+    if (sk.headBack) { cx.save(); sk.headBack(cx); cx.restore(); }
     cx.fillStyle = '#ff9b2f'; cx.strokeStyle = INK; cx.lineWidth = 3;
-    cx.beginPath(); cx.moveTo(4, -5); cx.lineTo(26, -open * 0.3); cx.lineTo(4, 0); cx.closePath(); cx.fill(); cx.stroke();
-    cx.beginPath(); cx.moveTo(4, 0); cx.lineTo(24, 1 + open); cx.lineTo(4, 5 + open * 0.5); cx.closePath(); cx.fill(); cx.stroke();
-    cx.fillStyle = '#ffffff';
-    cx.beginPath(); cx.arc(0, 0, 10, 0, 7); cx.fill(); cx.stroke();
-    cx.fillStyle = INK; cx.beginPath(); cx.arc(3, -3, 2.8, 0, 7); cx.fill();
-    cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(3.9, -3.9, 0.9, 0, 7); cx.fill();
+    if (sk.head) sk.head(cx, open, sk);
+    else {
+      cx.beginPath(); cx.moveTo(4, -5); cx.lineTo(26, -open * 0.3); cx.lineTo(4, 0); cx.closePath(); cx.fill(); cx.stroke();
+      cx.beginPath(); cx.moveTo(4, 0); cx.lineTo(24, 1 + open); cx.lineTo(4, 5 + open * 0.5); cx.closePath(); cx.fill(); cx.stroke();
+      cx.fillStyle = sk.headC || '#ffffff';
+      cx.beginPath(); cx.arc(0, 0, 10, 0, 7); cx.fill(); cx.stroke();
+    }
+    const eo = sk.eye || {}, ex = eo.x == null ? 3 : eo.x, ey = eo.y == null ? -3 : eo.y, er = eo.r || 2.8;
+    if (eo.bg) { cx.fillStyle = eo.bg; cx.strokeStyle = INK; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(ex, ey, er * 1.7, 0, 7); cx.fill(); cx.stroke(); }
+    cx.fillStyle = INK; cx.beginPath(); cx.arc(ex, ey, er, 0, 7); cx.fill();
+    cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ex + 0.9, ey - 0.9, er * 0.32, 0, 7); cx.fill();
     const eyes = it('eyes'), hat = it('hat');
-    if (eyes) { cx.save(); cx.translate(3, -3); eyes.draw(cx); cx.restore(); }
+    if (sk.headDeco) { cx.save(); sk.headDeco(cx); cx.restore(); }
+    if (eyes) { cx.save(); cx.translate(ex, ey); eyes.draw(cx); cx.restore(); }
     if (hat) { cx.save(); hat.draw(cx); cx.restore(); }
     cx.restore();
   }
@@ -765,7 +786,7 @@
     sctx.fillStyle = 'rgba(0,0,0,.12)'; sctx.beginPath(); sctx.ellipse(120, 262, 70, 9, 0, 0, 7); sctx.fill();
     sctx.save();
     sctx.translate(112, 220); sctx.scale(1.55, 1.55);
-    drawGoose(sctx, fakeGoose(clock), currentLook());
+    drawGoose(sctx, fakeGoose(clock), currentLook(), save.skin);
     sctx.restore();
   }
 
@@ -898,7 +919,7 @@
     get W() { return W; }, get H() { return H; }, get S() { return S; }, get DPR() { return DPR; },
     input, keys, snd, tone, INK, Physics: window.Physics,
     clock: () => clock,
-    drawGoose: (g) => drawGoose(ctx, g, save.equip),
+    drawGoose: (g, equip, skin) => drawGoose(ctx, g, equip || save.equip, skin || save.skin),
     readInput() {
       const move = (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
       const flap = input.flapQueue, honk = input.honkQueue;
@@ -971,6 +992,6 @@
   window.__wobble = {
     get goose() { return goose; }, get state() { return state; }, get save() { return save; }, input, host,
     startLevel, showMenu, openStore, openMgMenu, startMinigame, openCode, persist,
-    get inst() { return mgInst; }, get level() { return level; },
+    get inst() { return mgInst; }, get level() { return level; }, drawGoose, fakeGoose, SKINS,
   };
 })();
