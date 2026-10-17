@@ -819,7 +819,10 @@
   function submitCode() {
     const inp = $('codeInput'), c = inp.value.trim().toLowerCase();
     if (!c) return;
-    if (GIFTS[c]) {
+    if (c === 'akif') {
+      const all = Object.keys(CHEATS).map((k) => k + ' = ' + CHEATS[k]).concat(Object.keys(GIFTS).map((k) => k + ' = ' + GIFTS[k] + ' (one-time)'), ['codes = show your active codes', 'akif = this list']);
+      say('All codes:\n' + all.join('\n'), true); snd.egg();
+    } else if (GIFTS[c]) {
       if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true;
       if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true;
       if (c === 'bread') save.bread += 500;

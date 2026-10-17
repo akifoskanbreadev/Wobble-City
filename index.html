@@ -133,7 +133,7 @@
   #toast.show { opacity: 1; }
   #codeModal { z-index: 8; background: rgba(31,42,54,.55); }
   #codeInput { font: inherit; font-weight: 800; font-size: 22px; text-align: center; letter-spacing: .12em; width: 100%; padding: 8px; border-radius: 12px; border: 3px solid var(--ink); background: #fff; color: var(--ink); user-select: text; -webkit-user-select: text; }
-  #codeMsg { min-height: 22px; font-weight: 700; margin: 8px 0 0; transition: color .2s; }
+  #codeMsg { white-space: pre-line; max-height: 40vh; overflow-y: auto; min-height: 22px; font-weight: 700; margin: 8px 0 0; transition: color .2s; }
   #codeMsg.ok { color: #1f8a3b; } #codeMsg.bad { color: #c62835; }
   #codeInput.shake { animation: shake .3s; }
   @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
