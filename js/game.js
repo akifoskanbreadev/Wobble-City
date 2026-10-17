@@ -12,6 +12,7 @@
   const { World, Goose, buildLevel, touchesHazard, NECK_SEGS } = window.Physics;
   const { ITEMS, CATS, BY_ID } = window.Clothes;
   const SKINS = window.Skins;
+  const ENEMIES = window.Enemies;
 
   // ---------------------------------------------------------------- viewport
   let W = 0, H = 0, DPR = 1, S = 1, VW = 0, VH = 0;
@@ -37,7 +38,7 @@
     noodle: { name: 'Spaghetti', wobble: 0.22, tremor: 9, chaos: true, mult: 5, desc: 'Almost impossible. The neck whips about and the neck pad is haunted. 5x bread.' },
   };
   const DIFF_ORDER = ['easy', 'normal', 'hard', 'insane', 'noodle'];
-  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {}, skin: 'goose', skins: { goose: true } });
+  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {}, skin: 'goose', skins: { goose: true }, enemies: true, stomps: 0 });
   let save = defaults();
   try {
     const raw = localStorage.getItem(KEY);
@@ -120,12 +121,13 @@
     el.textContent = msg; el.classList.add('show'); toastT = secs || 3;
   }
 
-  let trailP = [];
+  let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0;
   function loadLevel(i) {
     levelIdx = i; level = LEVELS[i];
     world = new World();
     world.gscale = has('moon') ? 0.4 : 1;
     trailP = [];
+    enemies = (save.enemies !== false) ? ENEMIES.generate(level, i, save.diff) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
     extras = buildLevel(world, level);
     const d = diff();
     goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
@@ -181,6 +183,29 @@
       ctx.restore();
     }
   }
+  function enemyTick() {
+    const c = goose.center(), vy = (c.y - prevCy) / STEP; prevCy = c.y;
+    if (!enemies.length || state !== 'play') return;
+    const parts = goose.body.concat(goose.feet);
+    for (const e of enemies) {
+      if (enemyDead[e.id] > levelClock) continue;
+      const p = ENEMIES.posAt(e, levelClock), r = ENEMIES.RADIUS[e.kind];
+      const ey = p.y - (e.kind === 'bat' ? 0 : r);   // enemy centre
+      let hit = false;
+      for (const q of parts) if (Math.hypot(q.x - p.x, q.y - ey) < r + q.r * 0.8) { hit = true; break; }
+      if (!hit) continue;
+      const above = c.y < ey - r * 0.2 && vy > 40;
+      if (above && ENEMIES.stompable(e)) {
+        enemyDead[e.id] = levelClock + ENEMIES.RESPAWN; save.stomps = (save.stomps | 0) + 1; save.bread += 1; breadGot = breadGot;
+        for (const q of parts) q.vy = Math.min(q.vy, -420);
+        snd.boing(); toast('Stomp! +1 🍞', 0.9); persist();
+      } else if (hitCd <= 0 && !(save.cheats.admin && save.cheats.god) && !save.cheats.shield) {
+        hitCd = 1.2; const dir = c.x < p.x ? -1 : 1;
+        for (const q of parts) { q.vx += dir * 520; q.vy = Math.min(q.vy, -330); }
+        snd.ouch(); toast('Bonk!', 0.9);
+      }
+    }
+  }
   function tick() {
     const move = (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
     const aim = input.padAim || input.mouseAim || null;
@@ -191,6 +216,8 @@
     const wasWet = goose.swimming;
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
     world.step(STEP);
+    levelClock += STEP; hitCd = Math.max(0, hitCd - STEP);
+    enemyTick();
     {
       const tid = has('rainbow') ? 't_rainbow' : save.equip.trail;
       const tr = tid && BY_ID[tid] && BY_ID[tid].trail;
@@ -386,6 +413,7 @@
     ctx.restore();
 
     drawTrail();
+    ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
     drawGoose(ctx, goose, save.equip, save.skin);
     if (honkText > 0) {
       const h = goose.head, f = goose.facing, t = 1 - honkText / 0.7;
@@ -812,6 +840,9 @@
   $('admBread').addEventListener('click', () => { save.bread += 1000; persist(); refreshMenu(); say('+1000 🍞', true); snd.bread(); });
   $('admItems').addEventListener('click', () => { for (const it of ITEMS) save.owned[it.id] = true; for (const k of SKINS.LIST) save.skins[k.id] = true; persist(); say('You own every item!', true); snd.buy(); });
   $('btnWin').addEventListener('click', () => { if (state === 'play' && save.cheats.admin) finishLevel(); });
+  const syncEnemyBtn = () => { $('enemyBtn').textContent = '👾 Enemies: ' + (save.enemies === false ? 'Off' : 'On'); };
+  $('enemyBtn').addEventListener('click', () => { save.enemies = save.enemies === false; persist(); syncEnemyBtn(); if (state === 'title') loadLevel(pick); });
+  syncEnemyBtn();
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
   $('codeGo').addEventListener('click', submitCode);
   $('codeClose').addEventListener('click', () => $('codeModal').classList.add('hidden'));
