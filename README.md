@@ -26,7 +26,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
   - `moon` (low gravity), `rainbow` (rainbow trail), `disco` (colour-shifting screen), `shield` (thorns and enemies can't hurt you), `zoom` (wider camera)
   - `skins`, `clothes`, `bread`: one-time gifts (every skin, every cosmetic, +500 bread)
   - `akif`: lists every available code
-  - `admin`: turns on every code at once and adds the **admin console** (⚙ button): god mode, toggle any code, level jump, difficulty, gravity slider, enemy spawner, set bread, unlock everything, save export/import/reset, live debug info. It only appears with the admin code; ⏭ / N wins the current level
+  - `admin`: adds the **admin console** (it no longer switches codes on by itself; the console has an optional "Turn ALL codes on" button) (⚙ button): god mode, toggle any code, level jump, difficulty, gravity slider, enemy spawner, set bread, unlock everything, save export/import/reset, live debug info. It only appears with the admin code; ⏭ / N wins the current level
   - Codes are switched off during multiplayer games
   - The **Active codes** button lists what's on, with a red ✕ next to each to remove it
 - **Enemies** (menu toggle): grumpy blobs and bats you can stomp for bread, and spiky urchins (Hard and up) you must avoid. Touching one bonks you backwards.

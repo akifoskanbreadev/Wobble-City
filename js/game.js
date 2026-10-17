@@ -61,11 +61,11 @@
   const CHEATS = {
     lol: 'All minigames', levels: 'All levels', speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps',
     moon: 'Moon gravity', rainbow: 'Rainbow trail', disco: 'Disco sky', shield: 'Spike shield (no hazard deaths)', zoom: 'Wide zoom-out camera',
-    admin: 'Everything + admin tools',
+    admin: 'Admin console (codes are NOT switched on automatically)',
   };
   // one-shot codes: they give you something once instead of toggling
   const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
-  const has = (k) => !mpOn() && !!(save.cheats[k] || save.cheats.admin);   // codes are off during multiplayer games   // admin switches on every code
+  const has = (k) => !mpOn() && !!save.cheats[k];   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
   zoomMul = has('zoom') ? 0.7 : 1; resize();
   const levelOpen = (i) => has('levels') || i < save.unlocked;
   const rich = () => has('money');
@@ -1022,6 +1022,8 @@
     btn(g, 'Teleport to egg', () => { if (goose && level) { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } });
     btn(g, 'Refill flaps', () => { if (goose) goose.stamina = 99; });
     g = sec('Codes (toggle any)');
+    const allKeys = Object.keys(CHEATS).filter((k) => k !== 'admin'), allOn = allKeys.every((k) => save.cheats[k]);
+    btn(g, allOn ? 'Turn ALL codes off' : 'Turn ALL codes on', () => { allKeys.forEach((k) => { if (allOn) delete save.cheats[k]; else save.cheats[k] = true; }); applyCodes(); }, allOn);
     Object.keys(CHEATS).filter((k) => k !== 'admin').forEach((k) => btn(g, k, () => { if (save.cheats[k]) delete save.cheats[k]; else save.cheats[k] = true; applyCodes(); }, save.cheats[k]));
     g = sec('Gravity');
     const sl = document.createElement('input'); sl.type = 'range'; sl.min = 0.1; sl.max = 2; sl.step = 0.05; sl.value = admG;
