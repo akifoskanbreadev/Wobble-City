@@ -1,75 +1,152 @@
 /*
- * Online multiplayer for two players (no server: you swap two pairing codes by hand, then WebRTC connects the browsers).
- * Modes: Race, Tag, Hide & Seek, Minigame duel.  Every player simulates their own goose; the other player is a
- * smoothed "ghost" drawn from pose messages. The host decides results.
+ * Online multiplayer for up to 4 players. Everyone types the same room word. The first person to use a word
+ * becomes the host; everybody else who types it connects to them (PeerJS public broker for matchmaking, then a direct
+ * WebRTC data channel). Every player simulates their own goose; other players are smoothed "ghosts" built from
+ * pose messages. The host runs the rules (tag, hide & seek, results) and relays poses between guests.
+ * Modes: Race, Tag, Hide & Seek, Minigame duel.
  */
 (function (root) {
   'use strict';
-  let api = null, pc = null, dc = null, isHost = false, connected = false;
-  const M = { mode: null, over: false, countdown: 0, phase: '', seeker: 0, seed: 0, arg: null, left: 0, it: 0, tIt: [0, 0], tagCd: 0, t: 0,
-              myScore: null, peerScore: null, ghost: null, peer: { skin: 'goose', equip: {} }, sendT: 0, uiT: 0, lastEnd: null, diff: null, saveRandom: null };
-  const me = () => (isHost ? 0 : 1);
+  const MAX = 4, PREFIX = 'wobblecity-v1-';
+  let api = null, peer = null, hostConn = null, isHost = false, myId = 0, connected = false, word = '', tries = 0, busyMsg = '';
+  const conns = new Map();                 // host only: guest id -> connection
+  const roster = {};                       // id -> { skin, equip }
+  const ghosts = {};                       // id -> { cur, tgt }
+  const M = { mode: null, over: false, countdown: 0, phase: '', seekers: [], seeker0: -1, found: [], it: -1, tIt: {}, left: 0, tagCd: 0, ids: [], arg: null, seed: 0,
+              scores: {}, myScore: null, sendT: 0, uiT: 0, saveRandom: null, diff: null };
   const $ = (id) => document.getElementById(id);
+  const nm = (id) => (id === myId ? 'You' : 'P' + (id + 1));
+  const T = (s) => s.replace(/@(\d)/g, (m, d) => nm(+d));      // "@2 won" -> "P3 won" / "You won"
+  const slug = (w) => String(w || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
 
-  // ------------------------------------------------------------ pairing codes
-  const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
-  const unb64 = (t) => { t = t.replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; const s = atob(t), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
-  async function pipe(u8, stream) { const w = stream.writable.getWriter(); w.write(u8); w.close(); return new Uint8Array(await new Response(stream.readable).arrayBuffer()); }
-  async function pack(obj) {
-    const u = new TextEncoder().encode(JSON.stringify(obj));
-    if (root.CompressionStream) return 'Z' + b64(await pipe(u, new CompressionStream('deflate-raw')));
-    return 'R' + b64(u);
-  }
-  async function unpack(code) {
-    code = (code || '').replace(/\s+/g, '');
-    if (!code) throw new Error('empty');
-    let u = unb64(code.slice(1));
-    if (code[0] === 'Z') u = await pipe(u, new DecompressionStream('deflate-raw'));
-    return JSON.parse(new TextDecoder().decode(u));
-  }
+  // ------------------------------------------------------------ networking
+  function status(t, bad) { const s = $('mpStatus'); if (s) { s.textContent = t; s.style.color = bad ? '#c62835' : ''; } }
+  function toAll(o, except) { conns.forEach((c, id) => { if (id !== except && c.open) { try { c.send(o); } catch (e) { /* ignore */ } } }); }
+  function toHost(o) { if (hostConn && hostConn.open) { try { hostConn.send(o); } catch (e) { /* ignore */ } } }
+  const broadcast = (o) => (isHost ? toAll(o) : toHost(o));
 
-  function newPC() {
-    if (pc) try { pc.close(); } catch (e) { /* ignore */ }
-    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
-    pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) lost(); };
+  function disconnect() {
+    if (M.mode) stopMode();
+    try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
+    peer = null; hostConn = null; conns.clear(); connected = false; isHost = false;
+    for (const k of Object.keys(roster)) delete roster[k]; for (const k of Object.keys(ghosts)) delete ghosts[k];
+    ui();
   }
-  function gathered() {
-    return new Promise((res) => {
-      if (pc.iceGatheringState === 'complete') return res();
-      const t = setTimeout(res, 6000);
-      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+  function fail(msg) { disconnect(); status(msg, true); }
+
+  function join(w) {
+    word = slug(w);
+    if (!word) return status('Type a word first (any word you and your friends agree on).', true);
+    if (!root.Peer) return status('Could not load the matchmaking library (are you offline?).', true);
+    if (connected) disconnect();
+    tries = 0; status('Looking for the room “' + word + '”…'); tryHost();
+  }
+  function tryHost() {
+    const p = new root.Peer(PREFIX + word, { debug: 0 }); peer = p;
+    p.on('open', () => {
+      isHost = true; myId = 0; connected = true; roster[0] = mine();
+      p.on('connection', onGuest);
+      ui();
+    });
+    p.on('error', (e) => {
+      if (e.type === 'unavailable-id') { try { p.destroy(); } catch (x) { /* ignore */ } becomeGuest(); }
+      else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error' || e.type === 'socket-closed') fail('Could not reach the matchmaking server. Try again in a moment.');
+      else if (!connected) fail('Connection problem: ' + (e.type || e));
+    });
+    p.on('disconnected', () => { if (connected && isHost) { try { p.reconnect(); } catch (e) { /* ignore */ } } });
+  }
+  function becomeGuest() {
+    const p = new root.Peer(undefined, { debug: 0 }); peer = p;
+    p.on('open', () => {
+      const c = p.connect(PREFIX + word, { reliable: true, serialization: 'json' }); hostConn = c;
+      c.on('open', () => { send0({ t: 'hi', skin: api.save().skin, equip: api.save().equip }); });
+      c.on('data', (m) => onMsg(m, 0));
+      c.on('close', lost);
+      c.on('error', () => lost());
+    });
+    p.on('error', (e) => {
+      if (e.type === 'peer-unavailable') {            // the room vanished (or the host id is still being released): try to host it ourselves
+        try { p.destroy(); } catch (x) { /* ignore */ }
+        if (++tries > 4) return fail('Could not join that room. Try again.');
+        status('Room not ready yet… retrying'); setTimeout(tryHost, 1200);
+      } else if (!connected) fail('Connection problem: ' + (e.type || e));
     });
   }
-  async function hostStart() { isHost = true; newPC(); dc = pc.createDataChannel('g'); wire(); await pc.setLocalDescription(await pc.createOffer()); await gathered(); return pack(pc.localDescription.toJSON()); }
-  async function guestJoin(code) {
-    isHost = false; newPC(); pc.ondatachannel = (e) => { dc = e.channel; wire(); };
-    await pc.setRemoteDescription(await unpack(code)); await pc.setLocalDescription(await pc.createAnswer()); await gathered();
-    return pack(pc.localDescription.toJSON());
+  const send0 = toHost;
+  function onGuest(conn) {
+    conn.on('open', () => {
+      if (M.mode || conns.size >= MAX - 1) { try { conn.send({ t: 'busy', why: M.mode ? 'A game is already running in that room. Try again when it ends.' : 'That room is full (4 players).' }); } catch (e) { /* ignore */ } setTimeout(() => conn.close(), 400); return; }
+      let id = 1; while (conns.has(id)) id++;
+      conns.set(id, conn);
+      conn.on('data', (m) => onMsg(m, id));
+      conn.on('close', () => dropPlayer(id));
+      conn.on('error', () => dropPlayer(id));
+      conn.send({ t: 'welcome', id });
+    });
   }
-  async function hostFinish(code) { await pc.setRemoteDescription(await unpack(code)); }
-  function wire() {
-    dc.onopen = () => { connected = true; send({ t: 'hi', skin: api.save().skin, equip: api.save().equip }); ui(); };
-    dc.onmessage = (e) => { try { onMsg(JSON.parse(e.data)); } catch (err) { /* ignore bad packet */ } };
-    dc.onclose = lost;
-  }
-  function send(o) { if (dc && dc.readyState === 'open') dc.send(JSON.stringify(o)); }
   function lost() {
-    if (!connected) return;
-    connected = false; M.ghost = null;
-    if (M.mode) { stopMode(); api.showMenu(); api.toast('Connection lost.', 3); }
+    if (!connected && !hostConn) return;
+    const wasGame = !!M.mode; const msg = busyMsg; busyMsg = '';
+    disconnect();
+    if (msg) { status(msg, true); return; }
+    if (wasGame) api.showMenu();
+    api.toast('Lost connection to the room.', 3); status('Disconnected.', true);
+  }
+  function dropPlayer(id) {
+    if (!conns.has(id)) return;
+    conns.delete(id); delete roster[id]; delete ghosts[id];
+    sendRoster();
+    if (M.mode) {
+      M.ids = M.ids.filter((x) => x !== id);
+      if (M.ids.length < 2) { declare([], 'Everyone else left the room.'); }
+      else {
+        if (M.it === id) M.it = M.ids[(Math.random() * M.ids.length) | 0];
+        M.seekers = M.seekers.filter((x) => x !== id);
+        if (M.mode === 'hide' && !M.seekers.length) declare([], 'The seeker left, so the round is over.');
+        duelCheck();
+      }
+    }
     ui();
+  }
+  const mine = () => ({ skin: api.save().skin, equip: api.save().equip });
+  function sendRoster() { toAll({ t: 'roster', list: Object.keys(roster).map((id) => ({ id: +id, skin: roster[id].skin, equip: roster[id].equip })) }); ui(); }
+
+  function onMsg(m, from) {
+    switch (m.t) {
+      case 'welcome': myId = m.id; isHost = false; connected = true; ui(); break;
+      case 'busy': busyMsg = m.why; break;
+      case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {} }; sendRoster(); } break;
+      case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {} }; }); for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
+      case 'p': if (isHost) { m.id = from; toAll(m, from); } setPose(m); break;
+      case 'start': begin(m); break;
+      case 'stop': if (M.mode) { stopMode(); api.showMenu(); api.toast('The host ended the game.', 3); } break;
+      case 'ts': M.it = m.it; M.tIt = m.tIt; M.left = m.left; break;
+      case 'hs': if (M.phase !== m.phase && m.phase === 'seek') api.toast(M.seekers.includes(myId) ? 'Ready or not — go find them!' : 'The seekers are coming!', 2.5); M.phase = m.phase; M.left = m.left; M.seekers = m.seekers; M.found = m.found; break;
+      case 'found': api.toast(T('@' + m.id + ' was found!'), 2); break;
+      case 'egg': if (isHost && M.mode === 'race' && !M.over) declare([from], '@' + from + ' grabbed the egg first!'); break;
+      case 'end': endShow(m.winners, m.text); break;
+      case 'mg': if (isHost) { M.scores[from] = m.score; duelCheck(); } break;
+      case 'duelres': duelShow(m.scores); break;
+      default: break;
+    }
+  }
+  function setPose(m) {
+    if (m.id === myId) return;
+    const t = { c: m.c, n: m.n, hp: m.hp, ft: m.ft, f: m.f, fl: m.fl, ho: m.ho, a: m.a };
+    const g = ghosts[m.id] || (ghosts[m.id] = { cur: JSON.parse(JSON.stringify(t)), tgt: t });
+    g.tgt = t;
   }
 
   // ------------------------------------------------------------ arenas
   const G = 520;
-  function arenaLevel(kind, id) {
+  function arenaLevel(kind, idx, n) {
     const W = kind === 'hide' ? 3200 : 2400;
     const plats = kind === 'hide'
       ? [[300, 400, 200], [760, 310, 200], [1250, 390, 240], [1700, 290, 200], [2150, 380, 220], [2600, 300, 200], [1350, 170, 260], [550, 190, 160]]
       : [[300, 400, 200], [700, 300, 200], [1100, 380, 220], [1500, 280, 200], [1900, 400, 200], [1000, 170, 240]];
     const lv = {
       name: kind === 'hide' ? 'Hide & Seek Yard' : 'Goose Arena', hint: '', theme: kind === 'hide' ? 'sunset' : 'meadow',
-      spawn: [300 + id * (W - 700), G - 45], deathY: 1500,
+      spawn: [300 + (n > 1 ? (idx * (W - 700)) / (n - 1) : 0), G - 45], deathY: 1500,
       terrain: [{ pts: [[-120, G], [W + 120, G]] }],
       solids: [[-120, -600, 120, 1500], [W, -600, 120, 1500]].concat(plats.map((p) => [p[0], p[1], p[2], 18])),
       water: [], hazards: [], pads: kind === 'hide' ? [[900, G, 70], [2300, G, 70]] : [[600, G, 70], [1750, G, 70]], movers: [], checkpoints: [], bread: [], egg: [-9999, -9999],
@@ -78,109 +155,106 @@
     return lv;
   }
 
-  // ------------------------------------------------------------ messages
-  function onMsg(m) {
-    if (m.t === 'hi') { M.peer = { skin: m.skin, equip: m.equip || {} }; ui(); }
-    else if (m.t === 'p') pose(m);
-    else if (m.t === 'start') begin(m);
-    else if (m.t === 'stop') { if (M.mode) { stopMode(); api.showMenu(); api.toast('Your friend left the game.', 3); } }
-    else if (m.t === 'ts') { M.it = m.it; M.tIt = m.tIt; M.left = m.left; }
-    else if (m.t === 'egg') { if (isHost && M.mode === 'race' && !M.over) declare(1, 'Your friend grabbed the egg first.', 'You grabbed the egg first!'); }
-    else if (m.t === 'catch') { /* host-only decision, unused */ }
-    else if (m.t === 'end') endShow(m.title, m.text, m.win);
-    else if (m.t === 'mg') { M.peerScore = m.score; duelCheck(); }
-    else if (m.t === 'rematch') { /* host drives rematch via 'start' */ }
-  }
-  function pose(m) {
-    const T = { c: m.c, n: m.n, hp: m.hp, ft: m.ft, f: m.f, fl: m.fl, ho: m.ho, a: m.a };
-    if (!M.ghost) M.ghost = JSON.parse(JSON.stringify(T)); M.gt = T;
-  }
-  const lerpPts = (a, b, k) => { for (let i = 0; i < a.length && i < b.length; i++) { a[i][0] += (b[i][0] - a[i][0]) * k; a[i][1] += (b[i][1] - a[i][1]) * k; } };
-
   // ------------------------------------------------------------ mode control
+  function mulberry(a) { return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function hostStartMode(mode, arg) {
     if (!isHost || !connected) return;
-    const o = { t: 'start', mode, arg, seed: (Math.random() * 1e9) | 0, diff: api.save().diff, seeker: mode === 'hide' ? (M.seeker === 0 && M.mode === 'hide' ? 1 : (Math.random() < 0.5 ? 0 : 1)) : 0 };
-    send(o); begin(o);
+    const ids = [0].concat(Array.from(conns.keys())).sort((a, b) => a - b);
+    if (ids.length < 2) return status('You need at least one friend in the room first.', true);
+    const pickId = () => ids[(Math.random() * ids.length) | 0];
+    const o = { t: 'start', mode, arg, seed: (Math.random() * 1e9) | 0, diff: api.save().diff, ids, it: mode === 'tag' ? pickId() : -1, seekers: mode === 'hide' ? [pickId()] : [] };
+    toAll(o); begin(o);
   }
-  function mulberry(a) { return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function begin(m) {
     stopMode(true);
-    Object.assign(M, { mode: m.mode, arg: m.arg, seed: m.seed, seeker: m.seeker, over: false, t: 0, tagCd: 0, tIt: [0, 0], it: m.mode === 'tag' ? (m.seed % 2) : 0, myScore: null, peerScore: null, diff: m.diff });
+    Object.assign(M, { mode: m.mode, arg: m.arg, seed: m.seed, ids: m.ids.slice(), over: false, tagCd: 0, tIt: {}, it: m.it, seekers: m.seekers.slice(), seeker0: m.seekers[0], found: [], scores: {}, myScore: null, diff: m.diff, phase: '', uiT: 0, dueled: false });
+    M.ids.forEach((id) => { M.tIt[id] = 0; });
     $('mpMenu').classList.add('hidden'); $('mpDone').classList.add('hidden');
     api.setDiff(m.diff);
+    const idx = Math.max(0, M.ids.indexOf(myId)), n = M.ids.length;
     if (m.mode === 'race') { M.countdown = 3; api.startLevel(m.arg); }
-    else if (m.mode === 'tag') { M.countdown = 3; M.left = 60; api.startCustom(arenaLevel('tag', me())); }
-    else if (m.mode === 'hide') { M.countdown = 3; M.phase = 'hide'; M.left = 15; api.startCustom(arenaLevel('hide', me())); }
+    else if (m.mode === 'tag') { M.countdown = 3; M.left = 60; api.startCustom(arenaLevel('tag', idx, n)); }
+    else if (m.mode === 'hide') { M.countdown = 3; M.phase = 'hide'; M.left = 15; api.startCustom(arenaLevel('hide', idx, n)); }
     else if (m.mode === 'duel') { M.countdown = 0; M.saveRandom = Math.random; Math.random = mulberry(m.seed); api.startMinigame(m.arg); }
     ui();
   }
   function stopMode(silent) {
     if (M.saveRandom) { Math.random = M.saveRandom; M.saveRandom = null; }
-    if (M.mode && !silent) { api.setDiff(null); }
-    M.mode = null; M.over = false; M.countdown = 0; M.phase = ''; $('mpBanner').classList.add('hidden'); $('mpDone').classList.add('hidden');
+    if (M.mode && !silent) api.setDiff(null);
+    M.mode = null; M.over = false; M.countdown = 0; M.phase = '';
+    const b = $('mpBanner'); if (b) b.classList.add('hidden'); const d = $('mpDone'); if (d) d.classList.add('hidden');
   }
-  function leave() { send({ t: 'stop' }); stopMode(); api.showMenu(); }
-  function declare(win, textHost, textGuest) {            // host only: decide the result and tell both sides
+  // the game was left from the in-game menu: the host ends it for everybody, a guest simply leaves the room
+  function leaveGame() { if (!M.mode) return; if (isHost) { toAll({ t: 'stop' }); stopMode(); } else disconnect(); }
+  function declare(winners, text) {                         // host only
     if (M.over) return;
-    const title = (side) => (side === win ? 'You win! 🏆' : 'You lose 😢');
-    send({ t: 'end', title: title(1), text: textGuest, win });
-    endShow(title(0), textHost, win);
+    toAll({ t: 'end', winners, text }); endShow(winners, text);
   }
-  function endShow(title, text, win) {
+  function endShow(winners, text) {
     if (!M.mode || M.over) return;
     M.over = true;
-    if (win === me()) api.award(20);
-    $('mpDoneTitle').textContent = title; $('mpDoneText').textContent = text + (win === me() ? '\n+20 🍞' : '');
+    const win = winners.includes(myId);
+    if (win) api.award(20);
+    $('mpDoneTitle').textContent = !winners.length ? 'Game over' : win ? 'You win! 🏆' : 'You lose 😢';
+    $('mpDoneText').textContent = T(text) + (win ? '\n+20 🍞' : '');
     $('mpRematch').style.display = isHost ? '' : 'none';
     $('mpDone').classList.remove('hidden');
   }
+  function duelShow(scores) {
+    const ids = Object.keys(scores).map(Number).sort((a, b) => scores[b] - scores[a]);
+    api.appendMgText('\nDuel results:\n' + ids.map((id, i) => (i + 1) + '. ' + nm(id) + ' — ' + scores[id]).join('\n') + (ids.length && ids[0] === myId && scores[ids[0]] !== scores[ids[1]] ? '\n🏆 You win!' : ''));
+  }
   function duelCheck() {
-    if (M.mode !== 'duel' || M.myScore == null || M.peerScore == null) return;
-    const w = M.myScore > M.peerScore ? '🏆 You win the duel!' : M.myScore < M.peerScore ? 'Your friend wins the duel.' : 'A tie!';
-    api.appendMgText('\nDuel: you ' + M.myScore + ' vs friend ' + M.peerScore + '  →  ' + w);
+    if (!isHost || M.mode !== 'duel' || M.dueled) return;
+    if (!M.ids.every((id) => M.scores[id] != null)) return;
+    M.dueled = true; toAll({ t: 'duelres', scores: M.scores }); duelShow(M.scores);
   }
 
   // ------------------------------------------------------------ per-frame hooks (called by game.js)
-  function frozen() {
-    if (!M.mode) return false;
-    return M.countdown > 0 || M.over || (M.mode === 'hide' && M.phase === 'hide' && M.seeker === me());
-  }
+  const frozen = () => !!M.mode && (M.countdown > 0 || M.over || (M.mode === 'hide' && M.phase === 'hide' && M.seekers.includes(myId)));
+  function posOf(id, goose) { if (id === myId) { const c = goose.center(); return [c.x, c.y]; } const g = ghosts[id]; return g ? g.tgt.c : null; }
   function tick(goose, dt) {
     if (!connected) return;
     M.sendT += dt;
-    if (M.sendT >= 0.05) {
+    if (M.sendT >= 0.05 && (conns.size || hostConn)) {
       M.sendT = 0;
       const c = goose.center(), A = goose.axes(), r = (n) => Math.round(n * 10) / 10, pts = (a) => a.map((p) => [r(p.x), r(p.y)]);
-      send({ t: 'p', c: [r(c.x), r(c.y)], n: pts(goose.neck), hp: pts(goose.hips), ft: pts(goose.feet), f: goose.facing, fl: r(goose.flapT), ho: r(goose.honkT), a: [A.ux, A.uy, A.vx, A.vy].map((v) => Math.round(v * 100) / 100) });
+      const o = { t: 'p', id: myId, c: [r(c.x), r(c.y)], n: pts(goose.neck), hp: pts(goose.hips), ft: pts(goose.feet), f: goose.facing, fl: r(goose.flapT), ho: r(goose.honkT), a: [A.ux, A.uy, A.vx, A.vy].map((v) => Math.round(v * 100) / 100) };
+      broadcast(o);
     }
     if (!M.mode || M.mode === 'duel') return;
-    M.t += dt;
-    if (M.countdown > 0) { M.countdown -= dt; return; }
+    if (M.countdown > 0) { M.countdown -= dt; banner(); return; }
     if (M.over) return;
-    const gc = M.gt ? M.gt.c : null, c = goose.center();
-    const dist = gc ? Math.hypot(gc[0] - c.x, gc[1] - c.y) : 9999;
     if (M.mode === 'tag') {
       M.left -= dt; M.tagCd = Math.max(0, M.tagCd - dt);
       if (isHost) {
-        M.tIt[M.it] += dt;
-        if (dist < 62 && M.tagCd <= 0) { M.it = 1 - M.it; M.tagCd = 2; }
-        M.uiT += dt; if (M.uiT > 0.2) { M.uiT = 0; send({ t: 'ts', it: M.it, tIt: M.tIt, left: M.left }); }
+        M.tIt[M.it] = (M.tIt[M.it] || 0) + dt;
+        const ip = posOf(M.it, goose);
+        if (ip && M.tagCd <= 0) for (const id of M.ids) { if (id === M.it) continue; const p = posOf(id, goose); if (p && Math.hypot(p[0] - ip[0], p[1] - ip[1]) < 62) { M.it = id; M.tagCd = 2; break; } }
+        M.uiT += dt; if (M.uiT > 0.2) { M.uiT = 0; toAll({ t: 'ts', it: M.it, tIt: M.tIt, left: M.left }); }
         if (M.left <= 0) {
-          const w = M.tIt[0] < M.tIt[1] ? 0 : 1, a = M.tIt[0].toFixed(1), b = M.tIt[1].toFixed(1);
-          const txt = 'Time spent as "it": Host ' + a + 's · Guest ' + b + 's (lower is better)';
-          declare(w, txt, txt);
+          const best = Math.min.apply(null, M.ids.map((id) => M.tIt[id] || 0));
+          const winners = M.ids.filter((id) => (M.tIt[id] || 0) <= best + 0.001);
+          declare(winners, 'Time spent as "it" (lower wins):\n' + M.ids.map((id) => '@' + id + ': ' + (M.tIt[id] || 0).toFixed(1) + 's').join('  ·  '));
         }
-      }
+      } else M.left -= 0;   // the host sends the clock
     } else if (M.mode === 'hide') {
-      M.left -= dt;
-      if (M.phase === 'hide' && M.left <= 0) { M.phase = 'seek'; M.left = 75; api.toast(M.seeker === me() ? 'Ready or not — go find them!' : 'The seeker is coming!', 2.5); }
-      else if (M.phase === 'seek' && isHost) {
-        if (dist < 58) { const w = M.seeker, txt = 'Caught after ' + (75 - M.left).toFixed(1) + 's of seeking.'; declare(w, w === 0 ? 'You found the hider! ' + txt : 'You were found. ' + txt, w === 1 ? 'You found the hider! ' + txt : 'You were found. ' + txt); }
-        else if (M.left <= 0) { const w = 1 - M.seeker; declare(w, w === 0 ? 'You stayed hidden for the full 75 seconds!' : 'You could not find the hider in time.', w === 1 ? 'You stayed hidden for the full 75 seconds!' : 'You could not find the hider in time.'); }
-      }
+      if (isHost) {
+        M.left -= dt;
+        if (M.phase === 'hide' && M.left <= 0) { M.phase = 'seek'; M.left = 75; api.toast(M.seekers.includes(myId) ? 'Ready or not — go find them!' : 'The seekers are coming!', 2.5); }
+        else if (M.phase === 'seek') {
+          for (const id of M.ids) {
+            if (M.seekers.includes(id)) continue;
+            const p = posOf(id, goose); if (!p) continue;
+            if (M.seekers.some((s) => { const q = posOf(s, goose); return q && Math.hypot(p[0] - q[0], p[1] - q[1]) < 58; })) { M.seekers.push(id); M.found.push(id); toAll({ t: 'found', id }); api.toast(T('@' + id + ' was found!'), 2); }
+          }
+          const hidersLeft = M.ids.filter((id) => !M.seekers.includes(id));
+          if (!hidersLeft.length) declare([M.seeker0], '@' + M.seeker0 + ' found everyone with ' + Math.max(0, M.left).toFixed(0) + 's to spare!');
+          else if (M.left <= 0) declare(hidersLeft, 'Time is up! Hiders who stayed hidden: ' + hidersLeft.map((id) => '@' + id).join(', '));
+        }
+        M.uiT += dt; if (M.uiT > 0.2) { M.uiT = 0; toAll({ t: 'hs', phase: M.phase, left: M.left, seekers: M.seekers, found: M.found }); }
+      } else M.left -= dt;
     }
-    // guest also learns that a hide round is over via 'end'
     banner();
   }
   function banner() {
@@ -188,38 +262,45 @@
     let t = '';
     if (M.countdown > 0) t = 'Get ready… ' + Math.ceil(M.countdown);
     else if (M.mode === 'race') t = '🏁 Race to the egg!';
-    else if (M.mode === 'tag') t = (M.it === me() ? '🔴 YOU are IT! Tag your friend' : '🟢 Run! Your friend is IT') + ' · ' + Math.max(0, M.left).toFixed(0) + 's';
-    else if (M.mode === 'hide') t = (M.seeker === me() ? '🔍 Seeker' : '🫣 Hider') + ' · ' + (M.phase === 'hide' ? 'hiding ' : 'seeking ') + Math.max(0, M.left).toFixed(0) + 's';
+    else if (M.mode === 'tag') t = (M.it === myId ? '🔴 YOU are IT! Tag someone' : '🟢 Run! ' + nm(M.it) + ' is IT') + ' · ' + Math.max(0, M.left).toFixed(0) + 's';
+    else if (M.mode === 'hide') t = (M.seekers.includes(myId) ? '🔍 Seeker' : '🫣 Hider') + ' · ' + (M.phase === 'hide' ? 'hiding ' : 'seeking ') + Math.max(0, M.left).toFixed(0) + 's';
     b.textContent = t;
   }
   function onEgg() {                                    // game.js: you touched the egg in a multiplayer race
     if (M.mode !== 'race') return false;
     if (M.over || M.countdown > 0) return true;
-    if (isHost) declare(0, 'You grabbed the egg first!', 'Your friend grabbed the egg first.'); else send({ t: 'egg' });
+    if (isHost) declare([myId], '@' + myId + ' grabbed the egg first!'); else toHost({ t: 'egg' });
     return true;
   }
-  function onMgEnd(score) { if (M.mode !== 'duel') return; M.myScore = score; send({ t: 'mg', score }); duelCheck(); }
+  function onMgEnd(score) {
+    if (M.mode !== 'duel') return;
+    M.myScore = score;
+    if (isHost) { M.scores[0] = score; duelCheck(); } else toHost({ t: 'mg', score });
+  }
 
   const inBush = (lv, x, y) => (lv.bushes || []).some((b) => x > b[0] && x < b[0] + b[2] && y > b[1] - 25 && y < b[1] + b[3] + 40);
+  const lerpPts = (a, b, k) => { for (let i = 0; i < a.length && i < b.length; i++) { a[i][0] += (b[i][0] - a[i][0]) * k; a[i][1] += (b[i][1] - a[i][1]) * k; } };
   function drawWorld(ctx, lv, clock) {
-    if (M.gt && M.ghost && M.mode !== 'duel') {
-      const k = 0.35, g = M.ghost, t = M.gt;
-      g.c[0] += (t.c[0] - g.c[0]) * k; g.c[1] += (t.c[1] - g.c[1]) * k; lerpPts(g.n, t.n, k); lerpPts(g.hp, t.hp, k); lerpPts(g.ft, t.ft, k);
-      g.f = t.f; g.fl = t.fl; g.ho = t.ho; g.a = t.a;
-      let show = true;
-      if (M.mode === 'hide' && M.seeker === me()) show = M.phase !== 'hide' && !inBush(lv, g.c[0], g.c[1]);
-      if (show) {
-        const o = (p) => ({ x: p[0], y: p[1] }), neck = g.n.map(o);
+    if (connected && M.mode !== 'duel') {
+      const iSeek = M.seekers.includes(myId);
+      for (const id of Object.keys(ghosts).map(Number)) {
+        if (id === myId) continue;
+        const gh = ghosts[id], g = gh.cur, t = gh.tgt, k = 0.35;
+        g.c[0] += (t.c[0] - g.c[0]) * k; g.c[1] += (t.c[1] - g.c[1]) * k; lerpPts(g.n, t.n, k); lerpPts(g.hp, t.hp, k); lerpPts(g.ft, t.ft, k);
+        g.f = t.f; g.fl = t.fl; g.ho = t.ho; g.a = t.a;
+        if (!M.mode) continue;                                   // lobby: nobody is playing
+        let show = true;
+        if (M.mode === 'hide' && iSeek && !M.seekers.includes(id)) show = M.phase !== 'hide' && !inBush(lv, g.c[0], g.c[1]) && Math.hypot(g.c[0] - (api.goose().center().x), g.c[1] - (api.goose().center().y)) < 420;
+        if (!show) continue;
+        const o = (p) => ({ x: p[0], y: p[1] }), neck = g.n.map(o), r = roster[id] || { skin: 'goose', equip: {} };
         const fake = { facing: g.f, flapT: g.fl, honkT: g.ho, neck, head: neck[neck.length - 1], hips: g.hp.map(o), feet: g.ft.map(o), center: () => ({ x: g.c[0], y: g.c[1] }), axes: () => ({ ux: g.a[0], uy: g.a[1], vx: g.a[2], vy: g.a[3] }) };
-        ctx.save(); ctx.globalAlpha = M.mode === 'race' ? 0.8 : 1;
-        api.drawGoose(ctx, fake, M.peer.equip, M.peer.skin);
-        ctx.restore();
+        ctx.save(); ctx.globalAlpha = M.mode === 'race' ? 0.8 : 1; api.drawGoose(ctx, fake, r.equip, r.skin); ctx.restore();
         ctx.save(); ctx.font = '800 14px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2b2118'; ctx.lineWidth = 4;
-        const label = (M.mode === 'tag' && M.it === 1 - me()) ? 'IT!' : 'Friend'; const y = neck[neck.length - 1].y - 26;
+        const label = 'P' + (id + 1) + (M.mode === 'tag' && M.it === id ? ' · IT!' : M.mode === 'hide' && M.seekers.includes(id) ? ' · 🔍' : ''); const y = neck[neck.length - 1].y - 26;
         ctx.strokeText(label, neck[neck.length - 1].x, y); ctx.fillText(label, neck[neck.length - 1].x, y); ctx.restore();
       }
     }
-    if (M.mode === 'tag' && M.it === me() && api.goose()) { const c = api.goose().center(); ctx.save(); ctx.strokeStyle = 'rgba(230,57,70,.9)'; ctx.lineWidth = 4; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(c.x, c.y, 54 + Math.sin(clock * 6) * 3, 0, 7); ctx.stroke(); ctx.restore(); }
+    if (M.mode === 'tag' && M.it === myId && api.goose()) { const c = api.goose().center(); ctx.save(); ctx.strokeStyle = 'rgba(230,57,70,.9)'; ctx.lineWidth = 4; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(c.x, c.y, 54 + Math.sin(clock * 6) * 3, 0, 7); ctx.stroke(); ctx.restore(); }
     for (const b of lv.bushes || []) {   // bushes hide whoever is behind them
       ctx.save(); ctx.fillStyle = '#2f7d3a'; ctx.strokeStyle = '#1e4f25'; ctx.lineWidth = 4;
       const cs = [[0.2, 0.62, 0.3], [0.5, 0.42, 0.36], [0.8, 0.62, 0.3], [0.5, 0.72, 0.34]];
@@ -231,9 +312,9 @@
   function drawOverlay(cx, W, H) {
     if (!M.mode) return;
     const px = Math.max(1, W / window.innerWidth);
-    if (M.mode === 'hide' && M.phase === 'hide' && M.seeker === me()) {
+    if (M.mode === 'hide' && M.phase === 'hide' && M.seekers.includes(myId)) {
       cx.fillStyle = '#10131c'; cx.fillRect(0, 0, W, H); cx.fillStyle = '#fff'; cx.textAlign = 'center'; cx.font = '800 ' + 26 * px + 'px system-ui, sans-serif';
-      cx.fillText('Eyes closed… the hider is hiding', W / 2, H / 2 - 10 * px); cx.font = '800 ' + 60 * px + 'px system-ui, sans-serif'; cx.fillText(String(Math.max(0, Math.ceil(M.left))), W / 2, H / 2 + 60 * px);
+      cx.fillText('Eyes closed… the hiders are hiding', W / 2, H / 2 - 10 * px); cx.font = '800 ' + 60 * px + 'px system-ui, sans-serif'; cx.fillText(String(Math.max(0, Math.ceil(M.left))), W / 2, H / 2 + 60 * px);
     } else if (M.countdown > 0) {
       cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(0, 0, W, H); cx.fillStyle = '#fff'; cx.textAlign = 'center'; cx.font = '900 ' + 96 * px + 'px system-ui, sans-serif'; cx.fillText(String(Math.ceil(M.countdown)), W / 2, H / 2 + 30 * px);
     }
@@ -241,46 +322,45 @@
 
   // ------------------------------------------------------------ UI
   function ui() {
-    const el = $('mpMenu'); if (!el) return;
-    $('mpStatus').textContent = connected ? '✅ Connected! ' + (isHost ? 'Pick a game below.' : 'Waiting for the host to pick a game…') : 'Not connected.';
-    $('mpPair').style.display = connected ? 'none' : '';
+    if (!$('mpMenu')) return;
+    $('mpJoinBox').style.display = connected ? 'none' : '';
+    $('mpRoom').style.display = connected ? '' : 'none';
+    if (connected) {
+      const ids = Object.keys(roster).map(Number).sort((a, b) => a - b);
+      $('mpRoomName').textContent = 'Room “' + word + '” · you are P' + (myId + 1) + (isHost ? ' (host)' : '');
+      $('mpRoster').textContent = ids.map((id) => 'P' + (id + 1) + (id === 0 ? ' 👑' : '') + (id === myId ? ' (you)' : '') + ' — ' + roster[id].skin).join('\n');
+      status(ids.length + '/' + MAX + ' players. ' + (isHost ? (ids.length < 2 ? 'Waiting for friends to type the same word…' : 'Pick a game below!') : 'Waiting for the host to pick a game…'));
+    }
     $('mpModes').style.display = connected && isHost ? '' : 'none';
   }
   function build() {
     const css = document.createElement('style');
-    css.textContent = '#mpBanner{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:4;background:rgba(255,255,255,.92);border:3px solid #2b2118;border-radius:999px;padding:6px 16px;font-weight:800;pointer-events:none}#mpBanner.hidden{display:none}#mpMenu textarea{width:100%;height:64px;font:11px monospace;border:2px solid #2b2118;border-radius:10px;margin:4px 0;box-sizing:border-box}#mpMenu .step{text-align:left;margin:8px 0;font-size:14px}#mpMenu select{font:inherit;font-weight:700;border:2px solid #2b2118;border-radius:10px;padding:4px 8px}';
+    css.textContent = '#mpBanner{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:4;background:rgba(255,255,255,.92);border:3px solid #2b2118;border-radius:999px;padding:6px 16px;font-weight:800;pointer-events:none;white-space:nowrap}#mpBanner.hidden{display:none}#mpMenu input[type=text]{font:inherit;font-weight:700;border:3px solid #2b2118;border-radius:12px;padding:8px 12px;width:60%;text-align:center}#mpMenu select{font:inherit;font-weight:700;border:2px solid #2b2118;border-radius:10px;padding:4px 8px}#mpRoster{white-space:pre-line;font-weight:700;margin:6px 0}';
     document.head.appendChild(css);
     const wrap = document.createElement('div');
     wrap.innerHTML =
       '<div id="mpBanner" class="hidden"></div>' +
-      '<div class="overlay hidden" id="mpMenu"><div class="card wide" style="max-width:560px"><h2>👥 Multiplayer (2 players)</h2>' +
-      '<div id="mpStatus" class="small">Not connected.</div>' +
-      '<div id="mpPair"><div class="row"><button class="big small-btn" id="mpHost">Host a game</button><button class="big small-btn ghost" id="mpJoin">Join a game</button></div>' +
-      '<div id="mpHostBox" class="step hidden"><b>1.</b> Send this code to your friend:<textarea id="mpOffer" readonly></textarea><button class="sec" id="mpCopyOffer">Copy</button><br><b>2.</b> Paste the code they send back:<textarea id="mpAnswerIn" placeholder="paste answer code"></textarea><button class="sec" id="mpConnect">Connect</button></div>' +
-      '<div id="mpJoinBox" class="step hidden"><b>1.</b> Paste the host\'s code:<textarea id="mpOfferIn" placeholder="paste host code"></textarea><button class="sec" id="mpMakeAnswer">Make my code</button><br><b>2.</b> Send this code back to the host:<textarea id="mpAnswer" readonly></textarea><button class="sec" id="mpCopyAnswer">Copy</button></div>' +
-      '<div class="small" id="mpErr" style="color:#c62835;min-height:18px"></div>' +
-      '<div class="small">No server needed. If it never connects, one of you is probably on a network (some phone data / school Wi‑Fi) that blocks direct connections — try another network.</div></div>' +
+      '<div class="overlay hidden" id="mpMenu"><div class="card wide" style="max-width:560px"><h2>👥 Multiplayer (up to 4)</h2>' +
+      '<div id="mpStatus" class="small">Pick a word. Everyone who types the same word joins the same room.</div>' +
+      '<div id="mpJoinBox"><div class="row" style="margin:8px 0"><input type="text" id="mpWord" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="room word"><button class="big small-btn" id="mpJoinBtn">Join</button></div>' +
+      '<div class="small">The first person to use a word hosts the room. The room disappears when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.</div></div>' +
+      '<div id="mpRoom" style="display:none"><b id="mpRoomName"></b><div id="mpRoster"></div></div>' +
       '<div id="mpModes" style="display:none"><h3>Pick a game</h3><div class="row"><select id="mpLevel"></select><button class="sec" id="mpRace">🏁 Race</button></div>' +
       '<div class="row" style="margin-top:6px"><button class="sec" id="mpTag">🏃 Tag</button><button class="sec" id="mpHide">🫣 Hide &amp; Seek</button></div>' +
       '<div class="row" style="margin-top:6px"><select id="mpMg"></select><button class="sec" id="mpDuel">⚔️ Minigame duel</button></div></div>' +
-      '<div class="row" style="margin-top:12px"><button class="big small-btn ghost" id="mpClose">Back</button><button class="big small-btn ghost" id="mpDisc">Disconnect</button></div></div></div>' +
-      '<div class="overlay clear hidden" id="mpDone"><div class="card"><h2 id="mpDoneTitle"></h2><p id="mpDoneText" style="white-space:pre-line"></p><div class="row"><button class="big small-btn" id="mpRematch">Rematch</button><button class="big small-btn ghost" id="mpLeave">Leave</button></div></div></div>';
+      '<div class="row" style="margin-top:12px"><button class="big small-btn ghost" id="mpClose">Back</button><button class="big small-btn ghost" id="mpDisc">Leave room</button></div></div></div>' +
+      '<div class="overlay clear hidden" id="mpDone"><div class="card"><h2 id="mpDoneTitle"></h2><p id="mpDoneText" style="white-space:pre-line"></p><div class="row"><button class="big small-btn" id="mpRematch">Rematch</button><button class="big small-btn ghost" id="mpLobby">Back to lobby</button></div></div></div>';
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
-    const copy = (id) => { const t = $(id); t.select(); try { navigator.clipboard.writeText(t.value); } catch (e) { document.execCommand('copy'); } };
-    const err = (e) => { $('mpErr').textContent = 'Something went wrong: ' + (e && e.message || e); };
-    $('mpHost').onclick = async () => { $('mpErr').textContent = ''; $('mpJoinBox').classList.add('hidden'); $('mpHostBox').classList.remove('hidden'); $('mpOffer').value = 'making code…'; try { $('mpOffer').value = await hostStart(); } catch (e) { err(e); } };
-    $('mpJoin').onclick = () => { $('mpErr').textContent = ''; $('mpHostBox').classList.add('hidden'); $('mpJoinBox').classList.remove('hidden'); };
-    $('mpConnect').onclick = async () => { try { $('mpErr').textContent = 'Connecting…'; await hostFinish($('mpAnswerIn').value); } catch (e) { err(e); } };
-    $('mpMakeAnswer').onclick = async () => { try { $('mpAnswer').value = 'making code…'; $('mpAnswer').value = await guestJoin($('mpOfferIn').value); $('mpErr').textContent = ''; } catch (e) { $('mpAnswer').value = ''; err(e); } };
-    $('mpCopyOffer').onclick = () => copy('mpOffer'); $('mpCopyAnswer').onclick = () => copy('mpAnswer');
+    $('mpJoinBtn').onclick = () => join($('mpWord').value);
+    $('mpWord').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join($('mpWord').value); });
     $('mpClose').onclick = () => $('mpMenu').classList.add('hidden');
-    $('mpDisc').onclick = () => { send({ t: 'stop' }); connected = false; M.ghost = null; try { pc && pc.close(); } catch (e) { /* ignore */ } $('mpHostBox').classList.add('hidden'); $('mpJoinBox').classList.add('hidden'); ui(); };
+    $('mpDisc').onclick = () => { disconnect(); status('Left the room.'); };
     $('mpRace').onclick = () => hostStartMode('race', +$('mpLevel').value);
     $('mpTag').onclick = () => hostStartMode('tag');
     $('mpHide').onclick = () => hostStartMode('hide');
     $('mpDuel').onclick = () => hostStartMode('duel', $('mpMg').value);
     $('mpRematch').onclick = () => { if (isHost) hostStartMode(M.mode, M.arg); };
-    $('mpLeave').onclick = leave;
+    $('mpLobby').onclick = () => { $('mpDone').classList.add('hidden'); if (isHost) { toAll({ t: 'stop' }); } stopMode(); api.showMenu(); open(); };
     ui();
   }
   function open() {
@@ -290,6 +370,6 @@
   }
   function init(a) { api = a; build(); }
 
-  root.MP = { init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: () => { if (M.mode) { send({ t: 'stop' }); stopMode(); } },
-              _hostStart: hostStart, _guestJoin: guestJoin, _hostFinish: hostFinish, _start: hostStartMode, _state: M };
+  root.MP = { init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
+              _join: join, _start: hostStartMode, _state: M, _me: () => myId, _roster: roster };
 })(window);

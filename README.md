@@ -30,7 +30,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
   - Codes are switched off during multiplayer games
   - The **Active codes** button lists what's on, with a red ✕ next to each to remove it
 - **Enemies** (menu toggle): grumpy blobs and bats you can stomp for bread, and spiky urchins (Hard and up) you must avoid. Touching one bonks you backwards.
-- **Multiplayer** (👥 in the menu, 2 players, no server): swap two copy/paste pairing codes and your browsers connect directly (WebRTC). Modes: **Race** (first to the egg), **Tag** (least time as "it" wins), **Hide & Seek** (hider hides in bushes while the seeker is blindfolded, seeker only sees you within range), and **Minigame duel** (same seed, higher score wins). Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.
+- **Multiplayer** (👥 in the menu, up to 4 players): everybody types the same room word and joins the same room. The first person to use a word hosts it; matchmaking uses the free public PeerJS broker (loaded from a CDN), then browsers connect directly (WebRTC). Modes: **Race** (first to the egg), **Tag** (least time as "it" wins), **Hide & Seek** (seekers are blindfolded while hiders hide in bushes; found hiders become seekers) and **Minigame duel** (same seed, highest score wins). The room ends when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.
 - Progress is saved in `localStorage`.
 
 ## Physics
