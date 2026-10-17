@@ -722,6 +722,7 @@
   function refreshMenu() {
     $('menuBread').textContent = '🍞 ' + money();
     $('btnWin').classList.toggle('hidden', !save.cheats.admin);
+    $('btnAdm').classList.toggle('hidden', !save.cheats.admin);
     $('mgOpenBtn').textContent = (mgUnlocked() ? '🎮' : '🔒') + ' Minigames';
     $('mgOpenBtn').classList.toggle('dim', !mgUnlocked());
     DIFF_ORDER.forEach((k) => {
@@ -987,6 +988,70 @@
   }
   $('storeBtn').addEventListener('click', () => { audio(); openStore(); });
   $('storeBack').addEventListener('click', () => { tryOn = {}; showMenu(); });
+
+
+  // ---------------------------------------------------------------- admin console (needs the admin code)
+  let admOpen = false, admTimer = 0, admG = 1;
+  function admRender() {
+    const B = $('admBody');
+    B.innerHTML = '';
+    const sec = (t) => { const h = document.createElement('h4'); h.textContent = t; B.appendChild(h); const g = document.createElement('div'); g.className = 'grid'; B.appendChild(g); return g; };
+    const btn = (g, label, fn, on) => { const b = document.createElement('button'); b.textContent = label; if (on) b.classList.add('on'); b.addEventListener('click', () => { fn(); admRender(); }); g.appendChild(b); return b; };
+    let g = sec('Player');
+    btn(g, 'God mode', () => { save.cheats.god = !save.cheats.god; persist(); }, save.cheats.god);
+    btn(g, 'Respawn', () => { if (goose) respawn(); });
+    btn(g, 'Win level', () => { if (state === 'play') finishLevel(); });
+    btn(g, 'Teleport to egg', () => { if (goose && level) { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } });
+    btn(g, 'Refill flaps', () => { if (goose) goose.stamina = 99; });
+    g = sec('Codes (toggle any)');
+    Object.keys(CHEATS).filter((k) => k !== 'admin').forEach((k) => btn(g, k, () => { if (save.cheats[k]) delete save.cheats[k]; else save.cheats[k] = true; applyCodes(); }, save.cheats[k]));
+    g = sec('Gravity');
+    const sl = document.createElement('input'); sl.type = 'range'; sl.min = 0.1; sl.max = 2; sl.step = 0.05; sl.value = admG;
+    const lb = document.createElement('label'); lb.textContent = 'x' + admG.toFixed(2); sl.addEventListener('input', () => { admG = +sl.value; lb.textContent = 'x' + admG.toFixed(2); if (world) world.gscale = admG; });
+    g.append(sl, lb); btn(g, 'Reset', () => { admG = 1; if (world) world.gscale = has('moon') ? 0.4 : 1; });
+    g = sec('Level');
+    const sel = document.createElement('select');
+    LEVELS.forEach((lv, i) => { const o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + '. ' + lv.name; if (i === levelIdx) o.selected = true; sel.appendChild(o); });
+    g.appendChild(sel); btn(g, 'Jump to level', () => { $('admin').classList.add('hidden'); admOpen = false; startLevel(+sel.value); });
+    const ds = document.createElement('select');
+    DIFF_ORDER.forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = DIFFS[k].name; if (k === save.diff) o.selected = true; ds.appendChild(o); });
+    g.appendChild(ds); btn(g, 'Set difficulty', () => { save.diff = ds.value; persist(); if (state === 'play') loadLevel(levelIdx); });
+    g = sec('Enemies');
+    btn(g, 'Enemies ' + (save.enemies === false ? 'OFF' : 'ON'), () => { save.enemies = save.enemies === false; persist(); syncEnemyBtn(); if (state === 'play') loadLevel(levelIdx); });
+    btn(g, 'Clear all', () => { enemies = []; });
+    btn(g, 'Spawn blob here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: 'blob', cx: c.x + 150, y: c.y + 30, amp: 90, sp: 50, ph: 0, hue: 200 }); } });
+    btn(g, 'Spawn bat here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: 'bat', cx: c.x + 150, y: c.y - 60, amp: 100, sp: 1.3, ph: 0, hue: 0 }); } });
+    btn(g, 'Spawn urchin here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: 'urchin', cx: c.x + 150, y: c.y + 30, amp: 90, sp: 50, ph: 0, hue: 0 }); } });
+    g = sec('Economy & unlocks');
+    const num = document.createElement('input'); num.type = 'number'; num.value = save.bread; num.style.width = '90px';
+    g.appendChild(num); btn(g, 'Set bread', () => { save.bread = Math.max(0, +num.value | 0); persist(); refreshMenu(); });
+    btn(g, '+1000 🍞', () => { save.bread += 1000; persist(); refreshMenu(); });
+    btn(g, 'Own all items + skins', () => { for (const it of ITEMS) save.owned[it.id] = true; for (const k of SKINS.LIST) save.skins[k.id] = true; persist(); });
+    btn(g, 'Unlock all levels', () => { save.unlocked = LEVELS.length; persist(); buildLevelPicker(); });
+    btn(g, 'Mark all done', () => { save.allDone = true; save.unlocked = LEVELS.length; persist(); refreshMenu(); });
+    g = sec('Save data');
+    const ta = document.createElement('textarea'); ta.value = JSON.stringify(save); B.appendChild(ta);
+    g = sec('');
+    btn(g, 'Load from box', () => { try { const o = JSON.parse(ta.value); save = Object.assign(defaults(), o); persist(); location.reload(); } catch (e) { alert('That is not valid save JSON.'); } });
+    btn(g, 'Reset ALL progress', () => { if (confirm('Wipe the whole save?')) { try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } location.reload(); } });
+    g = sec('Debug');
+    const dbg = document.createElement('div'); dbg.className = 'dbg'; dbg.id = 'admDbg'; B.appendChild(dbg);
+  }
+  function admDebug() {
+    const d = $('admDbg'); if (!d || !goose) return;
+    const c = goose.center();
+    d.textContent = 'state ' + state + ' · level ' + (levelIdx + 1) + '/' + LEVELS.length + ' (' + (level ? level.name : '') + ')\nx ' + c.x.toFixed(0) + '  y ' + c.y.toFixed(0) + '  stamina ' + (goose.stamina || 0).toFixed(1) + '\nenemies ' + enemies.length + '  grav x' + (world ? world.gscale : 1).toFixed(2) + '  bread ' + save.bread + '  stomps ' + (save.stomps | 0);
+  }
+  function openAdmin() {
+    if (!save.cheats.admin) return;      // never without the admin code
+    $('codeModal').classList.add('hidden');
+    admOpen = true; $('admin').classList.remove('hidden'); admRender();
+    clearInterval(admTimer); admTimer = setInterval(() => { if (!admOpen || !save.cheats.admin) { clearInterval(admTimer); $('admin').classList.add('hidden'); admOpen = false; } else admDebug(); }, 300);
+  }
+  function closeAdmin() { admOpen = false; $('admin').classList.add('hidden'); clearInterval(admTimer); }
+  $('btnAdm').addEventListener('click', openAdmin);
+  $('admOpen').addEventListener('click', openAdmin);
+  $('admClose').addEventListener('click', closeAdmin);
 
   // ---------------------------------------------------------------- minigames
   function openMgMenu() {
