@@ -15,12 +15,13 @@
 
   // ---------------------------------------------------------------- viewport
   let W = 0, H = 0, DPR = 1, S = 1, VW = 0, VH = 0;
+  let zoomMul = 1;
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth; H = window.innerHeight;
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-    S = Math.max(0.5, Math.min(W / 760, H / 440));
+    S = Math.max(0.5, Math.min(W / 760, H / 440)) * zoomMul;
     VW = W / S; VH = H / S;
   }
   window.addEventListener('resize', resize);
@@ -55,9 +56,13 @@
   // secret codes (type them in the Code box; type again to turn off)
   const CHEATS = {
     lol: 'All minigames', levels: 'All levels', speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps',
+    moon: 'Moon gravity', rainbow: 'Rainbow trail', disco: 'Disco sky', shield: 'Spike shield (no hazard deaths)', zoom: 'Wide zoom-out camera',
     admin: 'Everything + admin tools',
   };
+  // one-shot codes: they give you something once instead of toggling
+  const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
   const has = (k) => !!(save.cheats[k] || save.cheats.admin);   // admin switches on every code
+  zoomMul = has('zoom') ? 0.7 : 1; resize();
   const levelOpen = (i) => has('levels') || i < save.unlocked;
   const rich = () => has('money');
   const money = () => (rich() ? '∞' : save.bread);
@@ -115,9 +120,12 @@
     el.textContent = msg; el.classList.add('show'); toastT = secs || 3;
   }
 
+  let trailP = [];
   function loadLevel(i) {
     levelIdx = i; level = LEVELS[i];
     world = new World();
+    world.gscale = has('moon') ? 0.4 : 1;
+    trailP = [];
     extras = buildLevel(world, level);
     const d = diff();
     goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
@@ -147,6 +155,32 @@
   }
 
   // ---------------------------------------------------------------- level tick
+  let trailAcc = 0, trailHue = 0;
+  function spawnTrail(tr, c) {
+    trailAcc += 1;
+    if (trailAcc < 3) return; trailAcc = 0;
+    trailHue = (trailHue + 25) % 360;
+    const cols = tr.cols || ['#fff'];
+    const k = tr.kind, up = (k === 'flame' || k === 'bubble' || k === 'heart' || k === 'note') ? -40 : k === 'snow' || k === 'leaf' ? 25 : 0;
+    trailP.push({ k, x: c.x + (Math.random() - 0.5) * 24, y: c.y + (Math.random() - 0.5) * 18, vx: (Math.random() - 0.5) * 30, vy: up + (Math.random() - 0.5) * 30,
+      t: 0, life: k === 'rainbow' ? 0.9 : 0.8 + Math.random() * 0.5, col: k === 'rainbow' ? 'hsl(' + trailHue + ',90%,60%)' : cols[(Math.random() * cols.length) | 0], r: 4 + Math.random() * 4, rot: Math.random() * 6 });
+    if (trailP.length > 140) trailP.shift();
+  }
+  function drawTrail() {
+    for (const q of trailP) {
+      const a = 1 - q.t / q.life; ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.translate(q.x, q.y); ctx.fillStyle = q.col; ctx.strokeStyle = q.col;
+      const r = q.r;
+      if (q.k === 'heart') { ctx.scale(r / 10, r / 10); ctx.beginPath(); ctx.moveTo(0, 8); ctx.bezierCurveTo(-14, -2, -7, -12, 0, -4); ctx.bezierCurveTo(7, -12, 14, -2, 0, 8); ctx.fill(); }
+      else if (q.k === 'bubble') { ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.stroke(); }
+      else if (q.k === 'spark' || q.k === 'star') { ctx.rotate(q.rot + q.t * 3); ctx.fillRect(-r * 0.2, -r, r * 0.4, r * 2); ctx.fillRect(-r, -r * 0.2, r * 2, r * 0.4); }
+      else if (q.k === 'flame') { ctx.beginPath(); ctx.arc(0, 0, r * a + 1, 0, 7); ctx.fill(); }
+      else if (q.k === 'note') { ctx.beginPath(); ctx.ellipse(0, 0, r * 0.7, r * 0.5, -0.4, 0, 7); ctx.fill(); ctx.fillRect(r * 0.5, -r * 1.6, 1.6, r * 1.6); }
+      else if (q.k === 'leaf') { ctx.rotate(q.rot + q.t * 4); ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.5, 0, 0, 7); ctx.fill(); }
+      else if (q.k === 'rainbow') { ctx.beginPath(); ctx.arc(0, 0, r * 1.1, 0, 7); ctx.fill(); }
+      else { ctx.beginPath(); ctx.arc(0, 0, r * 0.7, 0, 7); ctx.fill(); }
+      ctx.restore();
+    }
+  }
   function tick() {
     const move = (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
     const aim = input.padAim || input.mouseAim || null;
@@ -157,6 +191,12 @@
     const wasWet = goose.swimming;
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
     world.step(STEP);
+    {
+      const tid = has('rainbow') ? 't_rainbow' : save.equip.trail;
+      const tr = tid && BY_ID[tid] && BY_ID[tid].trail;
+      if (tr) spawnTrail(tr, goose.center(), Math.hypot(goose.vx || 0, goose.vy || 0));
+      for (let i = trailP.length - 1; i >= 0; i--) { const q = trailP[i]; q.t += STEP; q.x += q.vx * STEP; q.y += q.vy * STEP; if (q.t > q.life) trailP.splice(i, 1); }
+    }
     if (goose.swimming && !wasWet) { snd.splash(); const c = goose.center(); splashes.push({ x: c.x, y: c.y, t: 0 }); }
     if (goose.bounced) { goose.bounced = false; snd.boing(); boingT = 0.6; }
 
@@ -167,7 +207,7 @@
       }
     }
     if (c.y > level.deathY) { snd.splash(); deaths++; respawn(); toast('Whoops. Back to the last checkpoint.', 2); }
-    else if (!(save.cheats.admin && save.cheats.god) && touchesHazard(goose, level.hazards)) { snd.ouch(); deaths++; respawn(); toast('Ouch! Thorns.', 1.6); }
+    else if (!(save.cheats.admin && save.cheats.god) && !save.cheats.shield && touchesHazard(goose, level.hazards)) { snd.ouch(); deaths++; respawn(); toast('Ouch! Thorns.', 1.6); }
 
     for (const b of bread) {
       if (b.got) continue;
@@ -345,6 +385,7 @@
     ctx.beginPath(); ctx.ellipse(-4, -6, 3, 6, 0.4, 0, 7); ctx.fill();
     ctx.restore();
 
+    drawTrail();
     drawGoose(ctx, goose, save.equip, save.skin);
     if (honkText > 0) {
       const h = goose.head, f = goose.facing, t = 1 - honkText / 0.7;
@@ -534,6 +575,7 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       drawWorld();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
       drawAimHint();
     }
     if (state === 'store') drawStorePreview();
@@ -739,7 +781,7 @@
     $('adminPanel').classList.toggle('hidden', !save.cheats.admin);
     $('admGod').classList.toggle('on', !!save.cheats.god);
   }
-  function applyCodes() { persist(); refreshMenu(); buildLevelPicker(); if (state === 'title') loadLevel(pick); renderCodes(); }
+  function applyCodes() { if (world) world.gscale = has('moon') ? 0.4 : 1; zoomMul = has('zoom') ? 0.7 : 1; resize(); persist(); refreshMenu(); buildLevelPicker(); if (state === 'title') loadLevel(pick); renderCodes(); }
   function removeCode(k) {
     delete save.cheats[k];
     if (k === 'admin') delete save.cheats.god;
@@ -749,7 +791,12 @@
   function submitCode() {
     const inp = $('codeInput'), c = inp.value.trim().toLowerCase();
     if (!c) return;
-    if (CHEATS[c]) {
+    if (GIFTS[c]) {
+      if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true;
+      if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true;
+      if (c === 'bread') save.bread += 500;
+      persist(); refreshMenu(); snd.egg(); say('🎁 ' + c + ': ' + GIFTS[c], true);
+    } else if (CHEATS[c]) {
       const turnOn = !save.cheats[c];
       if (turnOn) save.cheats[c] = true; else { delete save.cheats[c]; if (c === 'admin') delete save.cheats.god; }
       applyCodes(); turnOn ? snd.egg() : snd.tick();
@@ -763,7 +810,7 @@
   $('codeShow').addEventListener('click', () => { const l = $('codeList'); const show = l.classList.contains('hidden'); l.classList.toggle('hidden', !show); renderCodes(); $('codeShow').textContent = show ? 'Hide codes' : 'Active codes'; });
   $('admGod').addEventListener('click', () => { save.cheats.god = !save.cheats.god; persist(); renderCodes(); say(save.cheats.god ? '🛡 God mode ON' : 'God mode off', true); });
   $('admBread').addEventListener('click', () => { save.bread += 1000; persist(); refreshMenu(); say('+1000 🍞', true); snd.bread(); });
-  $('admItems').addEventListener('click', () => { for (const it of ITEMS) save.owned[it.id] = true; persist(); say('You own every item!', true); snd.buy(); });
+  $('admItems').addEventListener('click', () => { for (const it of ITEMS) save.owned[it.id] = true; for (const k of SKINS.LIST) save.skins[k.id] = true; persist(); say('You own every item!', true); snd.buy(); });
   $('btnWin').addEventListener('click', () => { if (state === 'play' && save.cheats.admin) finishLevel(); });
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
   $('codeGo').addEventListener('click', submitCode);
@@ -776,7 +823,13 @@
   function sizeStoreCanvas() { const d = Math.min(window.devicePixelRatio || 1, 2); storeCv.width = 260 * d; storeCv.height = 300 * d; sctx.setTransform(d, 0, 0, d, 0, 0); }
   sizeStoreCanvas();
 
-  function currentLook() { return Object.assign({}, save.equip, tryOn); }
+  const SKIN_ITEMS = SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0 }));
+  const STORE_CATS = [{ id: 'skin', name: 'Skins' }].concat(CATS);
+  const storeItem = (id) => BY_ID[id] || SKIN_ITEMS.find((x) => x.id === id);
+  const isOwned = (it) => it.cat === 'skin' ? !!save.skins[it.sid] : !!save.owned[it.id];
+  const isWearing = (it) => it.cat === 'skin' ? save.skin === it.sid : save.equip[it.cat] === it.id;
+  function currentLook() { const l = Object.assign({}, save.equip, tryOn); delete l.skin; return l; }
+  function currentSkin() { return tryOn.skin ? tryOn.skin.slice(5) : save.skin; }
 
   function drawStorePreview() {
     sctx.clearRect(0, 0, 260, 300);
@@ -785,12 +838,17 @@
     sctx.fillStyle = g; sctx.fillRect(0, 0, 260, 300);
     sctx.fillStyle = 'rgba(0,0,0,.12)'; sctx.beginPath(); sctx.ellipse(120, 262, 70, 9, 0, 0, 7); sctx.fill();
     sctx.save();
-    sctx.translate(112, 220); sctx.scale(1.55, 1.55);
-    drawGoose(sctx, fakeGoose(clock), currentLook(), save.skin);
+    sctx.translate(100, 235); sctx.scale(1.2, 1.2);
+    drawGoose(sctx, fakeGoose(clock), currentLook(), currentSkin());
     sctx.restore();
   }
 
   function iconFor(item) {
+    if (item.cat === 'skin') {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 96;
+      const c = cv.getContext('2d'); c.translate(14, 36); c.scale(0.5, 0.5);
+      drawGoose(c, fakeGoose(0), {}, item.sid); return cv;
+    }
     const cv = document.createElement('canvas'); cv.width = cv.height = 96;
     const c = cv.getContext('2d'); c.scale(2, 2);
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -801,6 +859,8 @@
       c.beginPath(); c.arc(0, 0, 10, 0, 7); c.fill(); c.stroke();
       if (item.cat === 'eyes') { c.fillStyle = INK; c.beginPath(); c.arc(3, -3, 2.8, 0, 7); c.fill(); c.translate(3, -3); }
       item.draw(c);
+    } else if (item.cat === 'trail') {
+      c.translate(24, 24); c.scale(1.6, 1.6); item.draw(c);
     } else if (item.cat === 'neck') {
       c.translate(24, 24); c.scale(1.7, 1.7); c.rotate(-Math.PI / 2);
       c.strokeStyle = INK; c.lineWidth = 15; c.beginPath(); c.moveTo(-18, 0); c.lineTo(18, 0); c.stroke();
@@ -826,7 +886,7 @@
     $('storeBread').textContent = '🍞 ' + money();
     const tabs = $('storeTabs');
     tabs.innerHTML = '';
-    CATS.forEach((cat) => {
+    STORE_CATS.forEach((cat) => {
       const b = document.createElement('button');
       b.textContent = cat.name;
       if (cat.id === storeCat) b.classList.add('sel');
@@ -840,10 +900,10 @@
     none.className = 'item' + (!save.equip[storeCat] && !tryOn[storeCat] ? ' on' : '');
     none.innerHTML = '<div class="ic">∅</div><b>None</b><span>Go bare</span>';
     none.addEventListener('click', () => { delete tryOn[storeCat]; delete save.equip[storeCat]; persist(); selectedItem = null; renderStore(); });
-    grid.appendChild(none);
-    ITEMS.filter((i) => i.cat === storeCat).forEach((item) => {
-      const owned = !!save.owned[item.id];
-      const wearing = save.equip[item.cat] === item.id;
+    if (storeCat !== 'skin') grid.appendChild(none);
+    (storeCat === 'skin' ? SKIN_ITEMS : ITEMS.filter((i) => i.cat === storeCat)).forEach((item) => {
+      const owned = isOwned(item);
+      const wearing = isWearing(item);
       const el = document.createElement('div');
       el.className = 'item' + (wearing ? ' on' : '') + (selectedItem === item.id ? ' sel' : '');
       const ic = document.createElement('div'); ic.className = 'ic'; ic.appendChild(iconFor(item));
@@ -854,7 +914,8 @@
       el.addEventListener('click', () => {
         audio();
         if (owned) {
-          if (wearing) delete save.equip[item.cat]; else save.equip[item.cat] = item.id;
+          if (item.cat === 'skin') save.skin = item.sid;
+          else if (wearing) delete save.equip[item.cat]; else save.equip[item.cat] = item.id;
           delete tryOn[item.cat]; selectedItem = null; persist(); snd.tick();
         } else { tryOn[item.cat] = item.id; selectedItem = item.id; snd.tick(); }
         renderStore();
@@ -863,8 +924,8 @@
     });
     // buy bar
     const bar = $('buyBar');
-    const it = selectedItem ? BY_ID[selectedItem] : null;
-    if (it && !save.owned[it.id]) {
+    const it = selectedItem ? storeItem(selectedItem) : null;
+    if (it && !isOwned(it)) {
       bar.classList.remove('hidden');
       $('buyText').textContent = 'Try on: ' + it.name + ' · 🍞 ' + it.price;
       const can = rich() || save.bread >= it.price;
@@ -874,11 +935,12 @@
   }
 
   $('buyBtn').addEventListener('click', () => {
-    const it = selectedItem ? BY_ID[selectedItem] : null;
-    if (!it || save.owned[it.id]) return;
+    const it = selectedItem ? storeItem(selectedItem) : null;
+    if (!it || isOwned(it)) return;
     if (!rich() && save.bread < it.price) { snd.no(); return; }
     if (!rich()) save.bread -= it.price;
-    save.owned[it.id] = true; save.equip[it.cat] = it.id;
+    if (it.cat === 'skin') { save.skins[it.sid] = true; save.skin = it.sid; }
+    else { save.owned[it.id] = true; save.equip[it.cat] = it.id; }
     delete tryOn[it.cat]; selectedItem = null; persist(); snd.buy(); refreshMenu(); renderStore();
     toast('Bought ' + it.name + '!', 1.5);
   });

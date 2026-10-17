@@ -119,7 +119,7 @@
         }
         p.wet = wet;
         let ax = p.fx * p.im;
-        let ay = p.fy * p.im + GRAVITY - GRAVITY * (1 / p.rho) * wet;
+        let ay = p.fy * p.im + (GRAVITY - GRAVITY * (1 / p.rho) * wet) * (this.gscale || 1);
         p.vx += ax * h; p.vy += ay * h;
 
         const sp = Math.hypot(p.vx, p.vy);
