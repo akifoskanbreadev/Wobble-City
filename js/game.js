@@ -53,7 +53,10 @@
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
   if (save.mg) { save.cheats.lol = true; save.mg = false; }   // older saves: the minigame code is now a normal, removable code
   const mgUnlocked = () => !!(has('lol') || save.allDone);
-  const diff = () => DIFFS[save.diff];
+  let diffOverride = null;                      // multiplayer: both players use the host's difficulty
+  const dKey = () => diffOverride || save.diff;
+  const diff = () => DIFFS[dKey()];
+  const mpOn = () => !!(window.MP && window.MP.active());
   // secret codes (type them in the Code box; type again to turn off)
   const CHEATS = {
     lol: 'All minigames', levels: 'All levels', speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps',
@@ -62,7 +65,7 @@
   };
   // one-shot codes: they give you something once instead of toggling
   const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
-  const has = (k) => !!(save.cheats[k] || save.cheats.admin);   // admin switches on every code
+  const has = (k) => !mpOn() && !!(save.cheats[k] || save.cheats.admin);   // codes are off during multiplayer games   // admin switches on every code
   zoomMul = has('zoom') ? 0.7 : 1; resize();
   const levelOpen = (i) => has('levels') || i < save.unlocked;
   const rich = () => has('money');
@@ -122,12 +125,12 @@
   }
 
   let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0;
-  function loadLevel(i) {
-    levelIdx = i; level = LEVELS[i];
+  function loadLevel(i, custom) {
+    levelIdx = i; level = custom || LEVELS[i];
     world = new World();
     world.gscale = has('moon') ? 0.4 : 1;
     trailP = [];
-    enemies = (save.enemies !== false) ? ENEMIES.generate(level, i, save.diff) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
+    enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? -1 : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
     extras = buildLevel(world, level);
     const d = diff();
     goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
@@ -137,7 +140,7 @@
     breadGot = 0; deaths = 0; splashes = [];
     const c = goose.center();
     camX = c.x - VW * 0.4; camY = c.y - VH * 0.58;
-    $('levelName').textContent = (i + 1) + '/' + LEVELS.length + '  ' + level.name;
+    $('levelName').textContent = custom ? level.name : (i + 1) + '/' + LEVELS.length + '  ' + level.name;
     updateHud();
   }
 
@@ -199,7 +202,7 @@
         enemyDead[e.id] = levelClock + ENEMIES.RESPAWN; save.stomps = (save.stomps | 0) + 1; save.bread += 1; breadGot = breadGot;
         for (const q of parts) q.vy = Math.min(q.vy, -420);
         snd.boing(); toast('Stomp! +1 🍞', 0.9); persist();
-      } else if (hitCd <= 0 && !(save.cheats.admin && save.cheats.god) && !save.cheats.shield) {
+      } else if (hitCd <= 0 && !has('shield') && !(save.cheats.admin && save.cheats.god && !mpOn())) {
         hitCd = 1.2; const dir = c.x < p.x ? -1 : 1;
         for (const q of parts) { q.vx += dir * 520; q.vy = Math.min(q.vy, -330); }
         snd.ouch(); toast('Bonk!', 0.9);
@@ -207,15 +210,17 @@
     }
   }
   function tick() {
-    const move = (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
+    const frz = window.MP && window.MP.frozen();
+    const move = frz ? 0 : (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
     const aim = input.padAim || input.mouseAim || null;
-    const flap = input.flapQueue;
+    const flap = frz ? false : input.flapQueue;
     input.flapQueue = false;
     if (flap && goose.stamina >= 1 && goose.flapCd <= 0) snd.flap();
     if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); honkText = 0.7; }
     const wasWet = goose.swimming;
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
     world.step(STEP);
+    if (window.MP) window.MP.tick(goose, STEP);
     levelClock += STEP; hitCd = Math.max(0, hitCd - STEP);
     enemyTick();
     {
@@ -234,14 +239,14 @@
       }
     }
     if (c.y > level.deathY) { snd.splash(); deaths++; respawn(); toast('Whoops. Back to the last checkpoint.', 2); }
-    else if (!(save.cheats.admin && save.cheats.god) && !save.cheats.shield && touchesHazard(goose, level.hazards)) { snd.ouch(); deaths++; respawn(); toast('Ouch! Thorns.', 1.6); }
+    else if (!has('shield') && !(save.cheats.admin && save.cheats.god && !mpOn()) && touchesHazard(goose, level.hazards)) { snd.ouch(); deaths++; respawn(); toast('Ouch! Thorns.', 1.6); }
 
     for (const b of bread) {
       if (b.got) continue;
       if (Math.hypot(h.x - b.x, h.y - b.y) < 26 || Math.hypot(c.x - b.x, c.y - b.y) < 40) { b.got = true; breadGot++; snd.bread(); updateHud(); }
     }
 
-    if (state === 'play' && Math.hypot(h.x - level.egg[0], h.y - level.egg[1]) < 34) finishLevel();
+    if (state === 'play' && Math.hypot(h.x - level.egg[0], h.y - level.egg[1]) < 34) { if (!(mpOn() && window.MP.onEgg())) finishLevel(); }
   }
 
   function finishLevel() {
@@ -415,6 +420,7 @@
     drawTrail();
     ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
     drawGoose(ctx, goose, save.equip, save.skin);
+    if (window.MP) window.MP.drawWorld(ctx, level, clock);
     if (honkText > 0) {
       const h = goose.head, f = goose.facing, t = 1 - honkText / 0.7;
       ctx.save();
@@ -604,6 +610,7 @@
       drawWorld();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
+      if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
       drawAimHint();
     }
     if (state === 'store') drawStorePreview();
@@ -709,6 +716,8 @@
   }
 
   function showMenu() {
+    if (window.MP) window.MP.stopMode();
+    diffOverride = null;
     stopMinigame();
     hideAll();
     $('title').classList.remove('hidden');
@@ -755,6 +764,11 @@
     $('levelTitle').textContent = LEVELS[pick].name;
   }
 
+  function startCustom(lv) {
+    stopMinigame(); hideAll();
+    loadLevel(levelIdx, lv);
+    state = 'play'; setMode('std', 'level');
+  }
   function startLevel(i) {
     stopMinigame();
     hideAll();
@@ -847,6 +861,10 @@
   const syncEnemyBtn = () => { $('enemyBtn').textContent = '👾 Enemies: ' + (save.enemies === false ? 'Off' : 'On'); };
   $('enemyBtn').addEventListener('click', () => { save.enemies = save.enemies === false; persist(); syncEnemyBtn(); if (state === 'title') loadLevel(pick); });
   syncEnemyBtn();
+  $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
+  window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
+    setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },
+    appendMgText: (t) => { $('mgDoneText').textContent += t; } });
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
   $('codeGo').addEventListener('click', submitCode);
   $('codeClose').addEventListener('click', () => $('codeModal').classList.add('hidden'));
@@ -1139,6 +1157,7 @@
     $('mgDoneTitle').textContent = mgDef.name;
     $('mgDoneText').textContent = (text || mgDef.fmt(score)) + '\n' + (isBest ? '🏆 New best!' : 'Best: ' + mgDef.fmt(prev)) + '\n+' + reward + ' 🍞';
     $('mgDone').classList.remove('hidden');
+    if (window.MP) window.MP.onMgEnd(score);
   }
   $('mgAgain').addEventListener('click', () => { if (mgDef) { const id = mgDef.id; startMinigame(id); } });
   $('mgDoneList').addEventListener('click', () => { stopMinigame(); openMgMenu(); setMode('none', 'none'); });
