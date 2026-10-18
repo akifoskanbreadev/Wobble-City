@@ -137,12 +137,14 @@
     el.textContent = msg; el.classList.add('show'); toastT = secs || 3;
   }
 
+  let decor = null;
   let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0;
   function loadLevel(i, custom) {
     levelIdx = i; level = custom || LEVELS[i];
     world = new World();
     world.gscale = has('moon') ? 0.4 : 1;
     trailP = [];
+    decor = window.Decor.generate(level, custom ? 0 : i);
     enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? -1 : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
     extras = buildLevel(world, level);
     const d = diff();
@@ -329,7 +331,14 @@
       ctx.ellipse(x - 38 * S, y - 6 * S, 34 * S, 17 * S, 0, 0, 7);
       ctx.fill();
     }
+    // sun / moon
+    {
+      const night = level && level.theme === 'night' || th.stars, sx = W * 0.8, sy = H * 0.2;
+      if (night) { ctx.fillStyle = 'rgba(255,250,220,.15)'; ctx.beginPath(); ctx.arc(sx, sy, 60 * S, 0, 7); ctx.fill(); ctx.fillStyle = '#f6f1d6'; ctx.beginPath(); ctx.arc(sx, sy, 26 * S, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(160,150,120,.35)'; for (const [dx, dy, r] of [[-8, -6, 5], [7, 5, 6], [-2, 10, 3]]) { ctx.beginPath(); ctx.arc(sx + dx * S, sy + dy * S, r * S, 0, 7); ctx.fill(); } }
+      else { const g2 = ctx.createRadialGradient(sx, sy, 8 * S, sx, sy, 90 * S); g2.addColorStop(0, 'rgba(255,245,190,.95)'); g2.addColorStop(0.35, 'rgba(255,235,150,.35)'); g2.addColorStop(1, 'rgba(255,235,150,0)'); ctx.fillStyle = g2; ctx.fillRect(sx - 100 * S, sy - 100 * S, 200 * S, 200 * S); ctx.fillStyle = '#fff6c4'; ctx.beginPath(); ctx.arc(sx, sy, 22 * S, 0, 7); ctx.fill(); }
+    }
     const base = (540 - cy) * S;
+    if (decor) window.Decor.drawFar(ctx, decor.far, level.theme, cx, W, H, S, th, base - 20 * S);
     hills(0.2, th.h1, 70, 0.004, base - 40 * S);
     hills(0.45, th.h2, 50, 0.007, base + 10 * S);
   }
@@ -352,6 +361,7 @@
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+    window.Decor.terrainDetail(ctx, pts, i0, i1, level.theme, ice, camX, VW, clock);
     ctx.strokeStyle = ice ? '#eaf8ff' : th.grass; ctx.lineWidth = 12; trace(6); ctx.stroke();
     ctx.strokeStyle = ice ? '#ffffff' : th.grass2; ctx.lineWidth = 5; trace(3); ctx.stroke();
     ctx.strokeStyle = INK; ctx.lineWidth = 3; trace(0); ctx.stroke();
@@ -378,6 +388,15 @@
     const dg = ctx.createLinearGradient(0, s.y, 0, s.y + Math.min(s.h, 300));
     dg.addColorStop(0, th.d1); dg.addColorStop(1, th.d2);
     ctx.fillStyle = dg; ctx.fillRect(s.x, s.y, s.w, s.h);
+    if (s.h > 30) {   // stone-block texture
+      ctx.save(); ctx.beginPath(); ctx.rect(s.x, s.y, s.w, s.h); ctx.clip(); ctx.strokeStyle = 'rgba(0,0,0,.16)'; ctx.lineWidth = 2;
+      const bh = 26, bw = 46;
+      for (let y = s.y + 14, r = 0; y < Math.min(s.y + s.h, camY + VH + 60); y += bh, r++) {
+        ctx.beginPath(); ctx.moveTo(s.x, y); ctx.lineTo(s.x + s.w, y); ctx.stroke();
+        for (let x = s.x + (r % 2 ? bw / 2 : 0); x < s.x + s.w; x += bw) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke(); }
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(s.x, s.y, 5, s.h); ctx.restore();
+    }
     ctx.fillStyle = th.grass; ctx.fillRect(s.x, s.y, s.w, 12);
     ctx.fillStyle = th.grass2; ctx.fillRect(s.x, s.y, s.w, 5);
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -399,6 +418,7 @@
     ctx.scale(S * DPR, S * DPR);
     ctx.translate(-camX, -camY);
 
+    if (decor) window.Decor.draw(ctx, decor.props, camX, VW, clock);
     for (const t of level.terrain || []) drawTerrain(t);
     for (const s of world.solids) drawSolid(s);
     for (const h of level.hazards || []) drawHazard(h);
@@ -437,6 +457,7 @@
     drawTrail();
     ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
     drawGoose(ctx, goose, save.equip, save.skin);
+    if (decor) window.Decor.draw(ctx, decor.fore, camX, VW, clock);
     if (window.MP) window.MP.drawWorld(ctx, level, clock);
     if (honkText > 0) {
       const h = goose.head, f = goose.facing, t = 1 - honkText / 0.7;
