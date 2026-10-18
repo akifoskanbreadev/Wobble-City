@@ -139,19 +139,37 @@
 
   // ------------------------------------------------------------ arenas
   const G = 520;
-  function arenaLevel(kind, idx, n) {
-    const W = kind === 'hide' ? 3200 : 2400;
-    const plats = kind === 'hide'
-      ? [[300, 400, 200], [760, 310, 200], [1250, 390, 240], [1700, 290, 200], [2150, 380, 220], [2600, 300, 200], [1350, 170, 260], [550, 190, 160]]
-      : [[300, 400, 200], [700, 300, 200], [1100, 380, 220], [1500, 280, 200], [1900, 400, 200], [1000, 170, 240]];
+  // Specialised maps. plats: [x, topY, width]; pads: [x, topY, width]; bushes: [x, y, w, h]; dip: a pond in the floor
+  const MAPS = {
+    tag: [
+      { name: 'Goose Arena', theme: 'meadow', W: 2400, plats: [[300, 400, 200], [700, 300, 200], [1100, 380, 220], [1500, 280, 200], [1900, 400, 200], [1000, 170, 240]], pads: [[600, G, 70], [1750, G, 70]] },
+      { name: 'Skyline', theme: 'night', W: 2000, plats: [[200, 420, 180], [560, 340, 180], [920, 260, 180], [1280, 340, 180], [1640, 420, 180], [760, 150, 200], [1100, 150, 200], [400, 190, 140], [1450, 190, 140], [900, 40, 200]], pads: [[100, G, 70], [950, G, 70], [1850, G, 70], [920, 260, 60]] },
+      { name: 'Pond Party', theme: 'desert', W: 2600, dip: [900, 1700], plats: [[300, 400, 200], [1050, 380, 160], [1450, 380, 160], [2000, 400, 220], [1250, 250, 200], [650, 290, 160]], pads: [[550, G, 70], [2250, G, 70]] },
+      { name: 'Ice Rink', theme: 'snow', W: 2200, mu: 0.12, plats: [[250, 380, 220], [900, 300, 240], [1600, 380, 220]], pads: [] },
+      { name: 'Pillar Park', theme: 'candy', W: 2600, pillars: [[500, 200], [900, 260], [1300, 200], [1700, 260], [2100, 200]], plats: [[250, 400, 160], [1100, 190, 200], [1950, 400, 160]], pads: [[100, G, 70], [2400, G, 70]] },
+    ],
+    hide: [
+      { name: 'Hide & Seek Yard', theme: 'sunset', W: 3200, plats: [[300, 400, 200], [760, 310, 200], [1250, 390, 240], [1700, 290, 200], [2150, 380, 220], [2600, 300, 200], [1350, 170, 260], [550, 190, 160]], pads: [[900, G, 70], [2300, G, 70]],
+        bushes: [[520, G - 110, 150, 110], [1000, G - 110, 150, 110], [1500, G - 110, 150, 110], [1950, G - 110, 150, 110], [2450, G - 110, 150, 110], [2850, G - 110, 150, 110]] },
+      { name: 'Bush Village', theme: 'meadow', W: 3400, plats: [[400, 380, 160], [900, 300, 160], [1500, 380, 200], [2100, 300, 160], [2700, 380, 160]], pads: [[1200, G, 70], [2400, G, 70]],
+        bushes: [[300, G - 100, 130, 100], [650, G - 120, 150, 120], [1000, G - 100, 130, 100], [1350, G - 120, 150, 120], [1750, G - 100, 130, 100], [2050, G - 120, 150, 120], [2400, G - 100, 130, 100], [2750, G - 120, 150, 120], [3050, G - 100, 130, 100], [1600, 380 - 90, 120, 90]] },
+      { name: 'Frozen Forest', theme: 'snow', W: 3000, mu: 0.35, plats: [[350, 400, 200], [900, 300, 220], [1500, 380, 200], [2100, 300, 220], [2600, 400, 200]], pads: [[1250, G, 70]],
+        bushes: [[550, G - 110, 150, 110], [1100, G - 110, 150, 110], [1650, G - 110, 150, 110], [2200, G - 110, 150, 110], [2700, G - 110, 150, 110], [950, 300 - 100, 120, 100], [2150, 300 - 100, 120, 100]] },
+      { name: 'Night Garden', theme: 'night', W: 3200, plats: [[300, 420, 180], [700, 330, 180], [1100, 240, 180], [1500, 330, 180], [1900, 240, 180], [2300, 330, 180], [2700, 420, 180], [1500, 130, 220]], pads: [[100, G, 70], [1400, G, 70], [3000, G, 70]],
+        bushes: [[450, G - 110, 150, 110], [900, G - 110, 150, 110], [1300, G - 110, 150, 110], [1800, G - 110, 150, 110], [2200, G - 110, 150, 110], [2600, G - 110, 150, 110], [3000, G - 110, 150, 110], [1100, 240 - 90, 120, 90], [1900, 240 - 90, 120, 90]] },
+    ],
+  };
+  function arenaLevel(kind, map, idx, n) {
+    const d = (MAPS[kind][map] || MAPS[kind][0]), W = d.W;
+    const pts = d.dip ? [[-120, G], [d.dip[0], G], [d.dip[0] + 60, G + 130], [d.dip[1] - 60, G + 130], [d.dip[1], G], [W + 120, G]] : [[-120, G], [W + 120, G]];
     const lv = {
-      name: kind === 'hide' ? 'Hide & Seek Yard' : 'Goose Arena', hint: '', theme: kind === 'hide' ? 'sunset' : 'meadow',
-      spawn: [300 + (n > 1 ? (idx * (W - 700)) / (n - 1) : 0), G - 45], deathY: 1500,
-      terrain: [{ pts: [[-120, G], [W + 120, G]] }],
-      solids: [[-120, -600, 120, 1500], [W, -600, 120, 1500]].concat(plats.map((p) => [p[0], p[1], p[2], 18])),
-      water: [], hazards: [], pads: kind === 'hide' ? [[900, G, 70], [2300, G, 70]] : [[600, G, 70], [1750, G, 70]], movers: [], checkpoints: [], bread: [], egg: [-9999, -9999],
+      name: d.name, hint: '', theme: d.theme, spawn: [300 + (n > 1 ? (idx * (W - 700)) / (n - 1) : 0), G - 45], deathY: 1500,
+      terrain: [{ pts, mu: d.mu }],
+      solids: [[-120, -600, 120, 1500], [W, -600, 120, 1500]].concat(d.plats.map((p) => [p[0], p[1], p[2], 18]), (d.pillars || []).map((p) => [p[0], G - p[1], 60, p[1]])),
+      water: d.dip ? [[d.dip[0] + 20, G + 10, d.dip[1] - d.dip[0] - 40, 200]] : [], hazards: [], pads: d.pads || [], movers: [], checkpoints: [], bread: [], egg: [-9999, -9999],
     };
-    if (kind === 'hide') lv.bushes = [[520, G - 110, 150, 110], [1000, G - 110, 150, 110], [1500, G - 110, 150, 110], [1950, G - 110, 150, 110], [2450, G - 110, 150, 110], [2850, G - 110, 150, 110]];
+    if (d.mu == null) delete lv.terrain[0].mu;
+    if (d.bushes) lv.bushes = d.bushes;
     return lv;
   }
 
@@ -161,6 +179,7 @@
     if (!isHost || !connected) return;
     const ids = [0].concat(Array.from(conns.keys())).sort((a, b) => a - b);
     if (ids.length < 2) return status('You need at least one friend in the room first.', true);
+    if ((mode === 'tag' || mode === 'hide') && (arg == null || arg < 0)) arg = (Math.random() * MAPS[mode].length) | 0;
     const pickId = () => ids[(Math.random() * ids.length) | 0];
     const o = { t: 'start', mode, arg, seed: (Math.random() * 1e9) | 0, diff: api.save().diff, ids, it: mode === 'tag' ? pickId() : -1, seekers: mode === 'hide' ? [pickId()] : [] };
     toAll(o); begin(o);
@@ -172,9 +191,9 @@
     $('mpMenu').classList.add('hidden'); $('mpDone').classList.add('hidden');
     api.setDiff(m.diff);
     const idx = Math.max(0, M.ids.indexOf(myId)), n = M.ids.length;
-    if (m.mode === 'race') { M.countdown = 3; api.startLevel(m.arg); }
-    else if (m.mode === 'tag') { M.countdown = 3; M.left = 60; api.startCustom(arenaLevel('tag', idx, n)); }
-    else if (m.mode === 'hide') { M.countdown = 3; M.phase = 'hide'; M.left = 15; api.startCustom(arenaLevel('hide', idx, n)); }
+    if (m.mode === 'race') { M.countdown = 3; if (typeof m.arg === 'string') api.startCustom(root.Levels.race[+m.arg.slice(2)]); else api.startLevel(m.arg); }
+    else if (m.mode === 'tag') { M.countdown = 3; M.left = 60; api.startCustom(arenaLevel('tag', m.arg | 0, idx, n)); }
+    else if (m.mode === 'hide') { M.countdown = 3; M.phase = 'hide'; M.left = 15; api.startCustom(arenaLevel('hide', m.arg | 0, idx, n)); }
     else if (m.mode === 'duel') { M.countdown = 0; M.saveRandom = Math.random; Math.random = mulberry(m.seed); api.startMinigame(m.arg); }
     ui();
   }
@@ -346,7 +365,8 @@
       '<div class="small">The first person to use a word hosts the room. The room disappears when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.</div></div>' +
       '<div id="mpRoom" style="display:none"><b id="mpRoomName"></b><div id="mpRoster"></div></div>' +
       '<div id="mpModes" style="display:none"><h3>Pick a game</h3><div class="row"><select id="mpLevel"></select><button class="sec" id="mpRace">🏁 Race</button></div>' +
-      '<div class="row" style="margin-top:6px"><button class="sec" id="mpTag">🏃 Tag</button><button class="sec" id="mpHide">🫣 Hide &amp; Seek</button></div>' +
+      '<div class="row" style="margin-top:6px"><select id="mpTagMap"></select><button class="sec" id="mpTag">🏃 Tag</button></div>' +
+      '<div class="row" style="margin-top:6px"><select id="mpHideMap"></select><button class="sec" id="mpHide">🫣 Hide &amp; Seek</button></div>' +
       '<div class="row" style="margin-top:6px"><select id="mpMg"></select><button class="sec" id="mpDuel">⚔️ Minigame duel</button></div></div>' +
       '<div class="row" style="margin-top:12px"><button class="big small-btn ghost" id="mpClose">Back</button><button class="big small-btn ghost" id="mpDisc">Leave room</button></div></div></div>' +
       '<div class="overlay clear hidden" id="mpDone"><div class="card"><h2 id="mpDoneTitle"></h2><p id="mpDoneText" style="white-space:pre-line"></p><div class="row"><button class="big small-btn" id="mpRematch">Rematch</button><button class="big small-btn ghost" id="mpLobby">Back to lobby</button></div></div></div>';
@@ -355,21 +375,26 @@
     $('mpWord').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join($('mpWord').value); });
     $('mpClose').onclick = () => $('mpMenu').classList.add('hidden');
     $('mpDisc').onclick = () => { disconnect(); status('Left the room.'); };
-    $('mpRace').onclick = () => hostStartMode('race', +$('mpLevel').value);
-    $('mpTag').onclick = () => hostStartMode('tag');
-    $('mpHide').onclick = () => hostStartMode('hide');
+    $('mpRace').onclick = () => { const v = $('mpLevel').value; hostStartMode('race', v.startsWith('r:') ? v : +v); };
+    $('mpTag').onclick = () => hostStartMode('tag', +$('mpTagMap').value);
+    $('mpHide').onclick = () => hostStartMode('hide', +$('mpHideMap').value);
     $('mpDuel').onclick = () => hostStartMode('duel', $('mpMg').value);
     $('mpRematch').onclick = () => { if (isHost) hostStartMode(M.mode, M.arg); };
     $('mpLobby').onclick = () => { $('mpDone').classList.add('hidden'); if (isHost) { toAll({ t: 'stop' }); } stopMode(); api.showMenu(); open(); };
     ui();
   }
   function open() {
-    $('mpLevel').innerHTML = ''; api.levels.forEach((l, i) => { const o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + '. ' + l.name; $('mpLevel').appendChild(o); });
+    const L = $('mpLevel'); L.innerHTML = '';
+    const og = (label) => { const g = document.createElement('optgroup'); g.label = label; L.appendChild(g); return g; };
+    const add = (g, v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; g.appendChild(o); };
+    const g1 = og('Race tracks'); (root.Levels.race || []).forEach((l, i) => add(g1, 'r:' + i, '🏁 ' + l.name));
+    const g2 = og('Campaign levels'); api.levels.forEach((l, i) => add(g2, i, (i + 1) + '. ' + l.name));
+    ['tag', 'hide'].forEach((k) => { const el = $(k === 'tag' ? 'mpTagMap' : 'mpHideMap'); el.innerHTML = ''; add(el, -1, '🎲 Random map'); MAPS[k].forEach((m, i) => add(el, i, m.name)); });
     $('mpMg').innerHTML = ''; (root.Minigames ? root.Minigames.list : []).forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.icon + ' ' + m.name; $('mpMg').appendChild(o); });
     ui(); $('mpMenu').classList.remove('hidden');
   }
   function init(a) { api = a; build(); }
 
   root.MP = { init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
-              _join: join, _start: hostStartMode, _state: M, _me: () => myId, _roster: roster };
+              _join: join, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };
 })(window);

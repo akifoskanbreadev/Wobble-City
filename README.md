@@ -11,7 +11,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Keyboard:** ← → / A D walk, Space flap (hold to glide), hold mouse to aim the neck, H honk, T slow motion, R respawn, Esc menu.
 
 ## Features
-- **33 levels** with hills, valleys, ponds, bounce pads, thorns, ice, moving platforms, walls, a tunnel and tall climbs, in seven themes (meadow, desert, snow, sunset, night, candy, lava).
+- **103 levels**: the 33-level main campaign (finishing it unlocks the minigames) plus **70 bonus levels** in seven themed worlds that ramp up in difficulty. Completed levels turn green, perfect runs (no falls, all bread) turn gold, and your best time is kept. With hills, valleys hills, valleys, ponds, bounce pads, thorns, ice, moving platforms, walls, a tunnel and tall climbs, in seven themes (meadow, desert, snow, sunset, night, candy, lava).
 - **5 difficulties** (Easy / Normal / Hard / Insane / **Spaghetti**): the harder it is, the harder the neck wobbles and twitches. Spaghetti is almost impossible: the neck whips about at random and the neck pad is haunted.
 - **Menu button** (☰) in every game brings you back to the main menu.
 - **Bread** is the currency. Collect it in levels and spend it in the **Goose Boutique** (about 90 hats, glasses, neckwear, body items, shoes and particle trails) and **18 skins** (goose, chicken, penguin, duck, black swan, flamingo, ostrich, parrot, owl, turkey, rubber duck, golden goose, giraffe, llama, dino, cat, bunny, frog).
@@ -30,7 +30,8 @@ Play it by opening `index.html` (or serving the folder with any static server, e
   - Codes are switched off during multiplayer games
   - The **Active codes** button lists what's on, with a red ✕ next to each to remove it
 - **Enemies** (menu toggle): grumpy blobs and bats you can stomp for bread, and spiky urchins (Hard and up) you must avoid. Touching one bonks you backwards.
-- **Multiplayer** (👥 in the menu, up to 4 players): everybody types the same room word and joins the same room. The first person to use a word hosts it; matchmaking uses the free public PeerJS broker (loaded from a CDN), then browsers connect directly (WebRTC). Modes: **Race** (first to the egg), **Tag** (least time as "it" wins), **Hide & Seek** (seekers are blindfolded while hiders hide in bushes; found hiders become seekers) and **Minigame duel** (same seed, highest score wins). The room ends when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.
+- **Multiplayer** (👥 in the menu, up to 4 players): everybody types the same room word and joins the same room. The first person to use a word hosts it; matchmaking uses the free public PeerJS broker (loaded from a CDN), then browsers connect directly (WebRTC). Specialised maps: 8 race tracks (or any campaign level), 5 tag arenas (Goose Arena, Skyline, Pond Party, Ice Rink, Pillar Park) and 4 hide & seek maps (Yard, Bush Village, Frozen Forest, Night Garden), or pick a random map. Modes: **Race** (first to the egg), **Tag** (least time as "it" wins), **Hide & Seek** (seekers are blindfolded while hiders hide in bushes; found hiders become seekers) and **Minigame duel** (same seed, highest score wins). The room ends when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.
+- Extras: a 🔊 sound toggle, a different honk for each skin (chicken bok, duck quack, cat meow, owl hoo…), a daily +50 bread gift, and a progress line in the menu.
 - Progress is saved in `localStorage`.
 
 ## Physics

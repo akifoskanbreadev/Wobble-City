@@ -38,7 +38,7 @@
     noodle: { name: 'Spaghetti', wobble: 0.22, tremor: 9, chaos: true, mult: 5, desc: 'Almost impossible. The neck whips about and the neck pad is haunted. 5x bread.' },
   };
   const DIFF_ORDER = ['easy', 'normal', 'hard', 'insane', 'noodle'];
-  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {}, skin: 'goose', skins: { goose: true }, enemies: true, stomps: 0 });
+  const defaults = () => ({ bread: 25, unlocked: 1, allDone: false, mg: false, owned: {}, equip: {}, best: {}, diff: 'normal', cheats: {}, skin: 'goose', skins: { goose: true }, enemies: true, stomps: 0, done: {}, perfect: {} });
   let save = defaults();
   try {
     const raw = localStorage.getItem(KEY);
@@ -83,6 +83,7 @@
     return actx;
   }
   function tone(type, f0, f1, dur, vol, delay) {
+    if (save.sound === false) return;
     const a = audio(); if (!a) return;
     const t0 = a.currentTime + (delay || 0);
     const o = a.createOscillator(), g = a.createGain();
@@ -96,7 +97,19 @@
     o.start(t0); o.stop(t0 + dur + 0.05);
   }
   const snd = {
-    honk: () => { tone('sawtooth', 400 + Math.random() * 50, 280, 0.32, 0.16); tone('square', 200, 145, 0.32, 0.07); },
+    honk: () => {
+      const id = save.skin;
+      if (id === 'chicken') { tone('square', 700, 500, 0.08, 0.12); tone('square', 640, 420, 0.1, 0.12, 0.12); }                       // bok bok
+      else if (id === 'duck' || id === 'rubberduck') { tone('sawtooth', 520, 380, 0.14, 0.14); tone('sawtooth', 500, 360, 0.14, 0.14, 0.17); }   // quack
+      else if (id === 'cat') { tone('triangle', 500, 900, 0.18, 0.14); tone('triangle', 900, 420, 0.3, 0.14, 0.18); }                      // meow
+      else if (id === 'penguin') { tone('square', 300, 200, 0.2, 0.1); tone('sawtooth', 340, 240, 0.2, 0.08, 0.1); }
+      else if (id === 'owl') { tone('sine', 330, 300, 0.3, 0.16); tone('sine', 260, 240, 0.4, 0.16, 0.35); }                              // hoo hoo
+      else if (id === 'frog') { tone('square', 120, 90, 0.12, 0.14); tone('square', 140, 100, 0.12, 0.14, 0.15); }
+      else if (id === 'dino') { tone('sawtooth', 120, 60, 0.6, 0.2); tone('square', 90, 50, 0.6, 0.1); }
+      else if (id === 'parrot') { tone('triangle', 900, 1400, 0.12, 0.12); tone('triangle', 1300, 700, 0.18, 0.12, 0.14); }
+      else if (id === 'giraffe' || id === 'llama') { tone('sine', 200, 340, 0.3, 0.14); tone('sine', 340, 220, 0.3, 0.14, 0.3); }
+      else { tone('sawtooth', 400 + Math.random() * 50, 280, 0.32, 0.16); tone('square', 200, 145, 0.32, 0.07); }
+    },
     flap: () => tone('triangle', 190, 90, 0.12, 0.07),
     bread: () => tone('sine', 740, 1180, 0.14, 0.12),
     egg: () => [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.22, 0.14, i * 0.11)),
@@ -254,13 +267,17 @@
     const d = diff(), last = levelIdx === LEVELS.length - 1;
     const reward = (breadGot + 10) * d.mult;
     save.bread += reward;
+    save.done = save.done || {}; save.perfect = save.perfect || {};
+    const tNow = levelClock; save.bestTime = save.bestTime || {}; const prevT = save.bestTime[levelIdx]; const newBest = prevT == null || tNow < prevT; if (newBest) save.bestTime[levelIdx] = tNow;
+    const fmtT = (t) => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + '.' + Math.floor((t % 1) * 10);
+    save.done[levelIdx] = true; if (!deaths && breadGot === bread.length) save.perfect[levelIdx] = true;
     if (!last) save.unlocked = Math.max(save.unlocked, levelIdx + 2);
     let extra = '';
-    if (last && !save.allDone) { save.allDone = true; extra = '\n🎮 You unlocked the minigames!'; }
+    if (levelIdx === LEVELS.campaign - 1 && !save.allDone) { save.allDone = true; extra = '\n🎮 You unlocked the minigames! ' + (LEVELS.length - LEVELS.campaign) + ' bonus levels are waiting too.'; }
     persist();
     buildLevelPicker(); refreshMenu();
     $('doneTitle').textContent = last ? 'You are the Wobble Champion!' : 'Egg acquired!';
-    $('doneText').textContent = 'Bread ' + breadGot + '/' + bread.length + (deaths ? '  ·  Falls ' + deaths : '  ·  No falls!') +
+    $('doneText').textContent = '⏱ ' + fmtT(tNow) + (newBest ? ' 🏆 new best!' : ' (best ' + fmtT(prevT) + ')') + '\nBread ' + breadGot + '/' + bread.length + (deaths ? '  ·  Falls ' + deaths : '  ·  No falls!') +
       '\n+' + reward + ' 🍞 (' + d.name + (d.mult > 1 ? ' ×' + d.mult : '') + ')' + extra;
     $('nextBtn').textContent = last ? 'Play again' : 'Next level';
     $('done').classList.remove('hidden');
@@ -730,6 +747,11 @@
 
   function refreshMenu() {
     $('menuBread').textContent = '🍞 ' + money();
+    {
+      const doneN = Object.keys(save.done || {}).length, perfN = Object.keys(save.perfect || {}).length;
+      $('progress').textContent = '✅ ' + doneN + '/' + LEVELS.length + ' levels · ★ ' + perfN + ' perfect · 🦆 ' + (save.stomps | 0) + ' stomps';
+    }
+    $('soundBtn').textContent = save.sound === false ? '🔇 Sound: Off' : '🔊 Sound: On';
     $('btnWin').classList.toggle('hidden', !save.cheats.admin);
     $('btnAdm').classList.toggle('hidden', !save.cheats.admin);
     $('mgOpenBtn').textContent = (mgUnlocked() ? '🎮' : '🔒') + ' Minigames';
@@ -753,6 +775,8 @@
       b.title = lv.name;
       if (!levelOpen(i)) b.classList.add('locked');
       if (i === pick) b.classList.add('sel');
+      if (save.perfect && save.perfect[i]) { b.classList.add('perfect'); b.title += ' ★ perfect'; } else if (save.done && save.done[i]) b.classList.add('done');
+      if (i >= LEVELS.campaign) b.classList.add('bonus');
       b.addEventListener('click', () => {
         if (levelOpen(i)) { pick = i; buildLevelPicker(); if (state === 'title') loadLevel(i); }
         else toast('Finish level ' + i + ' first.', 1.6);
@@ -861,6 +885,11 @@
   const syncEnemyBtn = () => { $('enemyBtn').textContent = '👾 Enemies: ' + (save.enemies === false ? 'Off' : 'On'); };
   $('enemyBtn').addEventListener('click', () => { save.enemies = save.enemies === false; persist(); syncEnemyBtn(); if (state === 'title') loadLevel(pick); });
   syncEnemyBtn();
+  {
+    const today = new Date().toDateString();
+    if (save.lastDaily !== today) { save.lastDaily = today; save.bread += 50; persist(); setTimeout(() => { toast('🎁 Daily gift: +50 bread!', 3); refreshMenu(); }, 600); }
+  }
+  $('soundBtn').addEventListener('click', () => { save.sound = save.sound === false; persist(); refreshMenu(); if (save.sound !== false) snd.honk(); });
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
     setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },
@@ -1075,7 +1104,7 @@
 
   // ---------------------------------------------------------------- minigames
   function openMgMenu() {
-    if (!mgUnlocked()) { toast('Finish all ' + LEVELS.length + ' levels to unlock the minigames. (Or find a secret code…)', 3.5); snd.no(); return; }
+    if (!mgUnlocked()) { toast('Finish the first ' + LEVELS.campaign + ' levels to unlock the minigames. (Or find a secret code…)', 3.5); snd.no(); return; }
     hideAll();
     $('mgMenu').classList.remove('hidden');
     state = 'mgmenu';

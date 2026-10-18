@@ -100,6 +100,10 @@
   #levels button { width: 34px; height: 34px; border-radius: 10px; font-size: 14px; border: 2px solid var(--ink); background: #fff; font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
   #levels button.sel { background: var(--ink); color: #fff; }
   #levels button.locked { opacity: .35; }
+  #levels button.done { background: #d9f5d0; }
+  #levels button.perfect { background: #ffe27a; box-shadow: 0 0 0 2px #e8a600 inset; }
+  #levels button.bonus { border-style: dashed; }
+  #levels button.sel.done, #levels button.sel.perfect { background: var(--ink); }
   .menugrid { display: grid; grid-template-columns: 1fr; gap: 6px 22px; }
   @media (min-width: 620px) { .menugrid { grid-template-columns: 1fr 1fr; align-items: center; } .card.menu { max-width: 700px; } }
 
@@ -199,11 +203,13 @@
         <h1>🪿 Wobble City</h1>
         <p class="small" style="margin-top:0">You are a goose. Your neck is not under control. Touch the golden egg with your <b>head</b>.</p>
         <div class="breadpill" id="menuBread">🍞 0</div>
+        <div class="small" id="progress" style="margin:4px 0"></div>
         <div class="row">
           <button class="sec" id="mgOpenBtn">🎮 Minigames</button>
           <button class="sec" id="storeBtn">👕 Store</button>
           <button class="sec" id="codeBtn">🔑 Code</button>
           <button class="sec" id="mpBtn">👥 Multiplayer</button>
+          <button class="sec" id="soundBtn">🔊 Sound: On</button>
           <button class="sec" id="enemyBtn">👾 Enemies: On</button>
         </div>
         <p class="small desktop-only" style="margin-bottom:0">← → / A D walk · Space flap (hold to glide) · hold mouse to aim neck · H honk · T slow-mo · R respawn · Esc menu</p>

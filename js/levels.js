@@ -374,6 +374,86 @@
   D('The Final Honk', 'Everything. All of it. Then the tallest tower of all.', 'lava',
     [s.hills(4, 100), s.pond(500), s.ice(600, 320), s.gorge(), s.movers(4, true), s.climb(4, 85), s.walls(3, 120), s.tower(8)]);
 
+
+  // ------------------------------------------------------------------ campaign 2: 70 more levels (7 worlds x 10)
+  // Built only from the sections above, inside the parameter ranges the original 33 levels already use.
+  LEVELS.campaign = LEVELS.length;                       // the first 33 are the main campaign (finishing them unlocks the minigames)
+  (function () {
+    const rng = (a) => () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const R = rng(20261017);
+    const lerp = (a, b, d) => Math.round(a + (b - a) * d);
+    // name -> [factory(d), what the hint says]
+    const SEC = {
+      hills:   [(d) => s.hills(lerp(2, 5, d), lerp(60, 100, d)), 'rolling hills'],
+      climb:   [(d) => s.climb(lerp(3, 5, d), lerp(70, 90, d)), 'a steep climb'],
+      descend: [(d) => s.descend(lerp(2, 3, d), 70), 'a long descent'],
+      pond:    [(d) => s.pond(lerp(300, 500, d)), 'a swim'],
+      stones:  [(d) => s.stones(lerp(4, 8, d)), 'stepping stones'],
+      gap:     [(d) => s.gap(lerp(3, 6, d), lerp(80, 160, d)), 'thorn gaps'],
+      movers:  [(d) => s.movers(lerp(3, 5, d), d > 0.5), 'moving platforms'],
+      ice:     [(d) => s.ice(lerp(450, 700, d), lerp(260, 360, d)), 'a slippery slide'],
+      gorge:   [() => s.gorge(), 'the pad gorge'],
+      bounce:  [(d) => s.bounceUp(lerp(220, 420, d)), 'bounce pads'],
+      drop:    [(d) => s.drop(lerp(200, 250, d)), 'a big drop'],
+      walls:   [(d) => s.walls(lerp(3, 4, d), lerp(90, 120, d)), 'tall walls'],
+      tower:   [(d) => s.tower(lerp(5, 8, d)), 'a tall tower finish'],
+      tunnel:  [() => s.tunnel(), 'a low tunnel finish'],
+    };
+    const POOL = {
+      meadow: ['hills', 'pond', 'stones', 'walls', 'bounce', 'descend', 'climb'],
+      desert: ['hills', 'climb', 'descend', 'gap', 'stones', 'pond', 'drop'],
+      snow:   ['ice', 'walls', 'gap', 'movers', 'bounce', 'hills', 'drop'],
+      sunset: ['gorge', 'movers', 'hills', 'drop', 'walls', 'climb', 'bounce'],
+      night:  ['stones', 'pond', 'walls', 'gap', 'movers', 'bounce', 'hills'],
+      candy:  ['climb', 'walls', 'bounce', 'ice', 'stones', 'hills', 'movers'],
+      lava:   ['gap', 'movers', 'walls', 'gorge', 'ice', 'drop', 'climb'],
+    };
+    const FINISH = { meadow: 'tower', desert: 'tower', snow: 'tower', sunset: 'tower', night: 'tunnel', candy: 'tower', lava: 'tower' };
+    const ADJ = {
+      meadow: ['Sunny', 'Breezy', 'Clover', 'Daisy', 'Buttercup', 'Honeyed', 'Mossy', 'Dewy', 'Lazy', 'Golden'],
+      desert: ['Dusty', 'Scorched', 'Mirage', 'Camel', 'Sandy', 'Parched', 'Sunbaked', 'Dune', 'Canyon', 'Saffron'],
+      snow:   ['Frozen', 'Snowy', 'Icy', 'Chilly', 'Frosty', 'Crystal', 'Penguin', 'Blizzard', 'Glacial', 'Mittened'],
+      sunset: ['Amber', 'Crimson', 'Rusty', 'Dusky', 'Glowing', 'Ember', 'Twilight', 'Copper', 'Peach', 'Rosy'],
+      night:  ['Moonlit', 'Starry', 'Hooting', 'Midnight', 'Shadowy', 'Cosmic', 'Spooky', 'Silent', 'Foggy', 'Owlish'],
+      candy:  ['Sugary', 'Gummy', 'Minty', 'Sprinkled', 'Caramel', 'Fudgy', 'Jelly', 'Syrupy', 'Frosted', 'Sherbet'],
+      lava:   ['Molten', 'Smoky', 'Fiery', 'Cinder', 'Volcanic', 'Blazing', 'Magma', 'Ashen', 'Sizzling', 'Scorching'],
+    };
+    const NOUN = ['Run', 'Dash', 'Trek', 'Hop', 'Stroll', 'Gauntlet', 'Rush', 'Ramble', 'Scramble', 'Marathon', 'Waddle', 'Sprint', 'Passage', 'Path', 'Crossing', 'Jaunt'];
+    const themes = ['meadow', 'desert', 'snow', 'sunset', 'night', 'candy', 'lava'];
+    themes.forEach((th, w) => {
+      let prev = '';
+      for (let j = 0; j < 10; j++) {
+        const d = Math.min(1, 0.15 + j * 0.085 + w * 0.02);          // each world ramps up; later worlds start a little harder
+        const count = Math.min(6, 2 + Math.floor((j + 1) / 2.5));        // 2 .. 6 sections before the finish
+        const picks = [];
+        for (let k = 0; k < count; k++) {
+          let key; let guard = 0;
+          do { key = POOL[th][Math.floor(R() * POOL[th].length)]; } while ((key === prev || (picks.length && key === picks[picks.length - 1])) && ++guard < 20);
+          picks.push(key); prev = key;
+        }
+        const fin = (j >= 3 && (j % 2 === 1 || j === 9)) ? FINISH[th] : null;   // some levels end in a tower/tunnel
+        const names = picks.concat(fin ? [fin] : []);
+        const secs = names.map((k) => SEC[k][0](d));
+        const hint = 'Features ' + names.map((k) => SEC[k][1]).slice(0, 3).join(', ') + (names.length > 3 ? ' and more.' : '.');
+        const name = ADJ[th][j] + ' ' + NOUN[Math.floor(R() * NOUN.length)];
+        D(name, hint, th, secs);
+      }
+    });
+  })();
+
+  // ------------------------------------------------------------------ dedicated multiplayer race tracks
+  const RACE = [];
+  LEVELS.race = RACE;
+  const T = (name, hint, theme, secs) => RACE.push(compose(name, hint, theme, secs));
+  T('Sprint Straight', 'Mostly flat and fast. Grab the pads.', 'meadow', [s.hills(3, 60), s.bounceUp(260), s.hills(3, 70), s.stones(4)]);
+  T('Thorn Dash', 'Thorn gaps all the way.', 'desert', [s.gap(3, 90), s.hills(2, 70), s.gap(4, 120), s.walls(3, 100)]);
+  T('Ice Run', 'Slide, brake, slide again.', 'snow', [s.ice(500, 280), s.hills(2, 60), s.ice(600, 320)]);
+  T('Pond Chase', 'Swim, hop, swim.', 'meadow', [s.pond(400), s.stones(5), s.pond(350), s.hills(2, 70)]);
+  T('Moving Maze', 'Hop the platforms before they hop away.', 'sunset', [s.movers(3), s.hills(2, 70), s.movers(4, true)]);
+  T('Sky Climb', 'Bounce up and climb the tower.', 'night', [s.bounceUp(320), s.walls(3, 100), s.tower(6)]);
+  T('Candy Cannon', 'Climbs, walls and a sugary tower.', 'candy', [s.climb(4, 80), s.walls(3, 110), s.bounceUp(300), s.tower(6)]);
+  T('Lava Sprint', 'Short but nasty.', 'lava', [s.gap(4, 130), s.movers(4, true), s.walls(3, 110)]);
+
   if (typeof module !== 'undefined' && module.exports) module.exports = LEVELS;
   else root.Levels = LEVELS;
 })(typeof window !== 'undefined' ? window : globalThis);
