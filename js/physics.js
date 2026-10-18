@@ -234,6 +234,7 @@
       this.neckMul = opt.neck || 1;                        // neck length multiplier (code: neck)
       this.seg = SEG * this.neckMul;
       this.infFlaps = !!opt.infFlaps;                      // never runs out of flaps (code: flaps)
+      this.legless = !!opt.legless;                        // Neck mode: no legs, drag yourself along with the neck
       this.chaos = !!opt.chaos;                            // Spaghetti mode: haunted neck steering + random whiplash
       this.jerkT = 1;
       this.facing = 1; this.faceBlend = 1;
@@ -249,7 +250,7 @@
       };
 
       // body: 4 kg braced quad. Slightly buoyant: rho 0.75 of water.
-      const bo = { m: 1, r: 8, mu: 0.9, drag: 0.02, cd: 0.0006, rho: 0.75 };
+      const bo = { m: 1, r: 8, mu: opt.legless ? 0.35 : 0.9, drag: 0.02, cd: 0.0006, rho: 0.75 };
       this.bodyRest = [[-28, 13], [28, 13], [28, -13], [-28, -13]];
       this.body = this.bodyRest.map((r) => mk(r[0], r[1], bo));
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) world.link(this.body[i], this.body[j]);
@@ -271,7 +272,7 @@
         let o;
         if (i === 0) o = { m: 0.2, drag: 0.1 };
         else if (i < NECK_SEGS) o = { m: 0.05, r: 3.5, mu: 0.4, drag: 0.4, cd: 0.002, rho: 1.05 };
-        else o = { m: 0.4, r: 9, mu: 0.6, drag: 0.5, cd: 0.001, rho: 0.9 };
+        else o = { m: 0.4, r: 9, mu: opt.legless ? 3.5 : 0.6, drag: 0.5, cd: 0.001, rho: 0.9 };
         this.neck.push(mk(ax, ay - i * this.seg, o));
       }
       for (let i = 0; i < NECK_SEGS; i++) world.link(this.neck[i], this.neck[i + 1], { len: this.seg });
@@ -334,6 +335,12 @@
       this.move = clamp(inp.move || 0, -1, 1);
       this.glide = !!inp.glide;
       this.aim = inp.aim || null;
+      if (this.legless && !this.aim && this.move !== 0) {
+        // inchworm: throw the head forward, plant it, then pull back so the body is hauled along
+        this.wriggle = (this.wriggle || 0) + dt * 2 * Math.PI * 1.5;
+        const reach = Math.sin(this.wriggle) > -0.2, d = Math.sign(this.move);
+        this.aim = reach ? { x: d * 0.9, y: -0.35 } : { x: -d * 0.55, y: 0.85 };
+      }
       if (this.chaos) {
         // the neck pad is haunted: your aim direction drifts around and flips
         if (this.aim) {
@@ -417,7 +424,8 @@
         const th = this.phase + i * Math.PI;
         let tx = this.hipX[i] + f * 22 * Math.cos(th) * this.mv;
         let ty = this.hipY + this.L0 - 12 * Math.max(0, -Math.sin(th)) * this.mv;
-        if (!this.grounded) { tx = this.hipX[i] - f * 4; ty = this.hipY + (this.swimming ? 30 : 18); }
+        if (this.legless) { tx = this.hipX[i]; ty = this.hipY + 1; }
+        else if (!this.grounded) { tx = this.hipX[i] - f * 4; ty = this.hipY + (this.swimming ? 30 : 18); }
         const Tx = c.x + A.ux * tx + A.vx * ty, Ty = c.y + A.uy * tx + A.vy * ty;
         const foot = this.feet[i], hip = this.hips[i];
         const Fx = 1400 * (Tx - foot.x) - 100 * (foot.vx - hip.vx);
@@ -432,7 +440,7 @@
       if (this.grounded) { grip = Math.min(this.feet[0].sf, this.feet[1].sf); if (this.feet[0].cs == null) grip = 1; }
       const cap = (this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? 160 * mass : 230 * mass) * this.speed;
       const Fd = clamp(14 * mass * (move * vmax - v.x), -cap, cap);
-      if (move !== 0 || this.grounded) for (const b of body) b.fx += Fd / 4;
+      if (this.legless ? (move !== 0 && !this.grounded) : (move !== 0 || this.grounded)) for (const b of body) b.fx += (this.legless ? 0.35 : 1) * Fd / 4;
 
       // glide: wings out, lift ~ v^2
       if (this.glide && !this.grounded && !this.swimming && v.y > 60) {

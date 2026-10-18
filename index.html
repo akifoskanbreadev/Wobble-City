@@ -96,13 +96,18 @@
   .seg button.sel, .tabs button.sel { background: var(--ink); color: #fff; }
   .small { font-size: 13px; opacity: .78; }
   .breadpill { display: inline-block; background: #fff; border: 2px solid var(--ink); border-radius: 999px; padding: 2px 12px; font-weight: 800; font-size: 15px; }
-  #levels { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; max-height: 92px; overflow-y: auto; padding: 2px; overscroll-behavior: contain; }
+  #levels { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; max-height: 124px; overflow-y: auto; padding: 2px; overscroll-behavior: contain; }
   #levels button { width: 34px; height: 34px; border-radius: 10px; font-size: 14px; border: 2px solid var(--ink); background: #fff; font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
   #levels button.sel { background: var(--ink); color: #fff; }
   #levels button.locked { opacity: .35; }
   #levels button.done { background: #d9f5d0; }
   #levels button.perfect { background: #ffe27a; box-shadow: 0 0 0 2px #e8a600 inset; }
-  #levels button.bonus { border-style: dashed; }
+  #levels button.bonus { border-style: dashed; background: #eaf1ff; }
+  #levels button.bonus.done { background: #d9f5d0; }
+  #levels button.bonus.perfect { background: #ffe27a; }
+  #levels button.bonus.sel { background: var(--ink); }
+  #levels .lvDiv { flex: 0 0 100%; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .7; margin: 4px 0 1px; }
+  #levels button { flex: 0 0 auto; padding: 0; line-height: 1; }
   #levels button.sel.done, #levels button.sel.perfect { background: var(--ink); }
   .menugrid { display: grid; grid-template-columns: 1fr; gap: 6px 22px; }
   @media (min-width: 620px) { .menugrid { grid-template-columns: 1fr 1fr; align-items: center; } .card.menu { max-width: 700px; } }
@@ -208,8 +213,10 @@
           <button class="sec" id="mgOpenBtn">🎮 Minigames</button>
           <button class="sec" id="storeBtn">👕 Store</button>
           <button class="sec" id="codeBtn">🔑 Code</button>
+          <button class="sec" id="battleBtn">⚔️ Battle Tower</button>
           <button class="sec" id="mpBtn">👥 Multiplayer</button>
           <button class="sec" id="soundBtn">🔊 Sound: On</button>
+          <button class="sec" id="neckBtn">🦴 Neck mode: Off</button>
           <button class="sec" id="enemyBtn">👾 Enemies: On</button>
         </div>
         <p class="small desktop-only" style="margin-bottom:0">← → / A D walk · Space flap (hold to glide) · hold mouse to aim neck · H honk · T slow-mo · R respawn · Esc menu</p>
@@ -319,6 +326,7 @@
 <script src="js/clothes.js"></script>
 <script src="js/minigames.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/battle.js"></script>
 <script src="js/mp.js"></script>
 <script src="js/game.js"></script>
 </body>

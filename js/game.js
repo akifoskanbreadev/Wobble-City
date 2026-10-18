@@ -65,14 +65,14 @@
   };
   // one-shot codes: they give you something once instead of toggling
   const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
-  const has = (k) => !mpOn() && !!save.cheats[k];   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
+  const has = (k) => !mpOn() && !(window.Battle && window.Battle.active()) && !!save.cheats[k];   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
   zoomMul = has('zoom') ? 0.7 : 1; resize();
   const levelOpen = (i) => has('levels') || i < save.unlocked;
   const rich = () => has('money');
   const money = () => (rich() ? '∞' : save.bread);
   function gooseOpts() {
     const d = diff();
-    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps') };
+    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride };
   }
 
   // ---------------------------------------------------------------- audio
@@ -123,7 +123,7 @@
   };
 
   // ---------------------------------------------------------------- state
-  const input = { left: false, right: false, kLeft: false, kRight: false, flapHeld: false, flapQueue: false, honkQueue: false, padAim: null, mouseAim: null };
+  const input = { atkQueue: false, left: false, right: false, kLeft: false, kRight: false, flapHeld: false, flapQueue: false, honkQueue: false, padAim: null, mouseAim: null };
   const keys = new Set();
   let slow = false;
   let state = 'title';                 // title | play | done | store | mgmenu | mg | mgdone
@@ -224,6 +224,7 @@
     }
   }
   function tick() {
+    if (input.atkQueue) { input.atkQueue = false; if (window.Battle.active()) window.Battle.attack(); }
     const frz = window.MP && window.MP.frozen();
     const move = frz ? 0 : (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
     const aim = input.padAim || input.mouseAim || null;
@@ -235,6 +236,7 @@
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
     world.step(STEP);
     if (window.MP) window.MP.tick(goose, STEP);
+    if (window.Battle.active()) window.Battle.tick(goose, STEP);
     levelClock += STEP; hitCd = Math.max(0, hitCd - STEP);
     enemyTick();
     {
@@ -310,6 +312,7 @@
     sunset: { top: '#ff8e72', bot: '#ffd9a0', cloud: 'rgba(255,230,210,.8)', h1: '#d58a8a', h2: '#b86a7a', grass: '#7fb04a', grass2: '#a0cf66', d1: '#8a5a48', d2: '#523038' },
     night:  { top: '#0f1740', bot: '#3a4c8a', cloud: 'rgba(170,190,255,.35)', h1: '#2a3566', h2: '#1d2552', grass: '#3e9a6a', grass2: '#58bd88', d1: '#4a4668', d2: '#272540', stars: true },
     candy:  { top: '#ffb6e1', bot: '#fff0fa', cloud: 'rgba(255,255,255,.9)', h1: '#ffc9ec', h2: '#f3a2d8', grass: '#ff7ac3', grass2: '#ff9fd6', d1: '#c46ba0', d2: '#83406a' },
+    dungeon:{ top: '#17142a', bot: '#3b3560', cloud: 'rgba(150,140,200,.18)', h1: '#2a2548', h2: '#1d1a38', grass: '#5a5470', grass2: '#7a7494', d1: '#4a4466', d2: '#26223c', stars: true },
     lava:   { top: '#3a0f14', bot: '#a8321c', cloud: 'rgba(255,150,100,.3)', h1: '#6e2018', h2: '#4a1612', grass: '#d9522b', grass2: '#ff8a4d', d1: '#4a2a28', d2: '#2a1514', stars: true },
   };
   let th = THEMES.meadow;
@@ -455,7 +458,8 @@
 
     drawTrail();
     ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
-    drawGoose(ctx, goose, save.equip, save.skin);
+    drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(save.equip) : save.equip, save.skin);
+    if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
     if (decor) window.Decor.draw(ctx, decor.fore, camX, VW, clock);
     if (window.MP) window.MP.drawWorld(ctx, level, clock);
     if (honkText > 0) {
@@ -507,6 +511,7 @@
     if (bodyItem && bodyItem.back) { cx.save(); cx.translate(c.x, c.y); cx.rotate(ang); cx.scale(f, 1); bodyItem.draw(cx); cx.restore(); }
 
     // legs and feet
+    if (!g.legless) {
     const shoes = it('shoes'), lw = sk.legW || 1;
     for (let i = 0; i < 2; i++) {
       const hip = g.hips[i], ft = g.feet[i];
@@ -519,6 +524,7 @@
       else if (sk.foot) sk.foot(cx);
       else { cx.fillStyle = sk.legC || '#ff9b2f'; cx.strokeStyle = INK; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(4, 2, 11, 4.5, 0, 0, 7); cx.fill(); cx.stroke(); }
       cx.restore();
+    }
     }
 
     // neck
@@ -720,6 +726,7 @@
       if (!e.repeat) { input.flapQueue = true; audio(); }
       input.flapHeld = true;
     } else if (e.code === 'KeyH' || e.code === 'KeyE') { if (!e.repeat) input.honkQueue = true; }
+    else if (e.code === 'KeyF' || e.code === 'KeyJ') { if (!e.repeat) input.atkQueue = true; }
     else if (e.code === 'KeyR') { if (state === 'play') respawn(); }
     else if (e.code === 'KeyT') { if (state === 'play') $('btnSlow').click(); }
     else if (e.code === 'KeyN') { if (state === 'play' && save.cheats.admin) finishLevel(); }
@@ -754,6 +761,7 @@
 
   function showMenu() {
     if (window.MP) window.MP.stopMode();
+    window.Battle.stop();
     diffOverride = null;
     stopMinigame();
     hideAll();
@@ -790,6 +798,7 @@
     const box = $('levels');
     box.innerHTML = '';
     LEVELS.forEach((lv, i) => {
+      if (i === LEVELS.campaign) { const d = document.createElement('div'); d.className = 'lvDiv'; d.textContent = '⭐ Bonus levels'; box.appendChild(d); }
       const b = document.createElement('button');
       b.textContent = i + 1;
       b.title = lv.name;
@@ -903,6 +912,9 @@
   $('admItems').addEventListener('click', () => { for (const it of ITEMS) save.owned[it.id] = true; for (const k of SKINS.LIST) save.skins[k.id] = true; persist(); say('You own every item!', true); snd.buy(); });
   $('btnWin').addEventListener('click', () => { if (state === 'play' && save.cheats.admin) finishLevel(); });
   const syncEnemyBtn = () => { $('enemyBtn').textContent = '👾 Enemies: ' + (save.enemies === false ? 'Off' : 'On'); };
+  const syncNeckBtn = () => { $('neckBtn').textContent = '🦴 Neck mode: ' + (save.neckMode ? 'On' : 'Off'); };
+  $('neckBtn').addEventListener('click', () => { save.neckMode = !save.neckMode; persist(); syncNeckBtn(); if (state === 'title') loadLevel(pick); toast(save.neckMode ? 'No legs! Hold left/right or aim the neck to drag yourself along.' : 'Legs are back.', 2.4); });
+  syncNeckBtn();
   $('enemyBtn').addEventListener('click', () => { save.enemies = save.enemies === false; persist(); syncEnemyBtn(); if (state === 'title') loadLevel(pick); });
   syncEnemyBtn();
   {
@@ -910,6 +922,14 @@
     if (save.lastDaily !== today) { save.lastDaily = today; save.bread += 50; persist(); setTimeout(() => { toast('🎁 Daily gift: +50 bread!', 3); refreshMenu(); }, 600); }
   }
   $('soundBtn').addEventListener('click', () => { save.sound = save.sound === false; persist(); refreshMenu(); if (save.sound !== false) snd.honk(); });
+  window.Battle.init({
+    startCustom, toast, showMenu, award: (n) => { save.bread += n; persist(); refreshMenu(); }, save: () => save, persist, goose: () => goose,
+    setMode: (on) => document.body.classList.toggle('battle', on), diffMult: () => diff().mult,
+    aim: () => input.padAim || input.mouseAim && (() => { const c = goose.center(), a = input.mouseAim, l = Math.hypot(a.x, a.y) || 1; return { x: a.x / l, y: a.y / l }; })() || null,
+    sfx: (n) => { try { snd[n](); } catch (e) { /* ignore */ } },
+  });
+  $('battleBtn').addEventListener('click', () => { audio(); window.Battle.start(); });
+  hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
     setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },

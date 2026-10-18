@@ -50,3 +50,11 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - `js/mp.js`: pairing, ghost players and the multiplayer modes
 - `js/minigames.js`: the five minigames
 - `js/game.js`: rendering, input, saves, store, game flow
+
+
+## Latest additions
+- **Scenery**: every level theme has its own non-collidable props, far landmarks, sun/moon and textured terrain.
+- **Deadly enemies**: themed enemies now kill you unless you stomp them from above (toggle with *Enemies*).
+- **Battle Tower** (menu): pick up weapons and armor, defeat every monster on a floor, open the chest and take the door up. Boss every 5th floor. Attack with F / J or the on-screen button.
+- **Neck mode** (menu toggle): no legs. Hold left/right (or aim the neck) to throw your head out, plant it and drag yourself along.
+- Level picker now separates campaign and bonus levels.

@@ -27,9 +27,10 @@
     sunset: [['autumn', 6], ['lamp', 2], ['wheat', 5], ['rock', 3], ['haystack', 3], ['cabin', 1], ['fence', 2], ['bush', 3], ['sign', 1]],
     night:  [['deadtree', 5], ['grave', 3], ['lantern', 3], ['glowshroom', 4], ['pine', 3], ['rock', 3], ['crystal', 2], ['sign', 1]],
     candy:  [['lollipop', 6], ['cane', 5], ['gumdrop', 5], ['cupcake', 3], ['cone', 3], ['sprinkleflower', 5], ['donut', 2]],
+    dungeon:[['torch', 6], ['pillar', 4], ['skulls', 3], ['ribs', 2], ['crystal', 3], ['glowshroom', 3], ['grave', 2], ['lantern', 2]],
     lava:   [['charred', 5], ['vent', 4], ['obsidian', 5], ['skulls', 2], ['torch', 3], ['rock', 3], ['ribs', 2]],
   };
-  const FAR_VARIANTS = { meadow: ['farm', 'hills', 'windmill'], desert: ['pyramids', 'mesas', 'dunes'], snow: ['peaks', 'peaks', 'pines'], sunset: ['city', 'mesas', 'peaks'], night: ['castle', 'peaks', 'city'], candy: ['lollies', 'clouds', 'lollies'], lava: ['volcano', 'volcano', 'peaks'] };
+  const FAR_VARIANTS = { meadow: ['farm', 'hills', 'windmill'], desert: ['pyramids', 'mesas', 'dunes'], snow: ['peaks', 'peaks', 'pines'], sunset: ['city', 'mesas', 'peaks'], night: ['castle', 'peaks', 'city'], candy: ['lollies', 'clouds', 'lollies'], lava: ['volcano', 'volcano', 'peaks'], dungeon: ['castle', 'peaks', 'castle'] };
 
   function generate(level, seedIdx) {
     const theme = level.theme || 'meadow', pool = POOLS[theme] || POOLS.meadow, R = rng(7000 + (seedIdx | 0) * 131 + hash(level.name || ''));
