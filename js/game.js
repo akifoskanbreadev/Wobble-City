@@ -218,9 +218,8 @@
         for (const q of parts) q.vy = Math.min(q.vy, -420);
         snd.boing(); toast('Stomp! +1 🍞', 0.9); persist();
       } else if (hitCd <= 0 && !has('shield') && !(save.cheats.admin && save.cheats.god && !mpOn())) {
-        hitCd = 1.2; const dir = c.x < p.x ? -1 : 1;
-        for (const q of parts) { q.vx += dir * 520; q.vy = Math.min(q.vy, -330); }
-        snd.ouch(); toast('Bonk!', 0.9);
+        // enemies are deadly unless you stomp them from above
+        hitCd = 1.2; deaths++; snd.ouch(); toast(e.kind === 'urchin' ? 'Ouch! Spikes!' : 'Gotcha! Stomp them from above.', 1.8); respawn();
       }
     }
   }
