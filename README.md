@@ -58,3 +58,5 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Battle Tower** (menu): pick up weapons and armor, defeat every monster on a floor, open the chest and take the door up. Boss every 5th floor. Attack with F / J or the on-screen button.
 - **Neck mode** (menu toggle): no legs. Hold left/right (or aim the neck) to throw your head out, plant it and drag yourself along.
 - Level picker now separates campaign and bonus levels.
+- **Multiplayer lobby**: after joining a room you land in a waiting lobby with four player slots. The host picks the mode and map, guests press Ready, and the host starts. "Copy invite link" shares a `?room=word` URL that joins automatically, and "Make a random room" picks a word for you.
+- **15 minigames** (all with themed backdrops, all usable in duels): Goose Tetris, Goose Up, Bread Rush, Flappy Goose, Honk Hero plus new Pond Dash, Whack-a-Fox, Goose Snake, Simon Honk, Space Goose, Egg Stack, Bread Breaker, Feather Storm, Goose Cannon and Quick Draw.

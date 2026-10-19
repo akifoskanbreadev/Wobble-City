@@ -244,6 +244,10 @@
         g.addColorStop(0, 'rgb(' + mix(143, 8) + ',' + mix(208, 12) + ',' + mix(255, 40) + ')');
         g.addColorStop(1, 'rgb(' + mix(234, 40) + ',' + mix(248, 60) + ',' + mix(255, 110) + ')');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        for (let i = 0; i < 9; i++) {                       // parallax clouds that thin out with altitude
+          const par = 0.12 + (i % 3) * 0.08, yy = (((i * 173 + 60) - camY * par * S) % (H + 160) + H + 160) % (H + 160) - 80, xx = (i * 233 + host.clock() * (6 + i)) % (W + 240) - 120, sz = 0.8 + (i % 4) * 0.3;
+          ctx.fillStyle = 'rgba(255,255,255,' + (0.7 * (1 - k * 0.85)) + ')'; ctx.beginPath(); ctx.ellipse(xx, yy, 60 * sz, 18 * sz, 0, 0, 7); ctx.ellipse(xx + 34 * sz, yy - 10 * sz, 38 * sz, 20 * sz, 0, 0, 7); ctx.ellipse(xx - 34 * sz, yy - 5 * sz, 32 * sz, 15 * sz, 0, 0, 7); ctx.fill();
+        }
         if (k > 0.25) { ctx.fillStyle = 'rgba(255,255,255,' + (k - 0.2) + ')'; for (let i = 0; i < 40; i++) ctx.fillRect(((i * 211) % W), ((i * 97 + camY * 0.03) % H + H) % H, 2, 2); }
         ctx.save();
         ctx.scale(S, S); ctx.translate(-camX, -camY);

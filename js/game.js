@@ -1176,7 +1176,7 @@
       input.flapQueue = false; input.honkQueue = false;
       return { move, flap, honk, glide: input.flapHeld, aim: input.padAim || input.mouseAim || null };
     },
-    drawSky,
+    drawSky: (cx, cy) => { drawSky(cx, cy); if ((state === 'mg' || state === 'mgdone') && mgDef && mgDef.deco && window.Minigames.scene) window.Minigames.scene(ctx, mgDef.deco, W, H, clock); },
     roundRect: (x, y, w, h, r) => roundRect(ctx, x, y, w, h, r),
     wobble: () => diff(),
     gooseOpts,
@@ -1211,7 +1211,7 @@
     hideAll();
     mgDef = window.Minigames.list.find((m) => m.id === id);
     if (!mgDef) return;
-    state = 'mg'; acc = 0; th = THEMES.meadow;
+    state = 'mg'; acc = 0; th = THEMES[mgDef.theme] || THEMES.meadow;
     setMode('std', 'mg');
     mgInst = mgDef.create(host);
   }
