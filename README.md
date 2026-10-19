@@ -60,3 +60,6 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - Level picker now separates campaign and bonus levels.
 - **Multiplayer lobby**: after joining a room you land in a waiting lobby with four player slots. The host picks the mode and map, guests press Ready, and the host starts. "Copy invite link" shares a `?room=word` URL that joins automatically, and "Make a random room" picks a word for you.
 - **15 minigames** (all with themed backdrops, all usable in duels): Goose Tetris, Goose Up, Bread Rush, Flappy Goose, Honk Hero plus new Pond Dash, Whack-a-Fox, Goose Snake, Simon Honk, Space Goose, Egg Stack, Bread Breaker, Feather Storm, Goose Cannon and Quick Draw.
+
+## Shop
+15 dress-up slots (hat, eyes, face, beak, neck, body, back, held, tail, legs, shoes, pet, aura, honk voice, trail), ~190 items, 40+ skins including shape skins that change your real body (chonk, stilts, longneck, blob...), per-slot colour tints, Random outfit and Take everything off buttons.

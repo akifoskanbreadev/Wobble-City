@@ -48,6 +48,12 @@
   if (!save.cheats || typeof save.cheats !== 'object') save.cheats = {};
   if (!SKINS.BY_ID[save.skin]) save.skin = 'goose';
   if (!save.skins || typeof save.skins !== 'object') save.skins = {};
+  if (!save.tint || typeof save.tint !== 'object') save.tint = {};
+  if (!save.equip || typeof save.equip !== 'object') save.equip = {};
+  for (const k of Object.keys(save.equip)) {   // slots were reorganised (capes and wings moved to Back): move or drop old equips
+    const item = BY_ID[save.equip[k]];
+    if (!item) delete save.equip[k]; else if (item.cat !== k) { delete save.equip[k]; if (!save.equip[item.cat]) save.equip[item.cat] = item.id; }
+  }
   save.skins.goose = true;
   save.unlocked = Math.max(1, Math.min(LEVELS.length, save.unlocked | 0));
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
@@ -72,8 +78,11 @@
   const money = () => (rich() ? '∞' : save.bread);
   function gooseOpts() {
     const d = diff();
-    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride };
+    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
+      shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: (SKINS.BY_ID[save.skin].shape || {}).leg || 1 };
   }
+
+  const lookEquip = () => (save.tint && Object.keys(save.tint).length ? Object.assign({}, save.equip, { _tint: save.tint }) : save.equip);
 
   // ---------------------------------------------------------------- audio
   let actx = null;
@@ -98,7 +107,8 @@
   }
   const snd = {
     honk: () => {
-      const id = save.skin;
+      const id = save.skin, vo = save.equip && save.equip.voice && BY_ID[save.equip.voice];
+      if (vo && vo.voice) { vo.voice.forEach((v) => tone(v[0], v[1], v[2], v[3], v[4], v[5])); return; }
       if (id === 'chicken') { tone('square', 700, 500, 0.08, 0.12); tone('square', 640, 420, 0.1, 0.12, 0.12); }                       // bok bok
       else if (id === 'duck' || id === 'rubberduck') { tone('sawtooth', 520, 380, 0.14, 0.14); tone('sawtooth', 500, 360, 0.14, 0.14, 0.17); }   // quack
       else if (id === 'cat') { tone('triangle', 500, 900, 0.18, 0.14); tone('triangle', 900, 420, 0.3, 0.14, 0.18); }                      // meow
@@ -181,7 +191,7 @@
     if (trailAcc < 3) return; trailAcc = 0;
     trailHue = (trailHue + 25) % 360;
     const cols = tr.cols || ['#fff'];
-    const k = tr.kind, up = (k === 'flame' || k === 'bubble' || k === 'heart' || k === 'note') ? -40 : k === 'snow' || k === 'leaf' ? 25 : 0;
+    const k = tr.kind, up = (k === 'flame' || k === 'bubble' || k === 'heart' || k === 'note') ? -40 : k === 'firefly' ? -12 : (k === 'snow' || k === 'leaf' || k === 'confetti' || k === 'crumb') ? 25 : k === 'coin' ? 45 : 0;
     trailP.push({ k, x: c.x + (Math.random() - 0.5) * 24, y: c.y + (Math.random() - 0.5) * 18, vx: (Math.random() - 0.5) * 30, vy: up + (Math.random() - 0.5) * 30,
       t: 0, life: k === 'rainbow' ? 0.9 : 0.8 + Math.random() * 0.5, col: k === 'rainbow' ? 'hsl(' + trailHue + ',90%,60%)' : cols[(Math.random() * cols.length) | 0], r: 4 + Math.random() * 4, rot: Math.random() * 6 });
     if (trailP.length > 140) trailP.shift();
@@ -197,6 +207,13 @@
       else if (q.k === 'note') { ctx.beginPath(); ctx.ellipse(0, 0, r * 0.7, r * 0.5, -0.4, 0, 7); ctx.fill(); ctx.fillRect(r * 0.5, -r * 1.6, 1.6, r * 1.6); }
       else if (q.k === 'leaf') { ctx.rotate(q.rot + q.t * 4); ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.5, 0, 0, 7); ctx.fill(); }
       else if (q.k === 'rainbow') { ctx.beginPath(); ctx.arc(0, 0, r * 1.1, 0, 7); ctx.fill(); }
+      else if (q.k === 'confetti') { ctx.rotate(q.rot + q.t * 6); ctx.fillRect(-r * 0.7, -r * 0.35, r * 1.4, r * 0.7); }
+      else if (q.k === 'coin') { ctx.scale(Math.abs(Math.cos(q.rot + q.t * 7)) + 0.15, 1); ctx.beginPath(); ctx.arc(0, 0, r * 0.9, 0, 7); ctx.fill(); }
+      else if (q.k === 'crumb') { ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, 7); ctx.fill(); }
+      else if (q.k === 'pixel') { ctx.fillRect(-r * 0.5, -r * 0.5, r, r); }
+      else if (q.k === 'firefly') { ctx.globalAlpha = Math.max(0, a) * (0.5 + 0.5 * Math.sin(q.t * 14)); ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, 7); ctx.fill(); ctx.globalAlpha *= 0.4; ctx.beginPath(); ctx.arc(0, 0, r * 1.2, 0, 7); ctx.fill(); }
+      else if (q.k === 'bolt') { ctx.rotate(q.rot); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-r, -r); ctx.lineTo(0, -r * 0.2); ctx.lineTo(-r * 0.3, r * 0.2); ctx.lineTo(r, r); ctx.stroke(); }
+      else if (q.k === 'ink') { ctx.beginPath(); ctx.arc(0, 0, r * (0.6 + q.t), 0, 7); ctx.fill(); }
       else { ctx.beginPath(); ctx.arc(0, 0, r * 0.7, 0, 7); ctx.fill(); }
       ctx.restore();
     }
@@ -458,7 +475,7 @@
 
     drawTrail();
     ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
-    drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(save.equip) : save.equip, save.skin);
+    drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
     if (decor) window.Decor.draw(ctx, decor.fore, camX, VW, clock);
     if (window.MP) window.MP.drawWorld(ctx, level, clock);
@@ -505,6 +522,17 @@
     const ang = Math.atan2(A.uy, A.ux), f = g.facing, n = g.neck, nN = n.length;
     const it = (cat) => (equip[cat] ? BY_ID[equip[cat]] : null);
     const bodyC = sk.body || '#ffffff';
+    const shp = sk.shape || {}, dsx = (28 * (shp.w || 1) + 8) / 36, dsy = (13 * (shp.h || 1) + 8) / 21;
+    // per-slot colour tint (store customisation); no tint where ctx.filter is unsupported
+    const tints = equip._tint || {};
+    const tint = (cat, fn) => {
+      const d = tints[cat];
+      if (d == null || !('filter' in cx)) { fn(); return; }
+      cx.save(); cx.filter = d === 'gray' ? 'grayscale(1)' : d === 'dark' ? 'brightness(.55)' : d === 'bright' ? 'brightness(1.35) saturate(1.3)' : 'hue-rotate(' + d + 'deg) saturate(1.15)';
+      fn(); cx.restore();
+    };
+    const auraItem = it('aura');
+    if (auraItem) { cx.save(); cx.translate(c.x, c.y); tint('aura', () => auraItem.draw(cx, g.head.x - c.x, g.head.y - c.y)); cx.restore(); }
     cx.lineCap = 'round'; cx.lineJoin = 'round';
 
     const bodyItem = it('body');
@@ -512,15 +540,16 @@
 
     // legs and feet
     if (!g.legless) {
-    const shoes = it('shoes'), lw = sk.legW || 1;
+    const shoes = it('shoes'), legItem = it('legs'), lw = sk.legW || 1;
     for (let i = 0; i < 2; i++) {
       const hip = g.hips[i], ft = g.feet[i];
       cx.strokeStyle = INK; cx.lineWidth = 8.5 * lw;
       cx.beginPath(); cx.moveTo(hip.x, hip.y); cx.lineTo(ft.x, ft.y); cx.stroke();
       cx.strokeStyle = sk.legC || '#ff9b2f'; cx.lineWidth = 5 * lw;
       cx.beginPath(); cx.moveTo(hip.x, hip.y); cx.lineTo(ft.x, ft.y); cx.stroke();
+      if (legItem) { cx.save(); cx.translate(ft.x, ft.y); cx.rotate(Math.atan2(hip.y - ft.y, hip.x - ft.x)); tint('legs', () => legItem.draw(cx)); cx.restore(); }
       cx.save(); cx.translate(ft.x, ft.y); cx.scale(f, 1);
-      if (shoes) shoes.draw(cx);
+      if (shoes) tint('shoes', () => shoes.draw(cx));
       else if (sk.foot) sk.foot(cx);
       else { cx.fillStyle = sk.legC || '#ff9b2f'; cx.strokeStyle = INK; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(4, 2, 11, 4.5, 0, 0, 7); cx.fill(); cx.stroke(); }
       cx.restore();
@@ -540,21 +569,28 @@
 
     // body, tail, wing
     cx.save();
-    cx.translate(c.x, c.y); cx.rotate(ang); cx.scale(f, 1);
+    cx.translate(c.x, c.y); cx.rotate(ang); cx.scale(f * dsx, dsy);
     cx.fillStyle = bodyC; cx.strokeStyle = INK; cx.lineWidth = 3;
     if (sk.tail) { cx.save(); sk.tail(cx); cx.restore(); }
     else { cx.beginPath(); cx.moveTo(-30, -8); cx.lineTo(-52, -20); cx.lineTo(-36, 6); cx.closePath(); cx.fill(); cx.stroke(); }
+    const tailItem = it('tail');
+    if (tailItem) { cx.save(); cx.translate(-34, -4); tint('tail', () => tailItem.draw(cx)); cx.restore(); }
     cx.fillStyle = bodyC; cx.strokeStyle = INK; cx.lineWidth = 3;
     cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.fill();
     if (sk.bodyDeco) { cx.save(); cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.clip(); sk.bodyDeco(cx); cx.restore(); }
     cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.stroke();
-    if (bodyItem && !bodyItem.back) bodyItem.draw(cx);
+    const backItem = it('back');
+    if (backItem) tint('back', () => backItem.draw(cx));
+    if (bodyItem && !bodyItem.back) tint('body', () => bodyItem.draw(cx));
     const fp = g.flapT > 0 ? Math.sin((0.35 - g.flapT) * 36) : 0;
     cx.save();
     cx.translate(-4, -2); cx.rotate(-0.15 - fp * 0.9);
     cx.fillStyle = sk.wing || '#e4edf5'; cx.strokeStyle = INK; cx.lineWidth = 3;
     cx.beginPath(); cx.ellipse(-8, 0, 20 + Math.abs(fp) * 6, 10, 0, 0, 7); cx.fill(); cx.stroke();
     cx.restore();
+    const petItem = it('pet'), heldItem = it('held');
+    if (petItem) { cx.save(); cx.translate(-8, -24); tint('pet', () => petItem.draw(cx)); cx.restore(); }
+    if (heldItem) { cx.save(); cx.translate(16, 2); tint('held', () => heldItem.draw(cx)); cx.restore(); }
     cx.restore();
 
     // neckwear
@@ -562,7 +598,7 @@
     if (neckItem) {
       const i = neckItem.id === 'scarf' ? Math.round(nN * 0.62) : Math.round(nN * 0.74);
       const a = n[Math.max(0, i - 1)], b = n[Math.min(nN - 1, i + 1)];
-      cx.save(); cx.translate(n[i].x, n[i].y); cx.rotate(Math.atan2(b.y - a.y, b.x - a.x)); neckItem.draw(cx); cx.restore();
+      cx.save(); cx.translate(n[i].x, n[i].y); cx.rotate(Math.atan2(b.y - a.y, b.x - a.x)); tint('neck', () => neckItem.draw(cx)); cx.restore();
     }
 
     // head
@@ -587,10 +623,19 @@
     if (eo.bg) { cx.fillStyle = eo.bg; cx.strokeStyle = INK; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(ex, ey, er * 1.7, 0, 7); cx.fill(); cx.stroke(); }
     cx.fillStyle = INK; cx.beginPath(); cx.arc(ex, ey, er, 0, 7); cx.fill();
     cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ex + 0.9, ey - 0.9, er * 0.32, 0, 7); cx.fill();
-    const eyes = it('eyes'), hat = it('hat');
+    const eyes = it('eyes'), hat = it('hat'), face = it('face'), beakItem = it('beak');
+    if (face) { cx.save(); tint('face', () => face.draw(cx)); cx.restore(); }
     if (sk.headDeco) { cx.save(); sk.headDeco(cx); cx.restore(); }
-    if (eyes) { cx.save(); cx.translate(ex, ey); eyes.draw(cx); cx.restore(); }
-    if (hat) { cx.save(); hat.draw(cx); cx.restore(); }
+    if (beakItem) { cx.save(); cx.translate(4, 0); tint('beak', () => beakItem.draw(cx)); cx.restore(); }
+    if (eyes) { cx.save(); cx.translate(ex, ey); tint('eyes', () => eyes.draw(cx)); cx.restore(); }
+    if (hat) {
+      cx.save(); tint('hat', () => hat.draw(cx)); cx.restore();
+      if (!eyes) {   // hats never cover your eyes: draw the eye back on top
+        if (eo.bg) { cx.fillStyle = eo.bg; cx.strokeStyle = INK; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(ex, ey, er * 1.7, 0, 7); cx.fill(); cx.stroke(); }
+        cx.fillStyle = INK; cx.beginPath(); cx.arc(ex, ey, er, 0, 7); cx.fill();
+        cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ex + 0.9, ey - 0.9, er * 0.32, 0, 7); cx.fill();
+      }
+    }
     cx.restore();
   }
 
@@ -945,12 +990,14 @@
   function sizeStoreCanvas() { const d = Math.min(window.devicePixelRatio || 1, 2); storeCv.width = 260 * d; storeCv.height = 300 * d; sctx.setTransform(d, 0, 0, d, 0, 0); }
   sizeStoreCanvas();
 
-  const SKIN_ITEMS = SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0 }));
-  const STORE_CATS = [{ id: 'skin', name: 'Skins' }].concat(CATS);
+  const SKIN_ITEMS = SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, shape: !!k.shape }));
+  const STORE_CATS = [{ id: 'skin', name: 'Animals' }, { id: 'shapes', name: 'Shapes' }].concat(CATS);
+  const TINTS = [null, 30, 60, 120, 180, 210, 270, 300, 330, 'gray', 'dark', 'bright'];
+  const itemsFor = (cat) => (cat === 'skin' ? SKIN_ITEMS.filter((i) => !i.shape) : cat === 'shapes' ? SKIN_ITEMS.filter((i) => i.shape) : ITEMS.filter((i) => i.cat === cat)).slice().sort((a, b) => a.price - b.price);
   const storeItem = (id) => BY_ID[id] || SKIN_ITEMS.find((x) => x.id === id);
   const isOwned = (it) => it.cat === 'skin' ? !!save.skins[it.sid] : !!save.owned[it.id];
   const isWearing = (it) => it.cat === 'skin' ? save.skin === it.sid : save.equip[it.cat] === it.id;
-  function currentLook() { const l = Object.assign({}, save.equip, tryOn); delete l.skin; return l; }
+  function currentLook() { const l = Object.assign({}, save.equip, tryOn); delete l.skin; l._tint = save.tint; return l; }
   function currentSkin() { return tryOn.skin ? tryOn.skin.slice(5) : save.skin; }
 
   function drawStorePreview() {
@@ -968,7 +1015,7 @@
   function iconFor(item) {
     if (item.cat === 'skin') {
       const cv = document.createElement('canvas'); cv.width = cv.height = 96;
-      const c = cv.getContext('2d'); c.translate(14, 36); c.scale(0.5, 0.5);
+      const c = cv.getContext('2d'); c.translate(34, 72); c.scale(0.36, 0.36);
       drawGoose(c, fakeGoose(0), {}, item.sid); return cv;
     }
     const cv = document.createElement('canvas'); cv.width = cv.height = 96;
@@ -994,6 +1041,31 @@
       if (item.back) item.draw(c);
       c.beginPath(); c.ellipse(0, 0, 38, 24, 0, 0, 7); c.fill(); c.stroke();
       if (!item.back) item.draw(c);
+    } else if (item.cat === 'face' || item.cat === 'beak') {
+      c.translate(item.cat === 'face' ? 26 : 14, 26); c.scale(1.9, 1.9);
+      c.fillStyle = '#ff9b2f'; c.strokeStyle = INK; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(4, -5); c.lineTo(26, -0.5); c.lineTo(4, 0); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(4, 0); c.lineTo(24, 1); c.lineTo(4, 5); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 10, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = INK; c.beginPath(); c.arc(3, -3, 2.8, 0, 7); c.fill();
+      if (item.cat === 'beak') c.translate(4, 0);
+      item.draw(c);
+    } else if (item.cat === 'back' || item.cat === 'held' || item.cat === 'tail' || item.cat === 'pet') {
+      c.translate(item.cat === 'tail' ? 40 : item.cat === 'back' ? 36 : 28, item.cat === 'pet' ? 38 : 36); c.scale(0.62, 0.62);
+      c.fillStyle = '#fff'; c.strokeStyle = INK; c.lineWidth = 3;
+      c.beginPath(); c.ellipse(0, 0, 38, 24, 0, 0, 7); c.fill(); c.stroke();
+      c.save();
+      if (item.cat === 'held') c.translate(16, 2); else if (item.cat === 'tail') c.translate(-34, -4); else if (item.cat === 'pet') c.translate(-8, -24);
+      item.draw(c); c.restore();
+    } else if (item.cat === 'aura') {
+      c.translate(24, 26); c.scale(0.55, 0.55); c.fillStyle = '#fff'; c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.ellipse(0, 6, 38, 24, 0, 0, 7); c.fill(); c.stroke(); item.draw(c, 20, -34);
+    } else if (item.cat === 'legs') {
+      c.translate(24, 40); c.scale(1.7, 1.7);
+      c.strokeStyle = INK; c.lineWidth = 8.5; c.beginPath(); c.moveTo(0, -26); c.lineTo(0, 0); c.stroke();
+      c.strokeStyle = '#ff9b2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(0, -26); c.lineTo(0, 0); c.stroke();
+      c.rotate(-Math.PI / 2); item.draw(c);
+    } else if (item.cat === 'voice') {
+      c.font = '34px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(item.emoji || '🔊', 24, 26);
     } else {
       c.translate(20, 22); c.scale(1.7, 1.7);
       c.strokeStyle = INK; c.lineWidth = 8.5; c.beginPath(); c.moveTo(0, -18); c.lineTo(0, 0); c.stroke();
@@ -1004,26 +1076,50 @@
     return cv;
   }
 
+  const ownedCount = (cat) => { const l = itemsFor(cat); return l.filter(isOwned).length + '/' + l.length; };
   function renderStore() {
     $('storeBread').textContent = '🍞 ' + money();
     const tabs = $('storeTabs');
     tabs.innerHTML = '';
     STORE_CATS.forEach((cat) => {
       const b = document.createElement('button');
-      b.textContent = cat.name;
+      b.textContent = cat.name + ' ' + ownedCount(cat.id);
       if (cat.id === storeCat) b.classList.add('sel');
       b.addEventListener('click', () => { storeCat = cat.id; selectedItem = null; renderStore(); });
       tabs.appendChild(b);
     });
+    const isSkinTab = storeCat === 'skin' || storeCat === 'shapes';
+    // tools: random outfit, clear all, colour swatches for the worn item in this slot
+    const tools = $('storeTools'); tools.innerHTML = '';
+    const tb = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', () => { audio(); fn(); }); tools.appendChild(b); };
+    tb('🎲 Random outfit', () => {
+      const slots = CATS.filter((c) => c.id !== 'voice');
+      for (const c of slots) { const own = ITEMS.filter((i) => i.cat === c.id && save.owned[i.id]); if (own.length && Math.random() < 0.7) save.equip[c.id] = own[(Math.random() * own.length) | 0].id; else delete save.equip[c.id]; }
+      tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore();
+    });
+    tb('🧹 Take everything off', () => { save.equip = {}; save.tint = {}; tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore(); });
+    const tintable = !isSkinTab && storeCat !== 'voice' && storeCat !== 'trail' && (save.equip[storeCat] || tryOn[storeCat]);
+    if (tintable) {
+      const row = document.createElement('div'); row.className = 'tintRow';
+      const lab = document.createElement('span'); lab.textContent = 'Colour:'; row.appendChild(lab);
+      TINTS.forEach((t) => {
+        const sw = document.createElement('i'); sw.className = 'sw' + ((save.tint[storeCat] == null ? null : save.tint[storeCat]) === t ? ' on' : '');
+        sw.style.background = t == null ? 'conic-gradient(#e63946,#ffd23f,#4cc35a,#4aa3ff,#b57aff,#e63946)' : t === 'gray' ? '#9aa3ad' : t === 'dark' ? '#2a2f3a' : t === 'bright' ? '#fff7a0' : 'hsl(' + ((t + 0) % 360) + ',80%,60%)';
+        sw.title = t == null ? 'Original colour' : String(t);
+        sw.addEventListener('click', () => { if (t == null) delete save.tint[storeCat]; else save.tint[storeCat] = t; persist(); snd.tick(); renderStore(); });
+        row.appendChild(sw);
+      });
+      tools.appendChild(row);
+    }
     const grid = $('storeGrid');
     grid.innerHTML = '';
     // "none" tile
     const none = document.createElement('div');
     none.className = 'item' + (!save.equip[storeCat] && !tryOn[storeCat] ? ' on' : '');
     none.innerHTML = '<div class="ic">∅</div><b>None</b><span>Go bare</span>';
-    none.addEventListener('click', () => { delete tryOn[storeCat]; delete save.equip[storeCat]; persist(); selectedItem = null; renderStore(); });
-    if (storeCat !== 'skin') grid.appendChild(none);
-    (storeCat === 'skin' ? SKIN_ITEMS : ITEMS.filter((i) => i.cat === storeCat)).forEach((item) => {
+    none.addEventListener('click', () => { delete tryOn[storeCat]; delete save.equip[storeCat]; delete save.tint[storeCat]; persist(); selectedItem = null; renderStore(); });
+    if (!isSkinTab) grid.appendChild(none);
+    itemsFor(storeCat).forEach((item) => {
       const owned = isOwned(item);
       const wearing = isWearing(item);
       const el = document.createElement('div');
@@ -1035,6 +1131,7 @@
       el.append(ic, nm, st);
       el.addEventListener('click', () => {
         audio();
+        if (item.voice) item.voice.forEach((v) => tone(v[0], v[1], v[2], v[3], v[4], v[5]));
         if (owned) {
           if (item.cat === 'skin') save.skin = item.sid;
           else if (wearing) delete save.equip[item.cat]; else save.equip[item.cat] = item.id;
@@ -1169,7 +1266,7 @@
     get W() { return W; }, get H() { return H; }, get S() { return S; }, get DPR() { return DPR; },
     input, keys, snd, tone, INK, Physics: window.Physics,
     clock: () => clock,
-    drawGoose: (g, equip, skin) => drawGoose(ctx, g, equip || save.equip, skin || save.skin),
+    drawGoose: (g, equip, skin) => drawGoose(ctx, g, equip || lookEquip(), skin || save.skin),
     readInput() {
       const move = (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
       const flap = input.flapQueue, honk = input.honkQueue;

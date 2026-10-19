@@ -1,6 +1,6 @@
 /*
  * Skins: the animal you play as. The physics is always the same wobbly goose; a skin changes how it looks
- * (and, for long-necked animals, how long the neck is).
+ * (and, for long-necked animals, how long the neck is). `shape: { w, h, leg, neck }` skins really change the body: width, height, leg length.
  *
  * Fields (all optional, defaults = the goose):
  *   neck     physical neck length multiplier          neckW  neck thickness multiplier
@@ -175,5 +175,5 @@
 
   const BY_ID = {};
   SKINS.forEach((s) => { BY_ID[s.id] = s; });
-  root.Skins = { LIST: SKINS, BY_ID };
+  root.Skins = { LIST: SKINS, BY_ID, H: { INK, ol, ell, poly, circ, beak, disc, claw, hoof, paw, T } };
 })(typeof window !== 'undefined' ? window : globalThis);

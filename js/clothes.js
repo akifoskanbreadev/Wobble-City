@@ -149,7 +149,7 @@
     { id: 'tutu', cat: 'body', name: 'Ballet Tutu', price: 70, draw(ctx) {
       ctx.beginPath(); ctx.moveTo(-26, 12); for (let i = 0; i <= 8; i++) ctx.lineTo(-26 + i * 6.5, 12 + (i % 2 ? 9 : 3)); ctx.lineTo(26, 12); ctx.closePath(); outline(ctx, '#ff9ccf', 2);
     } },
-    { id: 'cape', cat: 'body', name: 'Hero Cape', price: 100, back: true, draw(ctx) {
+    { id: 'cape', cat: 'back', name: 'Hero Cape', price: 100, draw(ctx) {
       const w = Math.sin(T() * 5) * 3;
       ctx.beginPath(); ctx.moveTo(8, -18); ctx.quadraticCurveTo(-30, -26 + w, -56, -4 + w * 2); ctx.lineTo(-48, 14 + w); ctx.quadraticCurveTo(-24, 20, 8, 12); ctx.closePath(); outline(ctx, '#d62839', 3);
     } },
@@ -224,8 +224,8 @@
       for (let i = 0; i < 5; i++) { const a = Math.PI * (1.12 + i * 0.19); ctx.beginPath(); ctx.arc(-1 + Math.cos(a) * 11.5, Math.sin(a) * 11.5, 3.6, 0, 7); outline(ctx, cols[i], 1.8); ctx.beginPath(); ctx.arc(-1 + Math.cos(a) * 11.5, Math.sin(a) * 11.5, 1.2, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); }
     } },
     { id: 'headphones', cat: 'hat', name: 'Headphones', price: 95, draw(ctx) {
-      ctx.strokeStyle = '#23272f'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, 0, 12.5, Math.PI * 1.1, Math.PI * 1.95); ctx.stroke();
-      rr(ctx, -6, -4, 9, 11, 3); outline(ctx, '#e63946', 2.2);
+      ctx.strokeStyle = '#23272f'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(-3, 0, 12.5, Math.PI * 1.05, Math.PI * 1.9); ctx.stroke();
+      rr(ctx, -15, -4, 9, 11, 3); outline(ctx, '#e63946', 2.2);
     } },
     { id: 'fez', cat: 'hat', name: 'Fez', price: 65, draw(ctx) {
       ctx.beginPath(); ctx.moveTo(-8, -7); ctx.lineTo(-6, -20); ctx.lineTo(6, -20); ctx.lineTo(8, -7); ctx.closePath(); outline(ctx, '#c0272d');
@@ -251,8 +251,8 @@
       ctx.beginPath(); ctx.arc(0, -13, 2, 0, 7); ctx.fillStyle = '#ff5fa2'; ctx.fill();
     } },
     { id: 'ninja', cat: 'hat', name: 'Ninja Headband', price: 55, draw(ctx) {
-      ctx.save(); ctx.rotate(-0.1); rr(ctx, -11, -8, 22, 5, 2); outline(ctx, '#e63946', 2); ctx.restore();
-      ctx.strokeStyle = '#e63946'; ctx.lineWidth = 3.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-10, -6); ctx.quadraticCurveTo(-20, -4, -26, -9 + Math.sin(T() * 6) * 3); ctx.moveTo(-10, -5); ctx.quadraticCurveTo(-19, 1, -25, -1 + Math.sin(T() * 6 + 1) * 3); ctx.stroke();
+      ctx.save(); ctx.rotate(-0.1); rr(ctx, -11, -13, 22, 5, 2); outline(ctx, '#e63946', 2); ctx.restore();
+      ctx.strokeStyle = '#e63946'; ctx.lineWidth = 3.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-10, -11); ctx.quadraticCurveTo(-20, -9, -26, -14 + Math.sin(T() * 6) * 3); ctx.moveTo(-10, -10); ctx.quadraticCurveTo(-19, 1, -25, -1 + Math.sin(T() * 6 + 1) * 3); ctx.stroke();
     } },
     { id: 'unicorn', cat: 'hat', name: 'Unicorn Horn', price: 210, draw(ctx) {
       ctx.beginPath(); ctx.moveTo(-3, -9); ctx.lineTo(0, -32); ctx.lineTo(4, -9); ctx.closePath(); outline(ctx, '#fff4c9', 2.5);
@@ -341,21 +341,21 @@
       ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0, 38, 24, 0, 0, 7); ctx.clip(); ctx.fillStyle = '#b8c2cf'; ctx.fillRect(-40, -26, 80, 52); ctx.strokeStyle = '#7d8896'; ctx.lineWidth = 2; for (let x = -28; x <= 28; x += 14) { ctx.beginPath(); ctx.moveTo(x, -26); ctx.lineTo(x, 26); ctx.stroke(); } ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-36, -22, 72, 6); ctx.restore();
       ctx.beginPath(); ctx.ellipse(0, 0, 38, 24, 0, 0, 7); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
     } },
-    { id: 'angelwings', cat: 'body', name: 'Angel Wings', price: 170, back: true, draw(ctx) {
+    { id: 'angelwings', cat: 'back', name: 'Angel Wings', price: 170, draw(ctx) {
       const w = Math.sin(T() * 4) * 3;
       for (const k of [0, 1]) { ctx.save(); ctx.translate(-8, -10); ctx.rotate(-0.6 + k * 0.25 + w * 0.02); ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-26 - k * 6, -22, -48 - k * 4, -14 + w); ctx.quadraticCurveTo(-34, -4, -26, 2); ctx.quadraticCurveTo(-34, 2, -20, 10); ctx.closePath(); outline(ctx, k ? '#f1f6ff' : '#ffffff', 2.5); ctx.restore(); }
     } },
-    { id: 'devilwings', cat: 'body', name: 'Devil Wings', price: 170, back: true, draw(ctx) {
+    { id: 'devilwings', cat: 'back', name: 'Devil Wings', price: 170, draw(ctx) {
       const w = Math.sin(T() * 5) * 3;
       ctx.save(); ctx.translate(-8, -10); ctx.rotate(-0.5 + w * 0.02); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-20, -30 + w); ctx.lineTo(-30, -10); ctx.lineTo(-44, -22 + w); ctx.lineTo(-40, 2); ctx.quadraticCurveTo(-20, 0, 0, 6); ctx.closePath(); outline(ctx, '#b8222d', 2.5); ctx.restore();
     } },
-    { id: 'backpack', cat: 'body', name: 'Backpack', price: 60, back: true, draw(ctx) {
+    { id: 'backpack', cat: 'back', name: 'Backpack', price: 60, draw(ctx) {
       rr(ctx, -34, -16, 20, 28, 6); outline(ctx, '#f0902f', 2.5); rr(ctx, -31, -2, 14, 9, 3); outline(ctx, '#d97a1c', 2);
     } },
-    { id: 'jetpack', cat: 'body', name: 'Jetpack', price: 220, back: true, draw(ctx) {
+    { id: 'jetpack', cat: 'back', name: 'Jetpack', price: 220, draw(ctx) {
       for (const dy of [-12, 2]) { rr(ctx, -36, dy - 6, 14, 22, 5); outline(ctx, '#b8c2cf', 2.5); const f = 8 + Math.sin(T() * 40 + dy) * 4; ctx.beginPath(); ctx.moveTo(-34, dy + 16); ctx.lineTo(-29, dy + 16 + f); ctx.lineTo(-24, dy + 16); ctx.closePath(); ctx.fillStyle = '#ff9b2f'; ctx.fill(); }
     } },
-    { id: 'shell', cat: 'body', name: 'Turtle Shell', price: 100, draw(ctx) {
+    { id: 'shell', cat: 'back', name: 'Turtle Shell', price: 100, draw(ctx) {
       ctx.beginPath(); ctx.ellipse(-2, -6, 28, 20, 0, Math.PI, 0); ctx.closePath(); outline(ctx, '#3f8f3a', 3);
       ctx.strokeStyle = '#2b6a28'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-14, -6); ctx.lineTo(-8, -20); ctx.moveTo(-2, -6); ctx.lineTo(-2, -26); ctx.moveTo(10, -6); ctx.lineTo(4, -20); ctx.moveTo(-28, -6); ctx.lineTo(22, -6); ctx.stroke();
     } },
@@ -423,5 +423,5 @@
   const BY_ID = {};
   ITEMS.forEach((i) => { BY_ID[i.id] = i; });
 
-  root.Clothes = { ITEMS, CATS, BY_ID };
+  root.Clothes = { ITEMS, CATS, BY_ID, H: { INK, T, outline, rr, ell } };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -117,6 +117,12 @@
   #storeCanvas { width: 260px; height: 300px; border-radius: 16px; border: 3px solid var(--ink); flex: none; }
   .storeright { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  #storeTabs { max-height: 92px; overflow-y: auto; } #storeTabs button { font-size: 12px; padding: 4px 9px; }
+  #storeTools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  #storeTools button { font: inherit; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+  .tintRow { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; font-size: 12px; font-weight: 700; }
+  .tintRow .sw { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; display: inline-block; }
+  .tintRow .sw.on { outline: 3px solid var(--orange); }
   #storeGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; overflow: auto; max-height: 232px; padding: 2px; }
   .item { background: #fff; border: 2px solid var(--ink); border-radius: 12px; padding: 6px 4px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; }
   .item b { font-size: 12px; line-height: 1.1; }
@@ -258,6 +264,7 @@
       <canvas id="storeCanvas"></canvas>
       <div class="storeright">
         <div class="tabs" id="storeTabs"></div>
+        <div id="storeTools"></div>
         <div id="storeGrid"></div>
         <div id="buyBar" class="hidden"><span id="buyText"></span><button class="big small-btn" id="buyBtn">Buy</button></div>
       </div>
@@ -321,9 +328,12 @@
 <script src="js/physics.js"></script>
 <script src="js/levels.js"></script>
 <script src="js/skins.js"></script>
+<script src="js/skins2.js"></script>
 <script src="js/decor.js"></script>
 <script src="js/enemies.js"></script>
 <script src="js/clothes.js"></script>
+<script src="js/clothes2.js"></script>
+<script src="js/clothes3.js"></script>
 <script src="js/minigames.js"></script>
 <script src="js/minigames2.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>

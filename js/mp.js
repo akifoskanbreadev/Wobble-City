@@ -60,7 +60,7 @@
     const p = new root.Peer(undefined, { debug: 0 }); peer = p;
     p.on('open', () => {
       const c = p.connect(PREFIX + word, { reliable: true, serialization: 'json' }); hostConn = c;
-      c.on('open', () => { send0({ t: 'hi', skin: api.save().skin, equip: api.save().equip }); });
+      c.on('open', () => { send0({ t: 'hi', skin: api.save().skin, equip: mine().equip }); });
       c.on('data', (m) => onMsg(m, 0));
       c.on('close', lost);
       c.on('error', () => lost());
@@ -109,7 +109,7 @@
     }
     ui();
   }
-  const mine = () => ({ skin: api.save().skin, equip: api.save().equip });
+  const mine = () => { const sv = api.save(); return { skin: sv.skin, equip: Object.assign({}, sv.equip, { _tint: sv.tint || {} }) }; };
   function sendRoster() { toAll({ t: 'roster', sel, list: Object.keys(roster).map((id) => ({ id: +id, skin: roster[id].skin, equip: roster[id].equip, ready: !!roster[id].ready })) }); ui(); }
 
   function onMsg(m, from) {

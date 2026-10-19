@@ -234,6 +234,7 @@
       this.neckMul = opt.neck || 1;                        // neck length multiplier (code: neck)
       this.seg = SEG * this.neckMul;
       this.infFlaps = !!opt.infFlaps;                      // never runs out of flaps (code: flaps)
+      this.sw = opt.shapeW || 1; this.sh = opt.shapeH || 1; this.lm = opt.legM || 1;   // shape skins: body width/height and leg length multipliers
       this.legless = !!opt.legless;                        // Neck mode: no legs, drag yourself along with the neck
       this.chaos = !!opt.chaos;                            // Spaghetti mode: haunted neck steering + random whiplash
       this.jerkT = 1;
@@ -251,22 +252,22 @@
 
       // body: 4 kg braced quad. Slightly buoyant: rho 0.75 of water.
       const bo = { m: 1, r: 8, mu: opt.legless ? 0.35 : 0.9, drag: 0.02, cd: 0.0006, rho: 0.75 };
-      this.bodyRest = [[-28, 13], [28, 13], [28, -13], [-28, -13]];
+      this.bodyRest = [[-28 * this.sw, 13 * this.sh], [28 * this.sw, 13 * this.sh], [28 * this.sw, -13 * this.sh], [-28 * this.sw, -13 * this.sh]];
       this.body = this.bodyRest.map((r) => mk(r[0], r[1], bo));
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) world.link(this.body[i], this.body[j]);
 
       // legs
-      this.hipX = [-13, 13]; this.hipY = 8; this.L0 = 30;
+      this.hipX = [-13 * this.sw, 13 * this.sw]; this.hipY = 8 * this.sh; this.L0 = 30 * this.lm;
       this.hips = this.hipX.map((hx) => mk(hx, this.hipY, { m: 0.3, drag: 0.02 }));
       this.hips.forEach((h) => this.body.forEach((b) => world.link(h, b)));
       this.feet = this.hipX.map((hx) => mk(hx, this.hipY + this.L0, { m: 0.2, r: 5, mu: 1.3, drag: 0.05, rho: 1.4 }));
       this.feet.forEach((f, i) => {
-        world.link(this.hips[i], f, { mode: 'rope', len: 40 });
+        world.link(this.hips[i], f, { mode: 'rope', len: 40 * this.lm });
         world.link(this.hips[i], f, { mode: 'strut', len: 14 });
       });
 
       // neck
-      const ax = 24, ay = -17;
+      const ax = 24 * this.sw, ay = -17 * this.sh;
       this.neck = [];
       for (let i = 0; i <= NECK_SEGS; i++) {
         let o;
@@ -363,7 +364,7 @@
 
       if (this.move !== 0) this.facing = Math.sign(this.move);
       this.faceBlend += (this.facing - this.faceBlend) * Math.min(1, dt * 6);
-      const mx = 24 * this.faceBlend, my = -17;
+      const mx = 24 * this.sw * this.faceBlend, my = -17 * this.sh;
       for (const m of this.mount) m.c.len = Math.hypot(mx - m.rx, my - m.ry);
 
       this.mv += (Math.abs(this.move) - this.mv) * Math.min(1, dt * 8);
