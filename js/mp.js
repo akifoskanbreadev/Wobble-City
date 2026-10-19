@@ -8,7 +8,7 @@
 (function (root) {
   'use strict';
   const MAX = 4, PREFIX = 'wobblecity-v1-';
-  let api = null, peer = null, hostConn = null, isHost = false, myId = 0, connected = false, word = '', tries = 0, busyMsg = '';
+  let sel = { mode: 'race', arg: 'r:0' }, api = null, peer = null, hostConn = null, isHost = false, myId = 0, connected = false, word = '', tries = 0, busyMsg = '';
   const conns = new Map();                 // host only: guest id -> connection
   const roster = {};                       // id -> { skin, equip }
   const ghosts = {};                       // id -> { cur, tgt }
@@ -39,6 +39,7 @@
     if (!word) return status('Type a word first (any word you and your friends agree on).', true);
     if (!root.Peer) return status('Could not load the matchmaking library (are you offline?).', true);
     if (connected) disconnect();
+    try { localStorage.setItem('wobble.lastRoom', word); } catch (e) { /* ignore */ }
     tries = 0; status('Looking for the room “' + word + '”…'); tryHost();
   }
   function tryHost() {
@@ -109,14 +110,15 @@
     ui();
   }
   const mine = () => ({ skin: api.save().skin, equip: api.save().equip });
-  function sendRoster() { toAll({ t: 'roster', list: Object.keys(roster).map((id) => ({ id: +id, skin: roster[id].skin, equip: roster[id].equip })) }); ui(); }
+  function sendRoster() { toAll({ t: 'roster', sel, list: Object.keys(roster).map((id) => ({ id: +id, skin: roster[id].skin, equip: roster[id].equip, ready: !!roster[id].ready })) }); ui(); }
 
   function onMsg(m, from) {
     switch (m.t) {
       case 'welcome': myId = m.id; isHost = false; connected = true; ui(); break;
       case 'busy': busyMsg = m.why; break;
-      case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {} }; sendRoster(); } break;
-      case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {} }; }); for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
+      case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {}, ready: false }; sendRoster(); } break;
+      case 'ready': if (isHost && roster[from]) { roster[from].ready = !!m.v; sendRoster(); } break;
+      case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {}, ready: !!r.ready }; }); if (m.sel) sel = m.sel; for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
       case 'p': if (isHost) { m.id = from; toAll(m, from); } setPose(m); break;
       case 'start': begin(m); break;
       case 'stop': if (M.mode) { stopMode(); api.showMenu(); api.toast('The host ended the game.', 3); } break;
@@ -182,7 +184,8 @@
     if ((mode === 'tag' || mode === 'hide') && (arg == null || arg < 0)) arg = (Math.random() * MAPS[mode].length) | 0;
     const pickId = () => ids[(Math.random() * ids.length) | 0];
     const o = { t: 'start', mode, arg, seed: (Math.random() * 1e9) | 0, diff: api.save().diff, ids, it: mode === 'tag' ? pickId() : -1, seekers: mode === 'hide' ? [pickId()] : [] };
-    toAll(o); begin(o);
+    Object.keys(roster).forEach((k) => { if (+k) roster[k].ready = false; });
+    toAll(o); begin(o); sendRoster();
   }
   function begin(m) {
     stopMode(true);
@@ -340,60 +343,107 @@
   }
 
   // ------------------------------------------------------------ UI
+  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel']];
+  function mapsFor(mode) {
+    if (mode === 'race') return (root.Levels.race || []).map((l, i) => ['r:' + i, '🏁 ' + l.name]).concat(api.levels.map((l, i) => [String(i), (i + 1) + '. ' + l.name]));
+    if (mode === 'duel') return (root.Minigames ? root.Minigames.list : []).map((m) => [m.id, m.icon + ' ' + m.name]);
+    return [['-1', '🎲 Random map']].concat(MAPS[mode].map((m, i) => [String(i), m.name]));
+  }
+  function selLabel() {
+    const mo = MODES.find((x) => x[0] === sel.mode) || MODES[0];
+    const mp = mapsFor(sel.mode).find((x) => String(x[0]) === String(sel.arg));
+    return mo[1] + ' ' + mo[2] + (mp ? ' — ' + mp[1] : '');
+  }
+  function fillMaps() {
+    const el = $('mpMap'); el.innerHTML = '';
+    mapsFor(sel.mode).forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; el.appendChild(o); });
+    if (![...el.options].some((o) => o.value === String(sel.arg))) sel.arg = el.options[0].value;
+    el.value = String(sel.arg);
+  }
+  function inviteUrl() { return location.origin + location.pathname + '?room=' + encodeURIComponent(word); }
   function ui() {
     if (!$('mpMenu')) return;
     $('mpJoinBox').style.display = connected ? 'none' : '';
     $('mpRoom').style.display = connected ? '' : 'none';
     if (connected) {
       const ids = Object.keys(roster).map(Number).sort((a, b) => a - b);
-      $('mpRoomName').textContent = 'Room “' + word + '” · you are P' + (myId + 1) + (isHost ? ' (host)' : '');
-      $('mpRoster').textContent = ids.map((id) => 'P' + (id + 1) + (id === 0 ? ' 👑' : '') + (id === myId ? ' (you)' : '') + ' — ' + roster[id].skin).join('\n');
-      status(ids.length + '/' + MAX + ' players. ' + (isHost ? (ids.length < 2 ? 'Waiting for friends to type the same word…' : 'Pick a game below!') : 'Waiting for the host to pick a game…'));
-    }
-    $('mpModes').style.display = connected && isHost ? '' : 'none';
+      $('mpRoomName').textContent = 'Room “' + word + '”';
+      const SK = root.Skins ? root.Skins.BY_ID : {};
+      let html = '';
+      for (let i = 0; i < MAX; i++) {
+        const r = roster[i];
+        if (r) html += '<div class="mpSlot full c' + i + '"><div class="mpAv">🪿</div><b>P' + (i + 1) + (i === 0 ? ' 👑' : '') + (i === myId ? ' (you)' : '') + '</b><span>' + ((SK[r.skin] && SK[r.skin].name) || r.skin) + '</span><span class="rd">' + (i === 0 || r.ready ? '✅ Ready' : '⏳ Not ready') + '</span></div>';
+        else html += '<div class="mpSlot"><div class="mpAv">·</div><span>Waiting for a player…</span></div>';
+      }
+      $('mpRoster').innerHTML = html;
+      const guests = ids.filter((i) => i), allReady = guests.length > 0 && guests.every((i) => roster[i].ready);
+      $('mpSel').textContent = 'Next game: ' + selLabel();
+      status(ids.length + '/' + MAX + ' players' + (isHost ? (ids.length < 2 ? ' · share the invite link or word with friends' : allReady ? ' · everyone is ready!' : ' · waiting for everyone to press Ready') : ' · the host picks the game'));
+      $('mpModes').style.display = isHost ? '' : 'none';
+      $('mpReady').style.display = isHost ? 'none' : '';
+      if (!isHost && roster[myId]) $('mpReady').textContent = roster[myId].ready ? '✅ Ready (tap to undo)' : '👍 I’m ready';
+      $('mpStart').disabled = ids.length < 2;
+      $('mpStart').textContent = ids.length < 2 ? 'Waiting for players…' : allReady ? '▶ Start game' : '▶ Start anyway';
+      if (isHost) { document.querySelectorAll('#mpModeChips button').forEach((b) => b.classList.toggle('on', b.dataset.m === sel.mode)); }
+    } else $('mpModes').style.display = 'none';
+  }
+  function hostSel(mode, arg) {
+    if (!isHost) return;
+    if (mode) { if (mode !== sel.mode) { sel = { mode, arg: null }; fillMaps(); } }
+    if (arg != null) sel.arg = arg;
+    sendRoster();
   }
   function build() {
     const css = document.createElement('style');
-    css.textContent = '#mpBanner{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:4;background:rgba(255,255,255,.92);border:3px solid #2b2118;border-radius:999px;padding:6px 16px;font-weight:800;pointer-events:none;white-space:nowrap}#mpBanner.hidden{display:none}#mpMenu input[type=text]{font:inherit;font-weight:700;border:3px solid #2b2118;border-radius:12px;padding:8px 12px;width:60%;text-align:center}#mpMenu select{font:inherit;font-weight:700;border:2px solid #2b2118;border-radius:10px;padding:4px 8px}#mpRoster{white-space:pre-line;font-weight:700;margin:6px 0}';
+    css.textContent = '#mpBanner{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:4;background:rgba(255,255,255,.92);border:3px solid #2b2118;border-radius:999px;padding:6px 16px;font-weight:800;pointer-events:none;white-space:nowrap}#mpBanner.hidden{display:none}#mpMenu input[type=text]{font:inherit;font-weight:700;border:3px solid #2b2118;border-radius:12px;padding:8px 12px;width:60%;text-align:center}#mpMenu select{font:inherit;font-weight:700;border:2px solid #2b2118;border-radius:10px;padding:4px 8px;max-width:100%}' +
+      '#mpRoster{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.mpSlot{border:3px dashed rgba(43,33,24,.3);border-radius:14px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:13px;min-height:78px;justify-content:center;opacity:.6}.mpSlot.full{border-style:solid;border-color:#2b2118;opacity:1;background:#fff}.mpAv{font-size:26px;line-height:1}.mpSlot.c0 .mpAv{filter:none}.mpSlot.c1 .mpAv{filter:hue-rotate(90deg)}.mpSlot.c2 .mpAv{filter:hue-rotate(200deg)}.mpSlot.c3 .mpAv{filter:hue-rotate(290deg)}' +
+      '#mpSel{font-weight:800;background:#fff;border:3px solid #2b2118;border-radius:12px;padding:6px 10px;margin:6px 0}#mpModeChips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:6px 0}#mpModeChips button.on{background:#2b2118;color:#fff}#mpModes .row select{flex:1}#mpStart:disabled{opacity:.5}';
     document.head.appendChild(css);
     const wrap = document.createElement('div');
     wrap.innerHTML =
       '<div id="mpBanner" class="hidden"></div>' +
-      '<div class="overlay hidden" id="mpMenu"><div class="card wide" style="max-width:560px"><h2>👥 Multiplayer (up to 4)</h2>' +
+      '<div class="overlay hidden" id="mpMenu"><div class="card wide" style="max-width:560px"><h2>👥 Multiplayer lobby</h2>' +
       '<div id="mpStatus" class="small">Pick a word. Everyone who types the same word joins the same room.</div>' +
       '<div id="mpJoinBox"><div class="row" style="margin:8px 0"><input type="text" id="mpWord" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="room word"><button class="big small-btn" id="mpJoinBtn">Join</button></div>' +
-      '<div class="small">The first person to use a word hosts the room. The room disappears when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.</div></div>' +
-      '<div id="mpRoom" style="display:none"><b id="mpRoomName"></b><div id="mpRoster"></div></div>' +
-      '<div id="mpModes" style="display:none"><h3>Pick a game</h3><div class="row"><select id="mpLevel"></select><button class="sec" id="mpRace">🏁 Race</button></div>' +
-      '<div class="row" style="margin-top:6px"><select id="mpTagMap"></select><button class="sec" id="mpTag">🏃 Tag</button></div>' +
-      '<div class="row" style="margin-top:6px"><select id="mpHideMap"></select><button class="sec" id="mpHide">🫣 Hide &amp; Seek</button></div>' +
-      '<div class="row" style="margin-top:6px"><select id="mpMg"></select><button class="sec" id="mpDuel">⚔️ Minigame duel</button></div></div>' +
+      '<div class="row"><button class="sec" id="mpQuick">🎲 Make a random room</button></div>' +
+      '<div class="small" style="margin-top:6px">The first person to use a word hosts the room. The room disappears when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.</div></div>' +
+      '<div id="mpRoom" style="display:none"><b id="mpRoomName"></b> <button class="sec" id="mpInvite">🔗 Copy invite link</button><div id="mpRoster"></div><div id="mpSel"></div>' +
+      '<button class="big small-btn" id="mpReady" style="display:none">👍 I’m ready</button></div>' +
+      '<div id="mpModes" style="display:none"><div id="mpModeChips"></div><div class="row"><select id="mpMap"></select></div>' +
+      '<div class="row" style="margin-top:8px"><button class="big small-btn" id="mpStart">▶ Start game</button></div></div>' +
       '<div class="row" style="margin-top:12px"><button class="big small-btn ghost" id="mpClose">Back</button><button class="big small-btn ghost" id="mpDisc">Leave room</button></div></div></div>' +
       '<div class="overlay clear hidden" id="mpDone"><div class="card"><h2 id="mpDoneTitle"></h2><p id="mpDoneText" style="white-space:pre-line"></p><div class="row"><button class="big small-btn" id="mpRematch">Rematch</button><button class="big small-btn ghost" id="mpLobby">Back to lobby</button></div></div></div>';
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    MODES.forEach(([m, ic, t]) => { const b = document.createElement('button'); b.className = 'sec'; b.dataset.m = m; b.textContent = ic + ' ' + t; b.onclick = () => hostSel(m); $('mpModeChips').appendChild(b); });
+    $('mpMap').onchange = () => hostSel(null, $('mpMap').value);
+    $('mpStart').onclick = () => { const v = String(sel.arg); hostStartMode(sel.mode, sel.mode === 'race' ? (v.startsWith('r:') ? v : +v) : sel.mode === 'duel' ? v : +v); };
+    $('mpReady').onclick = () => { const r = roster[myId]; if (r) { r.ready = !r.ready; toHost({ t: 'ready', v: r.ready }); ui(); } };
+    $('mpQuick').onclick = () => { const w = ['honk', 'goose', 'bread', 'pond', 'wobble', 'feather', 'noodle', 'quack'][(Math.random() * 8) | 0] + (10 + ((Math.random() * 90) | 0)); $('mpWord').value = w; join(w); };
+    $('mpInvite').onclick = async () => {
+      const u = inviteUrl();
+      try { if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) { await navigator.share({ title: 'Wobble City', text: 'Join my goose room!', url: u }); return; } } catch (e) { /* fall through */ }
+      try { await navigator.clipboard.writeText(u); api.toast('Invite link copied!', 2); } catch (e) { window.prompt('Copy this invite link:', u); }
+    };
     $('mpJoinBtn').onclick = () => join($('mpWord').value);
     $('mpWord').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join($('mpWord').value); });
     $('mpClose').onclick = () => $('mpMenu').classList.add('hidden');
     $('mpDisc').onclick = () => { disconnect(); status('Left the room.'); };
-    $('mpRace').onclick = () => { const v = $('mpLevel').value; hostStartMode('race', v.startsWith('r:') ? v : +v); };
-    $('mpTag').onclick = () => hostStartMode('tag', +$('mpTagMap').value);
-    $('mpHide').onclick = () => hostStartMode('hide', +$('mpHideMap').value);
-    $('mpDuel').onclick = () => hostStartMode('duel', $('mpMg').value);
     $('mpRematch').onclick = () => { if (isHost) hostStartMode(M.mode, M.arg); };
     $('mpLobby').onclick = () => { $('mpDone').classList.add('hidden'); if (isHost) { toAll({ t: 'stop' }); } stopMode(); api.showMenu(); open(); };
     ui();
   }
   function open() {
-    const L = $('mpLevel'); L.innerHTML = '';
-    const og = (label) => { const g = document.createElement('optgroup'); g.label = label; L.appendChild(g); return g; };
-    const add = (g, v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; g.appendChild(o); };
-    const g1 = og('Race tracks'); (root.Levels.race || []).forEach((l, i) => add(g1, 'r:' + i, '🏁 ' + l.name));
-    const g2 = og('Campaign levels'); api.levels.forEach((l, i) => add(g2, i, (i + 1) + '. ' + l.name));
-    ['tag', 'hide'].forEach((k) => { const el = $(k === 'tag' ? 'mpTagMap' : 'mpHideMap'); el.innerHTML = ''; add(el, -1, '🎲 Random map'); MAPS[k].forEach((m, i) => add(el, i, m.name)); });
-    $('mpMg').innerHTML = ''; (root.Minigames ? root.Minigames.list : []).forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.icon + ' ' + m.name; $('mpMg').appendChild(o); });
+    fillMaps();
+    try { const w = localStorage.getItem('wobble.lastRoom'); if (w && !$('mpWord').value) $('mpWord').value = w; } catch (e) { /* ignore */ }
     ui(); $('mpMenu').classList.remove('hidden');
   }
-  function init(a) { api = a; build(); }
+  function init(a) {
+    api = a; build();
+    try {
+      const r = new URLSearchParams(location.search).get('room');
+      if (r) setTimeout(() => { open(); $('mpWord').value = r; join(r); }, 600);
+    } catch (e) { /* ignore */ }
+  }
 
   root.MP = { init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };
