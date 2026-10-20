@@ -43,7 +43,7 @@
     let k = 0;
     for (const s of stretches) {
       const len = s.x1 - s.x0;
-      if (len < 170 || s.x0 < 400) continue;
+      if (len < 170 || s.x0 < 400 || (level.boss && s.x0 >= level.boss.x0 - 400)) continue;
       const mid = (s.x0 + s.x1) / 2;
       if (nearAny(mid, level.checkpoints || [], 150) || inWater(mid) || inHaz(mid) || (level.egg && Math.abs(level.egg[0] - mid) < 260)) continue;
       if (R() > dens * 0.85) continue;
@@ -138,7 +138,8 @@
     wasp(c, e, t) { const f = Math.sin(t * 40 + e.id); c.fillStyle = 'rgba(200,230,255,.6)'; for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 8, -12, 14, 6 + f * 2, s * -0.5, 0, 7); c.fill(); c.stroke(); } c.fillStyle = '#ffcf33'; c.beginPath(); c.ellipse(0, 0, 20, 13, 0, 0, 7); c.fill(); c.stroke(); c.fillStyle = OUT; for (const x of [-8, 2, 11]) c.fillRect(x, -12, 4, 24); c.beginPath(); c.moveTo(-20, 0); c.lineTo(-30, 3); c.lineTo(-20, 5); c.fill(); c.fillStyle = '#ffcf33'; c.beginPath(); c.arc(18, -2, 8, 0, 7); c.fill(); c.stroke(); eyes(c, 20, -4, 3, 2.6, 1); },
     ghost(c, e, t) { const w = Math.sin(t * 5 + e.id) * 3; c.globalAlpha = 0.9; const g = c.createLinearGradient(0, -22, 0, 20); g.addColorStop(0, '#f4fbff'); g.addColorStop(1, 'rgba(190,220,255,.7)'); c.fillStyle = g; c.beginPath(); c.moveTo(-18, 16); c.lineTo(-18, -4); c.arc(0, -4, 18, Math.PI, 0); c.lineTo(18, 16); for (let i = 0; i < 4; i++) c.quadraticCurveTo(18 - i * 9 - 4.5, 24 + w, 18 - (i + 1) * 9, 16); c.closePath(); c.fill(); c.stroke(); c.globalAlpha = 1; c.fillStyle = OUT; c.beginPath(); c.ellipse(-6, -4, 3, 5, 0, 0, 7); c.ellipse(7, -4, 3, 5, 0, 0, 7); c.fill(); c.beginPath(); c.ellipse(0, 7, 4, 5, 0, 0, 7); c.fill(); },
   };
-  const FLY_BY = { meadow: 'wasp', desert: 'bat', snow: 'ghost', sunset: 'bat', night: 'ghost', candy: 'wasp', lava: 'bat' };
+  const LOOK_ALIAS = { sky: 'snow', jungle: 'sunset', cavern: 'night', factory: 'lava', space: 'candy' };
+  const FLY_BY = { sky: 'wasp', jungle: 'wasp', cavern: 'bat', factory: 'bat', space: 'ghost', meadow: 'wasp', desert: 'bat', snow: 'ghost', sunset: 'bat', night: 'ghost', candy: 'wasp', lava: 'bat' };
 
   function urchin(c, e, t) {
     c.fillStyle = '#5c3d82';
@@ -157,7 +158,7 @@
       ctx.translate(p.x, p.y);
       ctx.lineWidth = 2.6; ctx.strokeStyle = OUT; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       if (e.kind === 'bat') { ctx.scale(p.dir, 1); (FLY[FLY_BY[e.theme] || 'bat'])(ctx, e, t); }
-      else { ctx.scale(p.dir, 1); (e.kind === 'urchin' ? urchin : (LOOKS[e.theme] || LOOKS.meadow))(ctx, e, t); }
+      else { ctx.scale(p.dir, 1); (e.kind === 'urchin' ? urchin : (LOOKS[e.theme] || LOOKS[LOOK_ALIAS[e.theme]] || LOOKS.meadow))(ctx, e, t); }
       ctx.restore();
     }
   }

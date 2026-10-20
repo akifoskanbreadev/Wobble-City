@@ -35,7 +35,7 @@
     clouds(c, W, H, t) {                                       // daytime sky with big drifting clouds
       fillBg(c, W, H, '#5ab0ff', '#d9f1ff');
       c.fillStyle = '#9ec7e8'; poly(c, [[0, H], [0, H * 0.78], [W * 0.15, H * 0.62], [W * 0.3, H * 0.76], [W * 0.5, H * 0.58], [W * 0.7, H * 0.76], [W * 0.88, H * 0.64], [W, H * 0.78], [W, H]]);
-      for (let i = 0; i < 6; i++) { const x = ((i * 220 + t * (8 + i * 3)) % (W + 300)) - 150, y = 60 + (i * 83) % (H * 0.6), s = 0.8 + hash(i) * 0.9; c.fillStyle = 'rgba(255,255,255,' + (0.55 + hash(i + 4) * 0.35) + ')'; c.beginPath(); c.ellipse(x, y, 70 * s, 22 * s, 0, 0, 7); c.ellipse(x + 40 * s, y - 14 * s, 46 * s, 24 * s, 0, 0, 7); c.ellipse(x - 42 * s, y - 6 * s, 38 * s, 18 * s, 0, 0, 7); c.fill(); }
+      for (let i = 0; i < 6; i++) { const x = ((i * 220 + t * (8 + i * 3)) % (W + 300)) - 150, y = 60 + (i * 83) % (H * 0.6), s = 0.8 + hash(i) * 0.9; window.Clouds.one(c, x, y, 240 * s, 0.6 + hash(i + 4) * 0.4, 'day', i); }
       for (let i = 0; i < 4; i++) bird(c, ((i * 260 + t * 40) % (W + 100)) - 50, 80 + i * 55 + Math.sin(t + i) * 10, 1, t);
     },
     bakery(c, W, H, t) {                                       // pink bakery with bunting and cupcakes

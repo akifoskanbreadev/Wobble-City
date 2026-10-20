@@ -331,8 +331,82 @@
     c.lv.egg = [x0 + 75, y - 24]; c.lv.tunnel = true;
   };
 
+  // ---------------------------------------------------------------------------- Mega World sections (mechanics: see mech.js)
+  S.fans = (n) => (c) => {          // thorn pit crossed by riding fan columns up to a staircase of ledges
+    brk(c);
+    const x0 = c.x, y = c.y, lift = 250, W = 140 + n * 440 + 60;
+    pit(c, x0, W, y);
+    let ly = y;
+    for (let i = 0; i < n; i++) {
+      const fx = x0 + 110 + i * 440;
+      c.lv.solids.push([fx - 70, ly, 140, 22]);
+      c.lv.zones.push([fx - 60, ly - lift - 90, 120, lift + 90, 0, -1450, 1, 'fan']);
+      c.lv.solids.push([fx + 110, ly - lift, 330, 24]);
+      br(c, fx + 270, ly - lift - 70); br(c, fx, ly - 170);
+      ly -= lift;
+    }
+    c.x = x0 + 110 + (n - 1) * 440 + 440; c.y = ly; brk(c); low(c, y + 800);
+  };
+  S.crumble = (n) => (c) => {       // platforms that fall away under your feet
+    brk(c);
+    const x0 = c.x, y = c.y, W = n * 230 + 110, tops = [0, 30, 10, 45, 15, 35];
+    pit(c, x0, W, y);
+    for (let i = 0; i < n; i++) { const px = x0 + 70 + i * 230, top = y - tops[i % 6]; c.lv.crumble.push([px, top, 150, 24]); br(c, px + 75, top - 70); }
+    c.x = x0 + W; if (n % 3 === 2) c.lv.checkpoints.push([x0 + 70 + Math.floor(n / 2) * 230 + 40, y - 80]);
+  };
+  S.belts = (n) => (c) => {         // conveyor belts over thorns, alternating direction
+    brk(c);
+    const x0 = c.x, y = c.y, seg = 330, W = n * seg + 60;
+    pit(c, x0, W, y);
+    for (let i = 0; i < n; i++) { c.lv.belts.push([x0 + 30 + i * seg, y, seg - 20, (i % 2 ? -1 : 1) * 135]); br(c, x0 + 30 + i * seg + seg / 2, y - 70); }
+    c.x = x0 + W; c.lv.checkpoints.push([x0 + 30 + Math.floor(n / 2) * seg + 60, y - 50]);
+  };
+  S.saws = (n) => (c) => {          // bobbing spinning blades; slip under when they rise
+    const p = cont(c), x0 = c.x; p.flat(240 + n * 260); sync(c, p);
+    for (let i = 0; i < n; i++) {
+      const sx = x0 + 240 + i * 260;
+      c.lv.saws.push({ x: sx, y: c.y - 95, r: 30, ax: 0, ay: 60, per: 2.3 + (i % 3) * 0.45, ph: (i * 0.37) % 1 });
+      br(c, sx + 130, c.y - 70);
+    }
+  };
+  S.portals = (n) => (c) => {       // pits too wide to cross: hop through the portals instead
+    brk(c);
+    const x0 = c.x, y = c.y, unit = 900, W = n * unit + 260;
+    pit(c, x0, W, y);
+    c.lv.solids.push([x0, y, 240, 40]);
+    for (let i = 0; i < n; i++) {
+      c.lv.solids.push([x0 + (i + 1) * unit, y, 240, 40]);
+      c.lv.portals.push({ a: [x0 + i * unit + 190, y - 50], b: [x0 + (i + 1) * unit + 50, y - 50], hue: 20 + i * 70 });
+      br(c, x0 + i * unit + 520, y - 160); br(c, x0 + (i + 1) * unit + 150, y - 70);
+    }
+    c.x = x0 + n * unit + 240; c.lv.checkpoints.push([x0 + Math.ceil(n / 2) * unit + 150, y - 45]);
+  };
+  S.gates = () => (c) => {          // find the button, then the gate opens
+    const p = cont(c), x0 = c.x; p.flat(900); sync(c, p);
+    c.lv.solids.push([x0 + 160, c.y - 110, 150, 24]);
+    c.lv.gates.push({ btn: [x0 + 205, c.y - 124, 60, 14], box: [x0 + 640, c.y - 430, 44, 430] });
+    br(c, x0 + 235, c.y - 190); br(c, x0 + 480, c.y - 70);
+  };
+  S.lowgrav = (len) => (c) => {     // floaty moon jumps over a wide pit
+    brk(c);
+    const x0 = c.x, y = c.y, W = len;
+    pit(c, x0, W, y);
+    c.lv.zones.push([x0 - 120, y - 1000, W + 240, 1400, 0, 0, 0.28, 'moon']);
+    const tops = [0, 80, 30, 120, 50, 90];
+    for (let i = 0; i * 380 + 150 < W; i++) { const top = y - tops[i % 6]; c.lv.solids.push([x0 + 80 + i * 380, top, 150, 24]); br(c, x0 + 155 + i * 380, top - 140); }
+    c.x = x0 + W; c.lv.checkpoints.push([x0 + Math.floor(W / 760) * 380 + 120, y - 60]);
+  };
+  S.antigrav = (h) => (c) => {      // a column that floats you up to a high ledge
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(340); sync(c, p);
+    c.lv.solids.push([x0 + 100, y - h - 120, 24, h + 120]);
+    c.lv.solids.push([x0 + 330, y - h, 340, h + 400]);
+    c.lv.zones.push([x0 + 124, y - h - 60, 206, h + 60, 0, 0, -0.15, 'anti']);
+    br(c, x0 + 226, y - h / 2); br(c, x0 + 500, y - h - 70);
+    c.x = x0 + 670; c.y = y - h; brk(c); low(c, y + 400);
+  };
+
   function compose(name, hint, theme, secs) {
-    const lv = { name, hint, theme, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null };
+    const lv = { name, hint, theme, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null, crumble: [], belts: [], zones: [], saws: [], portals: [], gates: [] };
     const c = { x: -400, y: G, p: null, low: G, lv };
     S.flat(700)(c);
     secs.forEach((f, i) => {
@@ -440,6 +514,49 @@
       }
     });
   })();
+
+
+  // ------------------------------------------------------------------ bonus bonus: weather & waves (indices 103+)
+  // level.weather = { wind: gust acceleration, per: seconds per gust cycle, waves: wave height px, waveK: wave push, rain, snow, storm }
+  LEVELS.weather = LEVELS.length;
+  const W = (name, hint, theme, weather, secs) => { const lv = compose(name, hint, theme, secs); lv.weather = weather; LEVELS.push(lv); };
+  W('Choppy Pond', 'Waves! The water shoves your neck around. Keep swimming.', 'meadow', { waves: 4, waveK: 220 }, [s.hills(2, 70), s.pond(500), s.stones(5), s.pond(350)]);
+  W('Breezy Hills', 'Wind gusts blow your neck sideways. Watch the arrow.', 'meadow', { wind: 380, per: 7 }, [s.hills(4, 100), s.walls(3, 100), s.hills(2, 80)]);
+  W('Drizzle Dash', 'Rain makes the ground slippery. Brake early.', 'meadow', { rain: true }, [s.hills(3, 80), s.stones(5), s.walls(3, 100)]);
+  W('Tidal Tumble', 'Big swells over a long swim.', 'sunset', { waves: 7, waveK: 300 }, [s.pond(500), s.walls(3, 110), s.stones(6), s.pond(500)]);
+  W('Gale Gap', 'Thorn gaps and a howling wind. Time your hops.', 'desert', { wind: 520, per: 6 }, [s.gap(3, 90), s.hills(2, 70), s.gap(4, 110)]);
+  W('Slip and Slide', 'Ice, a crosswind and a long skate.', 'snow', { wind: 300, per: 8 }, [s.ice(500, 280), s.hills(2, 60), s.ice(600, 320)]);
+  W('Thunder Climb', 'Rain, wind and a tall tower.', 'night', { rain: true, wind: 350, per: 7, storm: true }, [s.climb(4, 85), s.walls(3, 110), s.tower(6)]);
+  W('Stormy Seas', 'Rain, swells and stepping stones. Hold on.', 'night', { rain: true, waves: 8, waveK: 380, storm: true }, [s.stones(8), s.pond(500), s.stones(6)]);
+  W('Blizzard Run', 'Snow, gusts and ice, all at once.', 'snow', { snow: true, wind: 450, per: 6 }, [s.ice(700), s.walls(3, 100), s.ice(600, 300)]);
+  W('Hurricane Tower', 'A mighty wind, then a climb.', 'sunset', { wind: 650, per: 6 }, [s.climb(4, 85), s.walls(3, 110), s.tower(5)]);
+  W('Storm Chaser', 'Rain, wind and waves, then a floating finish.', 'night', { rain: true, wind: 420, per: 6, waves: 6, waveK: 300, storm: true }, [s.pond(400), s.gap(3, 100), s.movers(3), s.tower(6)]);
+  W('The Great Tempest', 'Every kind of weather, one big finale.', 'lava', { rain: true, wind: 560, per: 5.5, waves: 8, waveK: 380, storm: true }, [s.hills(3, 90), s.pond(500), s.ice(500, 280), s.gorge(), s.movers(4, true), s.tower(7)]);
+
+
+  // ------------------------------------------------------------------ bonus x3: MEGA WORLDS (indices tier3+): long levels, new mechanics, new environments
+  LEVELS.tier3 = LEVELS.length;
+  const M = (name, hint, theme, weather, secs) => { const lv = compose(name, hint, theme, secs); if (weather) lv.weather = weather; lv.mega = true; LEVELS.push(lv); };
+  // world 1: sky islands (fans, crumbling clouds)
+  M('Cloud Hopper', 'Ride the fan columns up, then hop the crumbling clouds. Do not stand still!', 'sky', null, [s.hills(3, 70), s.fans(3), s.crumble(5), s.hills(2, 60), s.fans(2), s.crumble(6), s.saws(2), s.tower(6)]);
+  M('Gust Isles', 'Fans, crumbling clouds and gusts of wind. Mind the blades.', 'sky', { wind: 420, per: 7 }, [s.crumble(5), s.hills(3, 80), s.fans(4), s.saws(3), s.crumble(7), s.movers(4), s.fans(2), s.tower(7)]);
+  M('Thunder Isles', 'A storm over the sky islands: rain, wind and everything crumbles.', 'sky', { rain: true, wind: 380, per: 6.5, storm: true }, [s.fans(3), s.crumble(6), s.saws(4), s.walls(3, 110), s.fans(4), s.movers(4, true), s.crumble(8), s.fans(2), s.tower(8)]);
+  // world 2: jungle ruins (saws, gates, rivers)
+  M('Vine Valley', 'Blades in the jungle, a swim and a locked gate. Find the button!', 'jungle', null, [s.hills(4, 90), s.saws(3), s.pond(500), s.gates(), s.stones(6), s.saws(4), s.crumble(6), s.hills(2, 80), s.tower(6)]);
+  M('Monsoon Ruins', 'Heavy rain, rough rivers and spinning blades.', 'jungle', { rain: true, waves: 6, waveK: 300, storm: true }, [s.pond(500), s.stones(7), s.saws(4), s.gates(), s.pond(450), s.crumble(7), s.climb(4, 85), s.saws(3), s.tower(7)]);
+  M('Temple Trials', 'Gates, blades and crumbling bridges. The old temple tests everything.', 'jungle', null, [s.gates(), s.saws(5), s.crumble(8), s.walls(4, 120), s.gates(), s.movers(5, true), s.gap(5, 150), s.saws(4), s.tower(8)]);
+  // world 3: crystal caverns (portals, gates)
+  M('Glow Grotto', 'Wide pits, glowing portals. Step in to hop across.', 'cavern', null, [s.hills(3, 70), s.portals(2), s.crumble(5), s.saws(3), s.portals(3), s.gap(4, 120), s.gates(), s.tower(6)]);
+  M('Mirror Maze', 'Portals everywhere, blades at the exits.', 'cavern', null, [s.portals(4), s.gates(), s.saws(5), s.crumble(7), s.portals(3), s.movers(4, true), s.saws(4), s.tower(7)]);
+  M('Crystal Blizzard', 'Snow, wind, ice and portals.', 'cavern', { snow: true, wind: 450, per: 6 }, [s.ice(700), s.portals(3), s.crumble(6), s.gates(), s.saws(4), s.ice(600, 300), s.portals(2), s.tower(8)]);
+  // world 4: clockwork factory (conveyors, saws, gates)
+  M('Gear Gallery', 'Conveyor belts over thorns. Run against the flow!', 'factory', null, [s.belts(4), s.saws(3), s.gates(), s.belts(5), s.crumble(5), s.movers(4), s.belts(4), s.tower(6)]);
+  M('Conveyor Chaos', 'Longer belts, faster blades.', 'factory', null, [s.belts(6), s.saws(5), s.belts(6), s.gates(), s.movers(5, true), s.saws(4), s.belts(5), s.tower(7)]);
+  M('Rusty Gale', 'The factory roof in a gale. Rain and wind blow you off the belts.', 'factory', { rain: true, wind: 520, per: 6, storm: true }, [s.belts(5), s.saws(5), s.fans(3), s.belts(6), s.gates(), s.crumble(8), s.fans(2), s.tower(8)]);
+  // world 5: cosmic orbit (gravity)
+  M('Moon Walk', 'Low gravity! Jump much further. Then float up the pink column.', 'space', null, [s.lowgrav(1100), s.antigrav(420), s.lowgrav(1400), s.gap(4, 140), s.tower(6)]);
+  M('Star Station', 'Low gravity, portals and anti-gravity lifts.', 'space', null, [s.lowgrav(1000), s.portals(3), s.antigrav(460), s.saws(4), s.belts(4), s.gates(), s.lowgrav(1300), s.tower(7)]);
+  M('Event Horizon', 'The final mega level: everything, in space, in a storm of cosmic wind.', 'space', { wind: 500, per: 6 }, [s.antigrav(380), s.lowgrav(1200), s.portals(4), s.crumble(8), s.saws(6), s.belts(5), s.fans(4), s.gates(), s.antigrav(500), s.movers(5, true), s.tower(8)]);
 
   // ------------------------------------------------------------------ dedicated multiplayer race tracks
   const RACE = [];

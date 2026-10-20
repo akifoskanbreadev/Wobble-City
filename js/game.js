@@ -13,6 +13,9 @@
   const { ITEMS, CATS, BY_ID } = window.Clothes;
   const SKINS = window.Skins;
   const ENEMIES = window.Enemies;
+  const BOSS = window.Boss;
+  const MECH = window.Mech;
+  BOSS.decorate(LEVELS);   // adds the boss arenas to levels 10, 20 and 33
 
   // ---------------------------------------------------------------- viewport
   let W = 0, H = 0, DPR = 1, S = 1, VW = 0, VH = 0;
@@ -73,7 +76,13 @@
   const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
   const has = (k) => !mpOn() && !(window.Battle && window.Battle.active()) && !!save.cheats[k];   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
   zoomMul = has('zoom') ? 0.7 : 1; resize();
-  const levelOpen = (i) => has('levels') || i < save.unlocked;
+  const tier3 = () => LEVELS.tier3 || 1e9;
+  const levelOpen = (i) => {
+    if (has('levels')) return true;
+    if (i < (LEVELS.weather || LEVELS.length)) return i < save.unlocked;
+    const start = i >= tier3() ? tier3() : LEVELS.weather;      // the two bonus-bonus tiers open once the main 33 are done, one level at a time
+    return !!save.allDone && (i === start || !!(save.done && save.done[i - 1]));
+  };
   const rich = () => has('money');
   const money = () => (rich() ? '∞' : save.bread);
   function gooseOpts() {
@@ -148,7 +157,8 @@
   }
 
   let decor = null;
-  let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0;
+  let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0, lastVy = 0;
+  let mech = null, boss = null, bossPhase = null, eggPos = null, wxInfo = { a: 0, warn: 0, dir: 0 };
   function loadLevel(i, custom) {
     levelIdx = i; level = custom || LEVELS[i];
     world = new World();
@@ -159,6 +169,10 @@
     extras = buildLevel(world, level);
     const d = diff();
     goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
+    boss = null; bossPhase = null; eggPos = level.egg; wxInfo = { a: 0, warn: 0, dir: 0 };
+    if (level.boss && !custom && !mpOn() && !window.Battle.active()) { boss = BOSS.create(level.boss, dKey()); bossPhase = 'door'; }
+    mech = MECH.build(world, level);
+    applyWeather(custom);
     th = THEMES[level.theme] || THEMES.meadow;
     checkpoint = { x: level.spawn[0], y: level.spawn[1] };
     bread = level.bread.map((b) => ({ x: b[0], y: b[1], got: false }));
@@ -167,6 +181,19 @@
     camX = c.x - VW * 0.4; camY = c.y - VH * 0.58;
     $('levelName').textContent = custom ? level.name : (i + 1) + '/' + LEVELS.length + '  ' + level.name;
     updateHud();
+  }
+
+  // wind, waves and rain from level.weather (see levels.js)
+  const WIND_MUL = { easy: 0.6, normal: 1, hard: 1.15, insane: 1.3, noodle: 1.3 };
+  function applyWeather(custom) {
+    const wx = level.weather;
+    if (!wx || custom) return;
+    if (wx.wind) { const spec = { wind: wx.wind * (WIND_MUL[dKey()] || 1), per: wx.per }; world.windFn = (t) => window.Physics.windInfo(spec, t).a; world.windSpec = spec; }
+    if (wx.waves) { world.waveH = wx.waves; world.waveK = wx.waveK || 0; }
+    if (wx.rain) { for (const sg of world.segs) if (sg.mu == null) sg.mu = 0.5; for (const so of world.solids) if (!so.pad && so.mu == null) so.mu = 0.55; }
+    for (const q of goose.neck) q.wk = 3.5;
+    for (const q of goose.body) q.wk = 0.9;
+    for (const q of goose.feet) q.wk = 0.15;
   }
 
   function updateHud() {
@@ -179,6 +206,7 @@
   }
 
   function respawn() {
+    if (boss && bossPhase === 'fight' && !boss.dead) BOSS.reset(boss);
     goose.reset(checkpoint.x, checkpoint.y);
     const c = goose.center();
     camX = c.x - VW * 0.4; camY = c.y - VH * 0.58;
@@ -219,7 +247,7 @@
     }
   }
   function enemyTick() {
-    const c = goose.center(), vy = (c.y - prevCy) / STEP; prevCy = c.y;
+    const c = goose.center(), vy = (c.y - prevCy) / STEP; prevCy = c.y; lastVy = vy;
     if (!enemies.length || state !== 'play') return;
     const parts = goose.body.concat(goose.feet);
     for (const e of enemies) {
@@ -240,6 +268,31 @@
       }
     }
   }
+  const canDie = () => hitCd <= 0 && !has('shield') && !(save.cheats.admin && save.cheats.god && !mpOn());
+  function startBoss() {
+    bossPhase = 'fight'; eggPos = boss.spec.egg; BOSS.reset(boss);
+    checkpoint = { x: boss.spec.entry[0], y: boss.spec.entry[1] };
+    goose.reset(checkpoint.x, checkpoint.y);
+    const c = goose.center(); camX = c.x - VW * 0.4; camY = c.y - VH * 0.58;
+    hitCd = 1; trailP = []; snd.egg();
+    toast('👹 BOSS! ' + boss.T.intro, 5);
+  }
+  function bossHurt(res) {
+    if (res === 'dead') { save.bread += 25 * diff().mult; persist(); snd.egg(); toast('🏆 ' + boss.T.name + ' defeated! The egg is free! +' + (25 * diff().mult) + ' 🍞', 3.5); }
+    else if (res === 'hit') { snd.boing(); toast('Direct hit! ' + boss.hp + ' to go', 1.2); }
+  }
+  function bossTick() {
+    if (!boss || bossPhase !== 'fight' || state !== 'play') return;
+    const c = goose.center(), parts = goose.body.concat(goose.feet);
+    for (const e of BOSS.update(boss, STEP, { x: c.x, y: c.y })) { if (e === 'bonk') snd.boing(); else if (e === 'dash') snd.no(); else snd.flap(); }
+    if (boss.dead) return;
+    if (BOSS.touches(boss, parts)) {
+      const bc = BOSS.centre(boss), above = c.y < bc.y - boss.T.r * 0.1 && lastVy > 40;
+      if (above) { bossHurt(BOSS.hit(boss)); for (const q of parts) q.vy = Math.min(q.vy, -560); }
+      else if (BOSS.harmful(boss) && canDie()) { hitCd = 1.2; deaths++; snd.ouch(); toast('Ouch! Stomp him from above, or honk in his face.', 2); respawn(); return; }
+    }
+    if (BOSS.projHits(boss, parts) && canDie()) { hitCd = 1.2; deaths++; snd.ouch(); toast('Hit! Honk to scare projectiles away.', 2); respawn(); }
+  }
   function tick() {
     if (input.atkQueue) { input.atkQueue = false; if (window.Battle.active()) window.Battle.attack(); }
     const frz = window.MP && window.MP.frozen();
@@ -248,7 +301,7 @@
     const flap = frz ? false : input.flapQueue;
     input.flapQueue = false;
     if (flap && goose.stamina >= 1 && goose.flapCd <= 0) snd.flap();
-    if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); honkText = 0.7; }
+    if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); honkText = 0.7; if (boss && bossPhase === 'fight' && state === 'play') { BOSS.honkClear(boss, goose.head); if (BOSS.honkHits(boss, goose.head, goose.facing)) bossHurt(BOSS.hit(boss)); } }
     const wasWet = goose.swimming;
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
     world.step(STEP);
@@ -256,6 +309,16 @@
     if (window.Battle.active()) window.Battle.tick(goose, STEP);
     levelClock += STEP; hitCd = Math.max(0, hitCd - STEP);
     enemyTick();
+    bossTick();
+    if (mech && state === 'play') {
+      for (const e of MECH.tick(mech, goose, world, STEP)) {
+        if (e === 'saw') { if (canDie()) { hitCd = 1.2; deaths++; snd.ouch(); toast('Sliced by a blade!', 1.6); respawn(); } }
+        else if (e === 'portal') { snd.boing(); trailP = []; }
+        else if (e === 'gate') { snd.egg(); toast('🔓 Click! A gate opened.', 1.8); }
+        else if (e === 'crumble') snd.tick();
+      }
+    }
+    if (world.windSpec) wxInfo = window.Physics.windInfo(world.windSpec, world.time);
     {
       const tid = has('rainbow') ? 't_rainbow' : save.equip.trail;
       const tr = tid && BY_ID[tid] && BY_ID[tid].trail;
@@ -279,24 +342,28 @@
       if (Math.hypot(h.x - b.x, h.y - b.y) < 26 || Math.hypot(c.x - b.x, c.y - b.y) < 40) { b.got = true; breadGot++; snd.bread(); updateHud(); }
     }
 
-    if (state === 'play' && Math.hypot(h.x - level.egg[0], h.y - level.egg[1]) < 34) { if (!(mpOn() && window.MP.onEgg())) finishLevel(); }
+    if (state === 'play') {
+      if (boss && bossPhase === 'door') { if (Math.hypot(h.x - level.egg[0], h.y - level.egg[1]) < 34) startBoss(); }
+      else if (boss && bossPhase === 'fight') { if (boss.dead && boss.deadT > 1.4) { bossPhase = 'won'; toast('Grab the golden egg!', 2); } }
+      else if (Math.hypot(h.x - eggPos[0], h.y - eggPos[1]) < 34) { if (!(mpOn() && window.MP.onEgg())) finishLevel(); }
+    }
   }
 
   function finishLevel() {
     state = 'done'; snd.egg();
-    const d = diff(), last = levelIdx === LEVELS.length - 1;
+    const d = diff(), last = levelIdx === LEVELS.length - 1, champ = levelIdx === (LEVELS.weather || LEVELS.length) - 1;
     const reward = (breadGot + 10) * d.mult;
     save.bread += reward;
     save.done = save.done || {}; save.perfect = save.perfect || {};
     const tNow = levelClock; save.bestTime = save.bestTime || {}; const prevT = save.bestTime[levelIdx]; const newBest = prevT == null || tNow < prevT; if (newBest) save.bestTime[levelIdx] = tNow;
     const fmtT = (t) => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + '.' + Math.floor((t % 1) * 10);
     save.done[levelIdx] = true; if (!deaths && breadGot === bread.length) save.perfect[levelIdx] = true;
-    if (!last) save.unlocked = Math.max(save.unlocked, levelIdx + 2);
+    if (levelIdx + 1 < (LEVELS.weather || LEVELS.length)) save.unlocked = Math.max(save.unlocked, levelIdx + 2);
     let extra = '';
-    if (levelIdx === LEVELS.campaign - 1 && !save.allDone) { save.allDone = true; extra = '\n🎮 You unlocked the minigames! ' + (LEVELS.length - LEVELS.campaign) + ' bonus levels are waiting too.'; }
+    if (levelIdx === LEVELS.campaign - 1 && !save.allDone) { save.allDone = true; extra = '\n🎮 You unlocked the minigames! ' + ((LEVELS.weather || LEVELS.length) - LEVELS.campaign) + ' bonus levels are waiting too.'; }
     persist();
     buildLevelPicker(); refreshMenu();
-    $('doneTitle').textContent = last ? 'You are the Wobble Champion!' : 'Egg acquired!';
+    $('doneTitle').textContent = champ ? 'You are the Wobble Champion!' : 'Egg acquired!';
     $('doneText').textContent = '⏱ ' + fmtT(tNow) + (newBest ? ' 🏆 new best!' : ' (best ' + fmtT(prevT) + ')') + '\nBread ' + breadGot + '/' + bread.length + (deaths ? '  ·  Falls ' + deaths : '  ·  No falls!') +
       '\n+' + reward + ' 🍞 (' + d.name + (d.mult > 1 ? ' ×' + d.mult : '') + ')' + extra;
     $('nextBtn').textContent = last ? 'Play again' : 'Next level';
@@ -330,6 +397,11 @@
     night:  { top: '#0f1740', bot: '#3a4c8a', cloud: 'rgba(170,190,255,.35)', h1: '#2a3566', h2: '#1d2552', grass: '#3e9a6a', grass2: '#58bd88', d1: '#4a4668', d2: '#272540', stars: true },
     candy:  { top: '#ffb6e1', bot: '#fff0fa', cloud: 'rgba(255,255,255,.9)', h1: '#ffc9ec', h2: '#f3a2d8', grass: '#ff7ac3', grass2: '#ff9fd6', d1: '#c46ba0', d2: '#83406a' },
     dungeon:{ top: '#17142a', bot: '#3b3560', cloud: 'rgba(150,140,200,.18)', h1: '#2a2548', h2: '#1d1a38', grass: '#5a5470', grass2: '#7a7494', d1: '#4a4466', d2: '#26223c', stars: true },
+    sky:    { top: '#3f9bff', bot: '#e3f6ff', cloud: 'rgba(255,255,255,.9)', h1: '#cfeaff', h2: '#a6d3f6', grass: '#7fe063', grass2: '#a5f08a', d1: '#d6b48a', d2: '#9a7650' },
+    jungle: { top: '#7fd9a2', bot: '#eaffd6', cloud: 'rgba(255,255,255,.55)', h1: '#5fb878', h2: '#3f9a5c', grass: '#2f9a3a', grass2: '#55c852', d1: '#7a5a34', d2: '#4a3320' },
+    cavern: { top: '#1b1236', bot: '#5a3a8a', cloud: 'rgba(190,150,255,.2)', h1: '#3b2a66', h2: '#2a1d4d', grass: '#8a5ad6', grass2: '#b58aff', d1: '#4d3a78', d2: '#271c47', stars: true },
+    factory:{ top: '#8f98a3', bot: '#e6dccb', cloud: 'rgba(110,110,110,.5)', h1: '#8a8f96', h2: '#6e737a', grass: '#8a9099', grass2: '#b4bac2', d1: '#6c5f55', d2: '#3e3733' },
+    space:  { top: '#04020d', bot: '#2a1a5a', cloud: 'rgba(160,140,255,.15)', h1: '#3a2f66', h2: '#241d48', grass: '#9aa0b8', grass2: '#c4c9de', d1: '#5b5d78', d2: '#2c2d44', stars: true, dense: true },
     lava:   { top: '#3a0f14', bot: '#a8321c', cloud: 'rgba(255,150,100,.3)', h1: '#6e2018', h2: '#4a1612', grass: '#d9522b', grass2: '#ff8a4d', d1: '#4a2a28', d2: '#2a1514', stars: true },
   };
   let th = THEMES.meadow;
@@ -338,18 +410,8 @@
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, th.top); g.addColorStop(1, th.bot);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    if (th.stars) { ctx.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < 46; i++) ctx.fillRect(((i * 197 + 40) % W), ((i * 89) % (H * 0.7)), 2, 2); }
-    ctx.fillStyle = th.cloud;
-    for (let i = 0; i < 7; i++) {
-      const span = VW + 600;
-      let wx = ((i * 520 + 100) - cx * 0.12) % span; if (wx < -300) wx += span;
-      const x = wx * S, y = (60 + ((i * 73) % 150) - cy * 0.05) * S;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 60 * S, 20 * S, 0, 0, 7);
-      ctx.ellipse(x + 40 * S, y - 12 * S, 40 * S, 22 * S, 0, 0, 7);
-      ctx.ellipse(x - 38 * S, y - 6 * S, 34 * S, 17 * S, 0, 0, 7);
-      ctx.fill();
-    }
+    if (th.stars) { ctx.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < (th.dense ? 130 : 46); i++) ctx.fillRect(((i * 197 + 40) % W), ((i * 89) % (H * 0.7)), 2, 2); }
+    window.Clouds.layers(ctx, cx, cy, W, H, S, level && level.theme, clock, level && level.weather && level.weather.storm);
     // sun / moon
     {
       const night = level && level.theme === 'night' || th.stars, sx = W * 0.8, sy = H * 0.2;
@@ -388,6 +450,7 @@
 
   function drawSolid(s) {
     if (s.x > camX + VW + 40 || s.x + s.w < camX - 40 || s.y > camY + VH + 40 || s.y + s.h < camY - 40) return;
+    if (s.crumble || s.belt || s.gate) { MECH.drawSolid(ctx, s, clock, camX, VW, th, mech); return; }
     if (s.pad) {
       ctx.fillStyle = '#e63946'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
       const sq = boingT > 0 ? Math.sin(boingT * 14) * 3 : 0;
@@ -440,6 +503,7 @@
     if (decor) window.Decor.draw(ctx, decor.props, camX, VW, clock);
     for (const t of level.terrain || []) drawTerrain(t);
     for (const s of world.solids) drawSolid(s);
+    if (mech) MECH.draw(ctx, mech, camX, camY, VW, VH, clock, world);
     for (const h of level.hazards || []) drawHazard(h);
 
     for (const cp of level.checkpoints || []) {
@@ -461,7 +525,7 @@
       ctx.restore();
     }
 
-    const e = level.egg, pulse = 1 + Math.sin(clock * 4) * 0.06;
+    const e = eggPos || level.egg, pulse = 1 + Math.sin(clock * 4) * 0.06;
     ctx.save();
     ctx.translate(e[0], e[1] + Math.sin(clock * 2) * 3);
     const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, 44 * pulse);
@@ -472,9 +536,12 @@
     ctx.fillStyle = 'rgba(255,255,255,.7)';
     ctx.beginPath(); ctx.ellipse(-4, -6, 3, 6, 0.4, 0, 7); ctx.fill();
     ctx.restore();
+    if (boss && bossPhase === 'door') BOSS.drawDoorSign(ctx, e[0], e[1], clock);
+    if (boss && bossPhase === 'fight') BOSS.drawCage(ctx, e[0], e[1], clock);
 
     drawTrail();
     ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
+    if (boss && bossPhase !== 'door') BOSS.draw(ctx, boss, clock);
     drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
     if (decor) window.Decor.draw(ctx, decor.fore, camX, VW, clock);
@@ -499,11 +566,12 @@
       g.addColorStop(0, 'rgba(88,184,240,.55)'); g.addColorStop(1, 'rgba(42,118,192,.75)');
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.moveTo(w.x, w.y + w.h);
-      for (let x = w.x; x <= w.x + w.w; x += 10) ctx.lineTo(x, w.y + Math.sin(x * 0.06 + clock * 2.4) * 2.5);
+      const wa = world.waveH || 2.5, wt = world.waveH ? world.time : clock;
+      for (let x = w.x; x <= w.x + w.w; x += 10) ctx.lineTo(x, w.y + Math.sin(x * 0.06 + wt * 2.4) * wa);
       ctx.lineTo(w.x + w.w, w.y + w.h); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.5;
       ctx.beginPath();
-      for (let x = w.x; x <= w.x + w.w; x += 10) { const y = w.y + Math.sin(x * 0.06 + clock * 2.4) * 2.5; if (x === w.x) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      for (let x = w.x; x <= w.x + w.w; x += 10) { const y = w.y + Math.sin(x * 0.06 + wt * 2.4) * wa; if (x === w.x) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
       ctx.stroke();
     }
     for (const sp of splashes) {
@@ -687,7 +755,8 @@
       }
       if (acc > STEP * 6) acc = 0;
       const c = goose.center();
-      const tx = c.x - VW * 0.5 + goose.facing * VW * 0.1, ty = c.y - VH * 0.58;
+      let tx = c.x - VW * 0.5 + goose.facing * VW * 0.1, ty = c.y - VH * 0.58;
+      if (boss && (bossPhase === 'fight' || bossPhase === 'won')) { const mid = (boss.spec.x0 + boss.spec.x1) / 2; tx = mid - VW * 0.5 + (c.x - mid) * 0.15; ty = boss.spec.floor - VH * 0.7; }
       const k = 1 - Math.pow(0.002, real);
       camX += (tx - camX) * k; camY += (ty - camY) * k;
       hudT += real;
@@ -697,12 +766,63 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       drawWorld();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+      drawWeather();
       if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
       if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
       drawAimHint();
     }
     if (state === 'store') drawStorePreview();
     requestAnimationFrame(frame);
+  }
+
+  // rain, snow, storm and wind overlay (screen space) from level.weather
+  function drawWeather() {
+    const wx = level && level.weather;
+    if (!wx || state === 'mg' || state === 'mgdone') return;
+    const Wp = canvas.width, Hp = canvas.height, D = DPR;
+    const slant = wx.wind ? (wxInfo.a / (world.windSpec ? world.windSpec.wind : 1)) * 0.6 : 0;
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (wx.storm) {
+      ctx.fillStyle = 'rgba(18,26,48,.2)'; ctx.fillRect(0, 0, Wp, Hp);
+      const f = Math.sin(clock * 0.7) * 3 + Math.sin(clock * 1.9);           // an occasional lightning flash
+      if (f > 3.2) { ctx.fillStyle = 'rgba(255,255,255,' + Math.min(0.6, (f - 3.2) * 1.6) + ')'; ctx.fillRect(0, 0, Wp, Hp); }
+    }
+    if (wx.rain) {
+      ctx.strokeStyle = 'rgba(205,228,255,.55)'; ctx.lineWidth = 1.5 * D; ctx.beginPath();
+      for (let i = 0; i < 150; i++) {
+        const fx = (i * 0.754877) % 1, fy = (i * 0.569841) % 1, y = ((fy + clock * 1.6) % 1) * (Hp + 40 * D) - 20 * D;
+        const x = (((fx * Wp + slant * y * 0.5 + slant * clock * 300 * D) % Wp) + Wp) % Wp;
+        ctx.moveTo(x, y); ctx.lineTo(x + (slant * 14 - 2) * D, y + 22 * D);
+      }
+      ctx.stroke();
+    }
+    if (wx.snow) {
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      for (let i = 0; i < 90; i++) {
+        const fx = (i * 0.754877) % 1, fy = (i * 0.569841) % 1, y = ((fy + clock * 0.14) % 1) * Hp;
+        const x = (((fx * Wp + Math.sin(clock * 1.3 + i) * 18 * D + slant * y * 0.8) % Wp) + Wp) % Wp;
+        ctx.beginPath(); ctx.arc(x, y, (1.4 + (i % 3) * 0.7) * D, 0, 7); ctx.fill();
+      }
+    }
+    if (wx.wind) {
+      if (wxInfo.a) {   // streaks flying with the gust
+        const k = Math.abs(wxInfo.a) / world.windSpec.wind;
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 * k) + ')'; ctx.lineWidth = 2 * D; ctx.beginPath();
+        for (let i = 0; i < 20; i++) {
+          const fy = (i * 0.618034) % 1, sp = 1.5 + (i % 4) * 0.5, x0 = (((i * 0.37 + clock * sp * wxInfo.dir) % 1) + 1) % 1 * (Wp + 200 * D) - 100 * D, y = fy * Hp, len = (50 + (i % 5) * 20) * D * k;
+          ctx.moveTo(x0, y); ctx.lineTo(x0 - wxInfo.dir * len, y + Math.sin(clock * 3 + i) * 4 * D);
+        }
+        ctx.stroke();
+      }
+      if (wxInfo.warn || wxInfo.a) {
+        const dir = wxInfo.dir, blink = wxInfo.warn ? (Math.floor(clock * 6) % 2 ? 1 : 0.35) : 1;
+        ctx.globalAlpha = blink; ctx.font = '800 ' + 20 * D + 'px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5 * D;
+        ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.fillStyle = '#1f2a36';
+        const txt = (dir < 0 ? '◀◀ ' : '') + '💨 ' + (wxInfo.warn ? 'GUST INCOMING' : 'GUST') + (dir > 0 ? ' ▶▶' : '');
+        ctx.strokeText(txt, Wp / 2, 118 * D); ctx.fillText(txt, Wp / 2, 118 * D); ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
   }
 
   function drawAimHint() {
@@ -843,7 +963,8 @@
     const box = $('levels');
     box.innerHTML = '';
     LEVELS.forEach((lv, i) => {
-      if (i === LEVELS.campaign) { const d = document.createElement('div'); d.className = 'lvDiv'; d.textContent = '⭐ Bonus levels'; box.appendChild(d); }
+      const hdr = i === LEVELS.campaign ? '⭐ Bonus levels' : i === LEVELS.weather ? '🌦️ Weather & waves' : i === tier3() ? '🚀 Mega worlds (long levels, new mechanics)' : '';
+      if (hdr) { const d = document.createElement('div'); d.className = 'lvDiv'; d.textContent = hdr; box.appendChild(d); }
       const b = document.createElement('button');
       b.textContent = i + 1;
       b.title = lv.name;
@@ -851,9 +972,10 @@
       if (i === pick) b.classList.add('sel');
       if (save.perfect && save.perfect[i]) { b.classList.add('perfect'); b.title += ' ★ perfect'; } else if (save.done && save.done[i]) b.classList.add('done');
       if (i >= LEVELS.campaign) b.classList.add('bonus');
+      if (i >= (LEVELS.weather || 1e9)) b.classList.add('wild');
       b.addEventListener('click', () => {
         if (levelOpen(i)) { pick = i; buildLevelPicker(); if (state === 'title') loadLevel(i); }
-        else toast('Finish level ' + i + ' first.', 1.6);
+        else toast(i >= (LEVELS.weather || 1e9) ? (save.allDone ? 'Finish the level before this one first.' : 'Finish the first ' + LEVELS.campaign + ' levels to open these.') : 'Finish level ' + i + ' first.', 2);
       });
       box.appendChild(b);
     });
@@ -1341,5 +1463,6 @@
     get goose() { return goose; }, get state() { return state; }, get save() { return save; }, input, host,
     startLevel, showMenu, openStore, openMgMenu, startMinigame, openCode, persist,
     get inst() { return mgInst; }, get level() { return level; }, drawGoose, fakeGoose, SKINS,
+    get mech() { return mech; }, get boss() { return boss; }, get bossPhase() { return bossPhase; }, get world() { return world; }, get wx() { return wxInfo; }, get eggPos() { return eggPos; },
   };
 })();

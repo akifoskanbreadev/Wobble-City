@@ -63,3 +63,9 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 
 ## Shop
 15 dress-up slots (hat, eyes, face, beak, neck, body, back, held, tail, legs, shoes, pet, aura, honk voice, trail), ~190 items, 40+ skins including shape skins that change your real body (chonk, stilts, longneck, blob...), per-slot colour tints, Random outfit and Take everything off buttons.
+
+## Weather, bosses and Mega Worlds
+- **Bosses** at levels 10 (Angry Farmer), 20 (Giant Fox) and 33 (Lava Dragon): touch the egg to enter an arena, stomp or honk the boss to win, then grab the egg.
+- **Weather & waves** (levels 104-115, open after level 33): wind gusts that blow your neck, rain slipperiness, snow, storms, and choppy water with waves.
+- **Mega Worlds** (levels 116-130, long levels in 5 new environments: sky islands, jungle ruins, crystal caverns, clockwork factory, outer space) with fans, crumbling platforms, conveyor belts, saw blades, portals, switch gates, low gravity and anti-gravity lifts. Some also have weather.
+- Clouds are now soft procedurally-painted cumulus in three parallax layers, tinted per environment.

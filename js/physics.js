@@ -55,7 +55,12 @@
       this.substeps = 10;
       this.time = 0;
       this.hooks = [];    // called at the start of every substep: apply state-dependent forces here
+      this.windFn = null; // (time) -> sideways acceleration in px/s^2 (gusts); scaled per particle by p.wk
+      this.waveH = 0;     // water surface wave height (px) and wave push, for weather levels
+      this.waveK = 0;
+      this.zones = [];    // {x,y,w,h,ax,ay,g}: fans (ay<0), low/anti-gravity (g<1) and the like
     }
+    surfY(w, x) { return this.waveH ? w.y + this.waveH * Math.sin(x * 0.06 + this.time * 2.4) : w.y; }
 
     particle(x, y, o) {
       const p = new Particle(x, y, o);
@@ -113,13 +118,23 @@
         // water: buoyancy = rho_water * V * g, weight = rho * V * g  ->  net up accel = g * (1/rho - 1) * wet
         let wet = 0;
         for (const w of nw) {
-          if (p.x > w.x && p.x < w.x + w.w && p.y + p.r > w.y) {
-            wet = Math.max(wet, clamp((p.y + p.r - w.y) / Math.max(2 * p.r, 12), 0, 1));
+          if (p.x > w.x && p.x < w.x + w.w) {
+            const sy = this.waveH ? this.surfY(w, p.x) : w.y;
+            if (p.y + p.r > sy) wet = Math.max(wet, clamp((p.y + p.r - sy) / Math.max(2 * p.r, 12), 0, 1));
           }
         }
         p.wet = wet;
         let ax = p.fx * p.im;
         let ay = p.fy * p.im + (GRAVITY - GRAVITY * (1 / p.rho) * wet) * (this.gscale || 1);
+        if (this.windFn && p.wk) ax += this.windFn(this.time) * p.wk;
+        for (let zi = 0; zi < this.zones.length; zi++) {
+          const z = this.zones[zi];
+          if (p.x > z.x && p.x < z.x + z.w && p.y > z.y && p.y < z.y + z.h) { ax += z.ax; ay += z.ay - GRAVITY * (1 - z.g) * (this.gscale || 1); }
+        }
+        if (this.waveK && wet) {   // waves shove everything floating in the water around
+          ax += this.waveK * Math.sin(this.time * 1.9 + p.y * 0.01) * wet;
+          ay += this.waveK * 0.7 * Math.cos(this.time * 2.6 + p.x * 0.03) * wet;
+        }
         p.vx += ax * h; p.vy += ay * h;
 
         const sp = Math.hypot(p.vx, p.vy);
@@ -483,6 +498,18 @@
   }
 
   // Builds the physics world for a level description. Returns the non-physical extras.
+  // Gust schedule for a level's weather: a calm spell, a short warning, then a gust that eases in and out.
+  // Returns { a: acceleration (px/s^2, + = right), warn: 0..1, dir }. Pure function of time, so every client agrees.
+  function windInfo(wx, t) {
+    if (!wx || !wx.wind) return { a: 0, warn: 0, dir: 0 };
+    const per = wx.per || 7, n = Math.floor(t / per), u = t / per - n;
+    const hs = Math.sin(n * 12.9898 + 4.1) * 43758.5453, r = hs - Math.floor(hs);
+    const dir = wx.dir || (r < 0.5 ? -1 : 1);
+    if (u >= 0.45 && u < 0.6) return { a: 0, warn: 1, dir };
+    if (u >= 0.6 && u < 1) return { a: dir * wx.wind * Math.sin(Math.PI * (u - 0.6) / 0.4), warn: 0, dir };
+    return { a: 0, warn: 0, dir };
+  }
+
   function buildLevel(world, lv) {
     const box = (x, y, w, h, o) => {
       const s = { x, y, w, h, vx: 0, vy: 0 };
@@ -523,7 +550,7 @@
     return false;
   }
 
-  const api = { World, Goose, Particle, GRAVITY, NECK_SEGS, SEG, buildLevel, touchesHazard };
+  const api = { World, Goose, Particle, GRAVITY, NECK_SEGS, SEG, buildLevel, touchesHazard, windInfo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Physics = api;
 })(typeof window !== 'undefined' ? window : globalThis);

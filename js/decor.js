@@ -73,6 +73,7 @@
   function poly(c, pts, fill, stroke) { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); if (stroke) { c.strokeStyle = stroke; c.lineWidth = 1.5; c.stroke(); } }
   const SOFT = 'rgba(30,20,10,.35)';
 
+  const FAR_EXTRA = {};
   const DRAW = {
     oak(c, p, t) { trunk(c, 9, 62, '#6b4a2a', '#4a321c'); const sw = Math.sin(t * 0.8 + p.a) * 1.5; for (const [x, y, r, col] of [[-22, -70, 26, '#3f8f3a'], [20, -72, 26, '#3f8f3a'], [0, -92, 30, '#4fa545'], [-6, -62, 24, '#357a32']]) blob(c, x + sw, y, r, col, '#7fd070'); },
     birch(c, p, t) { trunk(c, 5, 80, '#f1ede2', '#cfc9b8'); c.fillStyle = '#3a3a3a'; for (let y = -70; y < -8; y += 14) c.fillRect(-4, y, 5, 2); for (const [x, y, r] of [[-12, -86, 18], [12, -92, 20], [0, -104, 18]]) blob(c, x + Math.sin(t + p.a) * 1.2, y, r, '#8fcf5a', '#c8f08c'); },
@@ -117,7 +118,7 @@
     skulls(c) { c.fillStyle = '#e6dcc6'; for (const [x, y, r] of [[-10, -8, 8], [8, -7, 7], [0, -18, 7]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); } c.fillStyle = '#2a1a1a'; for (const [x, y] of [[-12, -9], [-7, -9], [6, -8], [10, -8], [-2, -19], [3, -19]]) c.fillRect(x - 1, y - 1, 2.5, 3); },
     torch(c, p, t) { c.fillStyle = '#5a3d26'; c.fillRect(-2.5, -44, 5, 44); c.fillStyle = '#2a2e36'; c.fillRect(-5, -48, 10, 6); const f = 1 + Math.sin(t * 12 + p.a) * 0.18; const g = c.createRadialGradient(0, -56, 2, 0, -56, 36 * f); g.addColorStop(0, 'rgba(255,200,90,.75)'); g.addColorStop(1, 'rgba(255,100,20,0)'); c.fillStyle = g; c.fillRect(-40, -96, 80, 80); poly(c, [[-5, -48], [0, -66 * f], [5, -48]], '#ff9b2f'); poly(c, [[-2.5, -48], [0, -58 * f], [2.5, -48]], '#ffe07a'); },
     ribs(c) { c.strokeStyle = '#e6dcc6'; c.lineWidth = 3; c.lineCap = 'round'; for (let i = -2; i <= 2; i++) { c.beginPath(); c.arc(i * 8, -4, 12, Math.PI * 1.05, Math.PI * 1.95); c.stroke(); } c.fillRect(-22, -3, 44, 3); },
-    tuft(c, p, t) { const th = p.theme; const col = th === 'snow' ? '#eef8ff' : th === 'desert' ? '#c9a45a' : th === 'candy' ? '#ff9fd6' : th === 'lava' ? '#5a2a22' : th === 'night' ? '#58bd88' : '#5fc24c'; c.strokeStyle = col; c.lineWidth = 2.2; c.lineCap = 'round'; for (let i = -2; i <= 2; i++) { const h = 8 + (3 - Math.abs(i)) * 3 + ((i * 7 + p.a) % 3), sw = Math.sin(t * 2 + i + p.x * 0.01) * 1.5; c.beginPath(); c.moveTo(i * 3, 0); c.quadraticCurveTo(i * 3 + sw, -h * 0.6, i * 4 + sw * 2, -h); c.stroke(); } },
+    tuft(c, p, t) { const th = p.theme; const col = th === 'cavern' ? '#b58aff' : th === 'space' ? '#c4c9de' : th === 'factory' ? '#8a9099' : th === 'sky' ? '#7fe063' : th === 'jungle' ? '#2f9a3a' : th === 'snow' ? '#eef8ff' : th === 'desert' ? '#c9a45a' : th === 'candy' ? '#ff9fd6' : th === 'lava' ? '#5a2a22' : th === 'night' ? '#58bd88' : '#5fc24c'; c.strokeStyle = col; c.lineWidth = 2.2; c.lineCap = 'round'; for (let i = -2; i <= 2; i++) { const h = 8 + (3 - Math.abs(i)) * 3 + ((i * 7 + p.a) % 3), sw = Math.sin(t * 2 + i + p.x * 0.01) * 1.5; c.beginPath(); c.moveTo(i * 3, 0); c.quadraticCurveTo(i * 3 + sw, -h * 0.6, i * 4 + sw * 2, -h); c.stroke(); } },
   };
 
   function draw(c, list, camX, VW, t) {
@@ -149,6 +150,7 @@
       else if (kind === 'lollies') { for (let i = 0; i < 6; i++) { const x = 40 + i * 90; c.fillStyle = mid; c.fillRect(x - 3, -90, 6, 90); c.fillStyle = i % 2 ? '#ff9fd6' : '#9fd8ff'; c.beginPath(); c.arc(x, -100, 26, 0, 7); c.fill(); c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 4; c.beginPath(); for (let a = 0; a < 12; a += 0.3) c.lineTo(x + Math.cos(a) * a * 2, -100 + Math.sin(a) * a * 2); c.stroke(); } }
       else if (kind === 'clouds') { c.fillStyle = 'rgba(255,255,255,.75)'; for (let i = 0; i < 4; i++) { const x = 60 + i * 130; for (const [dx, dy, r] of [[0, -90, 36], [32, -104, 44], [70, -90, 34]]) { c.beginPath(); c.arc(x + dx, dy, r, 0, 7); c.fill(); } } }
       else if (kind === 'volcano') { poly(c, [[20, 0], [150, -190], [190, -190], [330, 0]], '#2a1514'); const g = c.createLinearGradient(0, -200, 0, -150); g.addColorStop(0, 'rgba(255,140,40,.9)'); g.addColorStop(1, 'rgba(255,60,20,0)'); c.fillStyle = g; c.fillRect(140, -200, 60, 60); c.fillStyle = 'rgba(80,60,60,.5)'; for (let i = 0; i < 4; i++) { c.beginPath(); c.arc(170 + i * 12, -210 - i * 26, 16 + i * 8, 0, 7); c.fill(); } }
+      else if (FAR_EXTRA[kind]) FAR_EXTRA[kind](c, col, mid, performance.now() / 1000);
       else { c.fillStyle = col; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(220, -120, 440, 0); c.fill(); }
       c.restore();
     }
@@ -182,6 +184,6 @@
     c.restore();
   }
 
-  const api = { generate, draw, drawFar, terrainDetail, groundAt, hash };
+  const api = { generate, draw, drawFar, terrainDetail, groundAt, hash, DRAW, POOLS, FAR_VARIANTS, FAR_EXTRA, H: { blob, trunk, poly } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Decor = api;
 })(typeof window !== 'undefined' ? window : globalThis);
