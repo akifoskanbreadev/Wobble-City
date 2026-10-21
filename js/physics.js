@@ -125,7 +125,7 @@
         }
         p.wet = wet;
         let ax = p.fx * p.im;
-        let ay = p.fy * p.im + (GRAVITY - GRAVITY * (1 / p.rho) * wet) * (this.gscale || 1);
+        let ay = p.fy * p.im + (GRAVITY - GRAVITY * (1 / p.rho) * wet * (this.buoy == null ? 1 : this.buoy)) * (this.gscale || 1);
         if (this.windFn && p.wk) ax += this.windFn(this.time) * p.wk;
         for (let zi = 0; zi < this.zones.length; zi++) {
           const z = this.zones[zi];
@@ -558,6 +558,7 @@
       }
     }
     for (const w of lv.water || []) world.waters.push({ x: w[0], y: w[1], w: w[2], h: w[3] });
+    world.buoy = lv.sea ? 0.7 : 1;      // deep sea: you sink slowly instead of bobbing to the top
     const movers = [];
     for (const m of lv.movers || []) {
       const s = box(m.x, m.y, m.w, m.h, { mover: true, mu: 1.0 });

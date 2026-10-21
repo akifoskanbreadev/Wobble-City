@@ -25,8 +25,9 @@
   function generate(level, idx, diffKey) {
     const list = [];
     if (idx < 1) return list;                              // the very first level stays peaceful
-    const R = rng(1000 + idx * 77), theme = level.theme || 'meadow';
+    const R = rng(1000 + idx * 77), R2 = rng(5000 + idx * 31), theme = level.theme || 'meadow';
     const dens = DENSITY[diffKey] || 0.7;
+    if (level.sea) return seaLife(level, idx, dens, R2);
     const stretches = [];
     for (const t of level.terrain || []) {
       let s = null;
@@ -49,7 +50,16 @@
       if (R() > dens * 0.85) continue;
       const half = Math.max(30, Math.min(110, len / 2 - 40));
       const spiky = (diffKey === 'insane' || diffKey === 'noodle' || diffKey === 'hard') && (k++ % 3 === 2);
-      list.push({ kind: spiky ? 'urchin' : 'blob', cx: mid, y: s.y, amp: half, sp: 38 + R() * 22, ph: R() * 6, hue: Math.floor(R() * 360), theme });
+      const e0 = { kind: spiky ? 'urchin' : 'blob', cx: mid, y: s.y, amp: half, sp: 38 + R() * 22, ph: R() * 6, hue: Math.floor(R() * 360), theme };
+      // specialised enemies take over some stretches, more of them the further you get
+      const sp = Math.min(0.75, 0.22 + idx * 0.007 + (level.mega ? 0.12 : 0) + (level.weather ? 0.06 : 0));
+      if (!spiky && idx >= 5 && R2() < sp && !level.sea) {
+        const q = R2();
+        if (q < 0.34) { e0.kind = 'charger'; e0.amp = Math.max(e0.amp, 85); e0.sp = 46; }
+        else if (q < 0.68) { e0.kind = 'hopper'; e0.sp = 46; e0.amp = Math.max(e0.amp, 70); }
+        else if (len >= 260) { e0.kind = 'turret'; e0.cx = s.x1 - 60; e0.dir = -1; e0.per = 3.4 - Math.min(1, idx / 130) * 0.7; e0.amp = 0; }
+      }
+      list.push(e0);
     }
     // a few bats floating over the course
     const xs = level.egg ? level.egg[0] : 3000;
@@ -57,9 +67,27 @@
       if (R() > dens) continue;
       const g = groundAt(level, x);
       if (g === null || inWater(x)) continue;
-      list.push({ kind: 'bat', cx: x, y: g - 120 - R() * 50, amp: 110, sp: 1.1 + R() * 0.6, ph: R() * 6, hue: 0, theme });
+      list.push({ kind: idx >= 8 && R2() < 0.45 ? 'diver' : 'bat', cx: x, y: g - 120 - R() * 50, amp: 110, sp: 1.1 + R() * 0.6, ph: R() * 6, hue: 0, theme });
     }
     for (const e of list) { e.id = list.indexOf(e); }
+    return list;
+  }
+
+  // ---- the deep sea: creatures drift through the open water; every one of them hurts, so swim around them
+  function seaLife(level, idx, dens, R) {
+    const list = [], xs = level.egg ? level.egg[0] : 3000, floor = level.seaFloor || 520;
+    let k = 0;
+    for (let x = 1000 + R() * 300; x < xs - 500; x += (780 - dens * 150) + R() * 420) {
+      if ((level.checkpoints || []).some((c) => Math.abs(c[0] - x) < 240)) continue;
+      const g = groundAt(level, x); if (g === null) continue;
+      const kind = ['jelly', 'puffer', 'eel', 'shark', 'jelly', 'puffer'][(k++ + Math.floor(R() * 3)) % 6];
+      const e = { kind, cx: x, y: g - 190 - R() * 120, amp: 90, sp: 1.0 + R() * 0.5, ph: R() * 6, theme: 'ocean', hue: Math.floor(R() * 360) };
+      if (kind === 'shark') { e.amp = 420; e.sp = 1; e.y = g - 330; }
+      if (kind === 'eel') { e.amp = 160; e.sp = 0.9; }
+      if (kind === 'puffer') { e.amp = 70; }
+      list.push(e);
+    }
+    list.forEach((e, i) => { e.id = i; });
     return list;
   }
 
@@ -68,13 +96,48 @@
   // state at time t. Squashed enemies come back after RESPAWN seconds (squash time comes from the game).
   function posAt(e, t) {
     if (e.kind === 'bat') return { x: e.cx + Math.sin(t * e.sp + e.ph) * e.amp, y: e.y + Math.sin(t * e.sp * 2 + e.ph) * 24, dir: Math.cos(t * e.sp + e.ph) >= 0 ? 1 : -1 };
+    if (e.kind === 'diver') {   // hovers, shakes (warning), plunges 150 px, climbs back; 4.4 s cycle
+      const C = 4.4, s = (((t + e.ph) % C) + C) % C, sway = Math.sin(t * 0.9 + e.ph) * e.amp * 0.5;
+      const dive = s < 2.8 ? 0 : s < 3.3 ? 0 : s < 3.65 ? (s - 3.3) / 0.35 : s < 4.4 ? 1 - (s - 3.65) / 0.75 : 0;
+      return { x: e.cx + sway, y: e.y + dive * 150 + Math.sin(t * 3 + e.ph) * 4, dir: Math.cos(t * 0.9 + e.ph) >= 0 ? 1 : -1, warn: s >= 2.8 && s < 3.3, dive: s >= 3.3 && s < 3.65 };
+    }
+    if (e.kind === 'jelly') return { x: e.cx + Math.sin(t * e.sp * 0.6 + e.ph) * e.amp * 0.5, y: e.y + Math.sin(t * e.sp + e.ph) * 70, dir: 1 };
+    if (e.kind === 'puffer') return { x: e.cx + Math.sin(t * e.sp * 0.7 + e.ph) * e.amp, y: e.y + Math.cos(t * e.sp * 0.5 + e.ph) * 40, dir: Math.cos(t * e.sp * 0.7 + e.ph) >= 0 ? 1 : -1 };
+    if (e.kind === 'eel') return { x: e.cx + Math.sin(t * e.sp * 0.8 + e.ph) * e.amp, y: e.y + Math.sin(t * e.sp * 2.4 + e.ph) * 36, dir: Math.cos(t * e.sp * 0.8 + e.ph) >= 0 ? 1 : -1 };
+    if (e.kind === 'shark') { const u = t * 0.42 * e.sp + e.ph; return { x: e.cx + tri(u) * e.amp, y: e.y + Math.sin(t * 0.9 + e.ph) * 50, dir: tri(u + 0.01) > tri(u) ? 1 : -1 }; }
+    if (e.kind === 'turret') return { x: e.cx, y: e.y, dir: e.dir || -1 };
+    if (e.kind === 'hopper') {   // hops along a patrol: a parabola every 1.3 s
+      const s = (((t / 1.3 + e.ph) % 1) + 1) % 1, u2 = (t * e.sp) / (2 * e.amp) + e.ph;
+      return { x: e.cx + tri(u2) * e.amp, y: e.y - 4 * s * (1 - s) * 90, dir: tri(u2 + 0.01) > tri(u2) ? 1 : -1 };
+    }
+    if (e.kind === 'charger') {  // 5 s cycle: patrol 3 s, shake 0.7 s (telegraph), dash 1.3 s at 3.2x speed
+      const C = 5, k = Math.floor((t + e.ph) / C), s = (t + e.ph) - k * C, dist = 3 * e.sp + 1.3 * e.sp * 3.2;
+      const part = s < 3 ? s * e.sp : s < 3.7 ? 3 * e.sp : 3 * e.sp + (s - 3.7) * e.sp * 3.2 * (s < 5 ? 1 : 0);
+      const tau = k * dist + Math.min(part, dist), u2 = tau / (2 * e.amp);
+      return { x: e.cx + tri(u2) * e.amp, y: e.y, dir: tri(u2 + 0.002) > tri(u2) ? 1 : -1, wind: s >= 3 && s < 3.7, dash: s >= 3.7 };
+    }
     const u = (t * e.sp) / (2 * e.amp) + e.ph;
     const x = e.cx + tri(u) * e.amp;
     const dir = tri(u + 0.01) > tri(u) ? 1 : -1;
     return { x, y: e.y, dir };
   }
-  const RADIUS = { blob: 26, urchin: 24, bat: 20 };
-  const stompable = (e) => e.kind !== 'urchin';
+  const RADIUS = { diver: 22, blob: 26, urchin: 24, bat: 20, charger: 28, hopper: 22, turret: 26, jelly: 26, puffer: 22, eel: 18, shark: 40 };
+  const FLYERS = { diver: 1, bat: 1, jelly: 1, puffer: 1, eel: 1, shark: 1 };
+  const SEA = { jelly: 1, puffer: 1, eel: 1, shark: 1 };
+  const radiusAt = (e, t) => {
+    if (e.kind === 'puffer') { const s = (((t + e.ph) % 4) + 4) % 4; return 22 + 24 * (s < 2 ? 0 : s < 2.5 ? (s - 2) * 2 : s < 3.5 ? 1 : (4 - s) * 2); }
+    return RADIUS[e.kind] || 24;
+  };
+  const stompable = (e) => !(e.kind === 'urchin' || e.kind === 'turret' || SEA[e.kind]);
+  // turret bolts fly straight and slowly; position is a pure function of the clock
+  function shots(list, t) {
+    const out = [];
+    for (const e of list) if (e.kind === 'turret') {
+      const per = e.per || 3.4, k = Math.floor(t / per);
+      for (let j = k - 1; j <= k; j++) { if (j < 0) continue; const age = t - j * per - ((e.id * 0.37) % 1); if (age < 0 || age > 3.2) continue; out.push({ x: e.cx + (e.dir || -1) * (34 + age * 230), y: e.y - 36, r: 10, id: e.id }); }
+    }
+    return out;
+  }
 
   // ---- looks. Walkers are drawn with their feet at y=0 facing +x; flyers around their centre.
   const OUT = '#2b2118';
@@ -148,21 +211,95 @@
     c.fillStyle = '#d62839'; c.beginPath(); c.arc(-5, -12, 3.6, 0, 7); c.arc(7, -12, 3.6, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(-4, -12, 1.5, 0, 7); c.arc(8, -12, 1.5, 0, 7); c.fill(); brows(c, 1, -12, 6, 5);
   }
 
+  const NEWLOOK = {
+    diver(c, e, t, p) { // dive-bomber: shakes red, then plunges
+      const f = Math.sin(t * (p.warn ? 40 : 14) + e.id) * 0.7, sh = p.warn ? Math.sin(t * 50) * 2 : 0; c.translate(sh, 0);
+      c.fillStyle = p.warn || p.dive ? '#c0392b' : '#7a4f9a';
+      for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 6, -2); c.lineTo(s2 * 36, -14 - f * 12); c.lineTo(s2 * 26, 2); c.lineTo(s2 * 16, -2 + f * 4); c.closePath(); c.fill(); c.stroke(); }
+      body(c, 12, 14, '#6d4a8a', '#b08ad0'); c.beginPath(); c.ellipse(0, 2, 12, 14, 0, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#ffcf33'; c.beginPath(); c.moveTo(10, 0); c.lineTo(22, 6); c.lineTo(8, 8); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = p.warn || p.dive ? '#ff3a2e' : '#fff'; c.beginPath(); c.arc(5, -3, 3.4, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(6, -3, 1.4, 0, 7); c.fill();
+      brows(c, 5, -3, 0, 5);
+    },
+    charger(c, e, t, p) { // horned boar-ish charger; shakes before a dash
+      const sh = p.wind ? Math.sin(t * 60) * 2 : 0, run = p.dash ? Math.sin(t * 30) * 4 : Math.sin(t * 10) * 2;
+      c.translate(sh, 0);
+      c.fillStyle = '#4a3326'; for (const dx of [-14, 12]) { c.beginPath(); c.ellipse(dx + run * Math.sign(dx), -4, 6, 5, 0, 0, 7); c.fill(); c.stroke(); }
+      const col = 'hsl(' + (e.hue % 40 + 8) + ',55%,38%)'; body(c, 28, 26, col, '#e8a070'); c.beginPath(); c.ellipse(0, -24, 28, 20, 0, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#f2e6cf'; for (const s2 of [0, 1]) { c.beginPath(); c.moveTo(18 + s2 * 6, -38); c.quadraticCurveTo(34, -52 + s2 * 6, 40, -40 + s2 * 4); c.lineTo(24 + s2 * 4, -34); c.closePath(); c.fill(); c.stroke(); }
+      c.fillStyle = p.wind || p.dash ? '#ff3a2e' : '#fff'; c.beginPath(); c.arc(16, -28, 4, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(17, -28, 1.8, 0, 7); c.fill();
+      brows(c, 17, -28, 0, 6); if (p.wind) { c.fillStyle = 'rgba(255,255,255,.7)'; for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(-26 - i * 8, -6 - i * 3, 3 - i * 0.6, 0, 7); c.fill(); } }
+    },
+    hopper(c, e, t) { // frog
+      c.fillStyle = '#3f9a4f'; body(c, 22, 22, '#3f9a4f', '#a8f0a0'); c.beginPath(); c.ellipse(0, -16, 22, 15, 0, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#2f7a3d'; c.beginPath(); c.ellipse(-14, -4, 10, 6, 0, 0, 7); c.fill(); c.stroke();
+      for (const x of [8, 18]) { c.fillStyle = '#fff'; c.beginPath(); c.arc(x, -30, 6, 0, 7); c.fill(); c.stroke(); c.fillStyle = OUT; c.beginPath(); c.arc(x + 1.4, -30, 2.4, 0, 7); c.fill(); }
+      c.strokeStyle = '#d33'; c.lineWidth = 2.4; c.beginPath(); c.arc(16, -14, 6, 0.2, Math.PI - 0.2); c.stroke();
+    },
+    turret(c, e, t) { // armoured cannon: can not be stomped
+      const per = e.per || 3.4, ph = (t % per) / per, rec = ph < 0.12 ? (0.12 - ph) * 40 : 0;
+      c.fillStyle = '#5a6572'; c.beginPath(); c.moveTo(-24, 0); c.lineTo(-20, -24); c.quadraticCurveTo(0, -42, 20, -24); c.lineTo(24, 0); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#39414b'; c.save(); c.translate(0, -30); c.fillRect(-6 + rec * 0.5, -9, 38 - rec, 18); c.strokeRect(-6 + rec * 0.5, -9, 38 - rec, 18); c.restore();
+      c.fillStyle = ph > 0.82 ? '#ff4a2a' : '#f2c14a'; c.beginPath(); c.arc(-6, -14, 5, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#cfd6de'; for (const x of [-16, 16]) { c.beginPath(); c.arc(x, -6, 2.4, 0, 7); c.fill(); }
+    },
+    jelly(c, e, t) { // jellyfish
+      const w = Math.sin(t * 5 + e.id) * 3; c.globalAlpha = 0.92;
+      const g = c.createRadialGradient(-6, -10, 2, 0, -4, 30); g.addColorStop(0, '#ffd6f5'); g.addColorStop(1, 'hsl(' + (290 + e.hue % 40) + ',70%,62%)'); c.fillStyle = g;
+      c.beginPath(); c.moveTo(-26, 0); c.quadraticCurveTo(-26, -34 - w, 0, -34 - w); c.quadraticCurveTo(26, -34 - w, 26, 0); c.quadraticCurveTo(0, 6, -26, 0); c.fill(); c.stroke();
+      c.strokeStyle = 'rgba(255,190,240,.9)'; c.lineWidth = 3; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(i * 9, 2); c.quadraticCurveTo(i * 9 + w * 2, 20, i * 9 - w, 38 + (i & 1) * 6); c.stroke(); }
+      c.globalAlpha = 1; c.fillStyle = OUT; c.beginPath(); c.arc(-7, -16, 2.6, 0, 7); c.arc(8, -16, 2.6, 0, 7); c.fill(); c.strokeStyle = '#ffe14a'; c.lineWidth = 2; c.setLineDash([3, 4]); c.beginPath(); c.arc(0, -8, 33, Math.PI * 1.05, Math.PI * 1.95); c.stroke(); c.setLineDash([]);
+    },
+    puffer(c, e, t) { // pufferfish: blows up, spikes out
+      const R = radiusAt(e, t), big = (R - 22) / 24, w = Math.sin(t * 8 + e.id);
+      c.fillStyle = big > 0.3 ? '#ff6a3a' : '#f2c14a';
+      if (big > 0.2) for (let i = 0; i < 14; i++) { const a = (i / 14) * 6.2832; c.beginPath(); c.moveTo(Math.cos(a) * R * 0.8, Math.sin(a) * R * 0.8); c.lineTo(Math.cos(a) * (R + 10) , Math.sin(a) * (R + 10)); c.lineTo(Math.cos(a + 0.2) * R * 0.8, Math.sin(a + 0.2) * R * 0.8); c.fill(); c.stroke(); }
+      body(c, R, R, big > 0.3 ? '#ff8a4a' : '#f2c14a', '#fff2b0'); c.beginPath(); c.arc(0, 0, R, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#f2c14a'; c.beginPath(); c.moveTo(-R, 0); c.lineTo(-R - 14, -8 + w * 4); c.lineTo(-R - 14, 8 + w * 4); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(R * 0.4, -R * 0.2, 6, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(R * 0.4 + 1.5, -R * 0.2, 2.8, 0, 7); c.fill();
+      c.beginPath(); c.arc(R * 0.75, R * 0.2, big > 0.3 ? 4 : 2, 0, 7); c.fill();
+    },
+    eel(c, e, t) { // electric eel: long wavy body
+      c.lineCap = 'round'; c.strokeStyle = OUT; c.lineWidth = 17; c.beginPath(); for (let i = 0; i <= 9; i++) { const x = -i * 11, y = Math.sin(t * 6 - i * 0.7 + e.id) * 9; i ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
+      c.strokeStyle = '#4fa86a'; c.lineWidth = 12; c.beginPath(); for (let i = 0; i <= 9; i++) { const x = -i * 11, y = Math.sin(t * 6 - i * 0.7 + e.id) * 9; i ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
+      c.strokeStyle = '#ffe14a'; c.lineWidth = 2.4; c.beginPath(); for (let i = 1; i <= 8; i++) { const x = -i * 11 + 4, y = Math.sin(t * 6 - i * 0.7 + e.id) * 9; c.moveTo(x, y - 3); c.lineTo(x - 4, y + 3); if (i % 3 == 0) { c.moveTo(x, y - 12); c.lineTo(x - 5, y - 20); } } c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(4, -3 + Math.sin(t * 6 + e.id) * 9, 4, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(5, -3 + Math.sin(t * 6 + e.id) * 9, 1.8, 0, 7); c.fill();
+    },
+    shark(c, e, t) { // shark
+      const w = Math.sin(t * 5 + e.id) * 5;
+      c.fillStyle = '#6f8aa0'; c.beginPath(); c.moveTo(-60, w); c.lineTo(-82, -16 + w); c.lineTo(-78, 14 + w); c.closePath(); c.fill(); c.stroke();
+      body(c, 50, 24, '#7f9db3', '#c9dfee'); c.beginPath(); c.moveTo(-60, w); c.quadraticCurveTo(-20, -30, 42, -12); c.quadraticCurveTo(58, 0, 42, 12); c.quadraticCurveTo(-20, 28, -60, w); c.fill(); c.stroke();
+      c.fillStyle = '#e8f2fa'; c.beginPath(); c.moveTo(-20, 14); c.quadraticCurveTo(10, 22, 42, 10); c.quadraticCurveTo(10, 8, -20, 14); c.fill();
+      c.fillStyle = '#6f8aa0'; c.beginPath(); c.moveTo(-6, -22); c.lineTo(8, -46); c.lineTo(18, -16); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(30, -4, 4.5, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(31.5, -4, 2, 0, 7); c.fill(); brows(c, 31, -4, 0, 6);
+      c.fillStyle = '#fff'; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(36 - i * 5, 5); c.lineTo(38 - i * 5, 10); c.lineTo(41 - i * 5, 5); c.fill(); }
+    },
+  };
+
+  function drawShots(ctx, list, t) {
+    for (const b of shots(list, t)) {
+      ctx.save(); ctx.translate(b.x, b.y);
+      const g = ctx.createRadialGradient(-3, -3, 1, 0, 0, b.r + 2); g.addColorStop(0, '#fff3b0'); g.addColorStop(1, '#ff6a2a'); ctx.fillStyle = g; ctx.strokeStyle = OUT; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+  }
+
   function draw(ctx, list, t, deadUntil) {
     for (const e of list) {
       const d = deadUntil && deadUntil[e.id];
       if (d && d > t) continue;
       const p = posAt(e, t);
       ctx.save();
-      if (e.kind !== 'bat') { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 22, 5, 0, 0, 7); ctx.fill(); }
+      if (!FLYERS[e.kind]) { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 22, 5, 0, 0, 7); ctx.fill(); }
       ctx.translate(p.x, p.y);
       ctx.lineWidth = 2.6; ctx.strokeStyle = OUT; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      if (e.kind === 'bat') { ctx.scale(p.dir, 1); (FLY[FLY_BY[e.theme] || 'bat'])(ctx, e, t); }
+      if (NEWLOOK[e.kind]) { if (e.kind !== 'jelly') ctx.scale(p.dir, 1); NEWLOOK[e.kind](ctx, e, t, p); }
+      else if (e.kind === 'bat') { ctx.scale(p.dir, 1); (FLY[FLY_BY[e.theme] || 'bat'])(ctx, e, t); }
       else { ctx.scale(p.dir, 1); (e.kind === 'urchin' ? urchin : (LOOKS[e.theme] || LOOKS[LOOK_ALIAS[e.theme]] || LOOKS.meadow))(ctx, e, t); }
       ctx.restore();
     }
   }
 
-  const api = { generate, posAt, draw, groundAt, stompable, RADIUS, RESPAWN: 9 };
+  const api = { generate, posAt, draw, drawShots, shots, radiusAt, FLYERS, groundAt, stompable, RADIUS, RESPAWN: 9 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Enemies = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -49,6 +49,7 @@
   } catch (e) { /* storage unavailable: play without saving */ }
   if (!DIFFS[save.diff]) save.diff = 'normal';
   if (!save.cheats || typeof save.cheats !== 'object') save.cheats = {};
+  if (window.BuildAGoose && Array.isArray(save.custom)) window.BuildAGoose.registerAll(save.custom);
   if (!SKINS.BY_ID[save.skin]) save.skin = 'goose';
   if (!save.skins || typeof save.skins !== 'object') save.skins = {};
   if (!save.tint || typeof save.tint !== 'object') save.tint = {};
@@ -159,6 +160,7 @@
 
   let decor = null;
   let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0, lastVy = 0;
+  let bolt = null, nextBolt = 6, hailOn = false;
   let mech = null, boss = null, bossPhase = null, eggPos = null, wxInfo = { a: 0, warn: 0, dir: 0 };
   function loadLevel(i, custom) {
     levelIdx = i; level = custom || LEVELS[i];
@@ -173,7 +175,7 @@
     boss = null; bossPhase = null; eggPos = level.egg; wxInfo = { a: 0, warn: 0, dir: 0 };
     if (level.boss && !custom && !mpOn() && !window.Battle.active()) { boss = BOSS.create(level.boss, dKey()); bossPhase = 'door'; }
     mech = MECH.build(world, level);
-    applyWeather(custom);
+    applyWeather(custom); bolt = null; nextBolt = 6;
     th = THEMES[level.theme] || THEMES.meadow;
     checkpoint = { x: level.spawn[0], y: level.spawn[1] };
     bread = level.bread.map((b) => ({ x: b[0], y: b[1], got: false }));
@@ -247,14 +249,75 @@
       ctx.restore();
     }
   }
+  // ---- deadly weather: lightning strikes (warning ring, then a bolt) and hailstones
+  const L_MUL = { easy: 1.6, normal: 1.15, hard: 1, insane: 0.85, noodle: 0.85 };
+  const hailStones = (T, x0, x1) => {
+    const out = [], cell = 200, ph = (i) => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+    for (let i = Math.floor(x0 / cell); i <= Math.floor(x1 / cell); i++) {
+      for (let j = 0; j < 2; j++) {
+        const a = ph(i * 2 + j), x = i * cell + ph(i * 3 + j + 9) * cell, y = ((T * (360 + a * 100) + a * 1600) % 1600) - 900;
+        const g = ENEMIES.groundAt(level, x);
+        if (g !== null && y > g - 6) continue;
+        out.push({ x, y, r: 9 });
+      }
+    }
+    return out;
+  };
+  function stormTick() {
+    const wx = level && level.weather; if (!wx || state !== 'play' || !goose) return;
+    const T = world.time, c = goose.center();
+    if (wx.lightning) {
+      if (!bolt && T >= nextBolt) {
+        const tx = c.x + Math.max(-140, Math.min(140, (goose.vx || 0) * 0.45));
+        const g = ENEMIES.groundAt(level, tx);
+        bolt = { x: tx, y: g !== null ? g : c.y + 50, warn: T, strike: T + (dKey() === 'easy' ? 2.0 : 1.5), hit: false };
+        nextBolt = T + wx.lightning * (L_MUL[dKey()] || 1);
+      }
+      if (bolt && T >= bolt.strike && !bolt.hit) {
+        bolt.hit = true; snd.no();
+        if (canDie() && goose.body.concat(goose.feet).some((q) => Math.abs(q.x - bolt.x) < 48)) { hitCd = 1.2; deaths++; snd.ouch(); toast('⚡ Struck by lightning! Run from the warning ring.', 2.2); respawn(); }
+      }
+      if (bolt && T > bolt.strike + 0.4) bolt = null;
+    }
+    if (wx.hail && canDie()) {
+      for (const h of hailStones(T, c.x - 60, c.x + 60)) {
+        if (goose.body.concat(goose.feet).some((q) => Math.hypot(q.x - h.x, q.y - h.y) < h.r + q.r * 0.7)) { hitCd = 1.2; deaths++; snd.ouch(); toast('🧊 Hailstone! Look up and dodge.', 2); respawn(); return; }
+      }
+    }
+  }
+  function drawStormWorld(T) {
+    const wx = level.weather; if (!wx) return;
+    if (bolt) {
+      const w = T - bolt.warn, st = T >= bolt.strike;
+      ctx.save();
+      if (!st) {
+        const k = Math.min(1, w / (bolt.strike - bolt.warn)), blink = Math.floor(T * 8) % 2 ? 1 : 0.5;
+        ctx.strokeStyle = 'rgba(255,230,80,' + 0.9 * blink + ')'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(bolt.x, bolt.y, 48, 10, 0, 0, 7); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,230,80,' + 0.18 * blink + ')'; ctx.beginPath(); ctx.ellipse(bolt.x, bolt.y, 48 * k, 10 * k, 0, 0, 7); ctx.fill();
+        ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,230,80,' + blink + ')'; ctx.fillText('⚡', bolt.x, bolt.y - 18 - Math.sin(T * 10) * 4);
+      } else {
+        const f = 1 - (T - bolt.strike) / 0.4; ctx.strokeStyle = 'rgba(255,255,255,' + Math.max(0, f) + ')'; ctx.lineWidth = 9 * f + 2; ctx.shadowColor = '#bfe0ff'; ctx.shadowBlur = 24; ctx.lineJoin = 'round'; ctx.beginPath();
+        let x = bolt.x, y = bolt.y - 1200; ctx.moveTo(x, y); for (let i = 1; i <= 14; i++) { y = bolt.y - 1200 + (1200 * i) / 14; x = bolt.x + (i === 14 ? 0 : Math.sin(i * 12.9 + Math.floor(bolt.strike * 10)) * 42); ctx.lineTo(x, y); } ctx.stroke();
+      }
+      ctx.restore();
+    }
+    if (wx.hail) {
+      ctx.save(); ctx.fillStyle = '#eaf6ff'; ctx.strokeStyle = '#7a93aa'; ctx.lineWidth = 2;
+      for (const h of hailStones(T, camX - 40, camX + VW + 40)) { ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc(h.x - 3, h.y - 3, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#eaf6ff'; }
+      ctx.restore();
+    }
+  }
   function enemyTick() {
     const c = goose.center(), vy = (c.y - prevCy) / STEP; prevCy = c.y; lastVy = vy;
     if (!enemies.length || state !== 'play') return;
     const parts = goose.body.concat(goose.feet);
+    if (hitCd <= 0 && canDie()) for (const b of ENEMIES.shots(enemies, levelClock)) {
+      if (parts.some((q) => Math.hypot(q.x - b.x, q.y - b.y) < b.r + q.r * 0.8)) { hitCd = 1.2; deaths++; snd.ouch(); toast('Dodge the cannon shots!', 1.8); respawn(); return; }
+    }
     for (const e of enemies) {
       if (enemyDead[e.id] > levelClock) continue;
-      const p = ENEMIES.posAt(e, levelClock), r = ENEMIES.RADIUS[e.kind];
-      const ey = p.y - (e.kind === 'bat' ? 0 : r);   // enemy centre
+      const p = ENEMIES.posAt(e, levelClock), r = ENEMIES.radiusAt(e, levelClock);
+      const ey = p.y - (ENEMIES.FLYERS[e.kind] ? 0 : r);   // enemy centre
       let hit = false;
       for (const q of parts) if (Math.hypot(q.x - p.x, q.y - ey) < r + q.r * 0.8) { hit = true; break; }
       if (!hit) continue;
@@ -265,7 +328,7 @@
         snd.boing(); toast('Stomp! +1 🍞', 0.9); persist();
       } else if (hitCd <= 0 && !has('shield') && !(save.cheats.admin && save.cheats.god && !mpOn())) {
         // enemies are deadly unless you stomp them from above
-        hitCd = 1.2; deaths++; snd.ouch(); toast(e.kind === 'urchin' ? 'Ouch! Spikes!' : 'Gotcha! Stomp them from above.', 1.8); respawn();
+        hitCd = 1.2; deaths++; snd.ouch(); toast(e.kind === 'urchin' ? 'Ouch! Spikes!' : e.kind === 'turret' ? 'Ouch! Armoured: jump over it.' : e.kind === 'charger' ? 'Run! Or jump on its head.' : ({ jelly: 'Zap! Jellyfish sting.', puffer: 'Prickly! Pufferfish.', eel: 'Zap! Eel.', shark: 'Chomp!' })[e.kind] || 'Gotcha! Stomp them from above.', 1.8); respawn();
       }
     }
   }
@@ -320,6 +383,7 @@
       }
     }
     if (world.windSpec) wxInfo = window.Physics.windInfo(world.windSpec, world.time);
+    stormTick();
     {
       const tid = has('rainbow') ? 't_rainbow' : save.equip.trail;
       const tr = tid && BY_ID[tid] && BY_ID[tid].trail;
@@ -541,7 +605,7 @@
     if (boss && bossPhase === 'fight') BOSS.drawCage(ctx, e[0], e[1], clock);
 
     drawTrail();
-    ENEMIES.draw(ctx, enemies, levelClock, enemyDead);
+    ENEMIES.draw(ctx, enemies, levelClock, enemyDead); ENEMIES.drawShots(ctx, enemies, levelClock); drawStormWorld(world.time);
     if (boss && bossPhase !== 'door') BOSS.draw(ctx, boss, clock);
     drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
@@ -827,6 +891,12 @@
       ctx.fillStyle = 'rgba(18,26,48,.2)'; ctx.fillRect(0, 0, Wp, Hp);
       const f = Math.sin(clock * 0.7) * 3 + Math.sin(clock * 1.9);           // an occasional lightning flash
       if (f > 3.2) { ctx.fillStyle = 'rgba(255,255,255,' + Math.min(0.6, (f - 3.2) * 1.6) + ')'; ctx.fillRect(0, 0, Wp, Hp); }
+    }
+    if (bolt && world.time >= bolt.strike) { const f = 1 - (world.time - bolt.strike) / 0.4; ctx.fillStyle = 'rgba(255,255,255,' + Math.max(0, 0.55 * f) + ')'; ctx.fillRect(0, 0, Wp, Hp); }
+    if (wx.whiteout) {   // blizzard whiteout: it thickens and thins; only the area around you stays clear
+      const k = Math.max(0, Math.sin(clock * 0.55)) * 0.8 + 0.12;
+      const gx = (goose ? (goose.center().x - camX) * S : Wp / 2), gy = (goose ? (goose.center().y - camY) * S : Hp / 2);
+      const g = ctx.createRadialGradient(gx, gy, 90 * D, gx, gy, 430 * D); g.addColorStop(0, 'rgba(235,243,252,0)'); g.addColorStop(1, 'rgba(235,243,252,' + k + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, Wp, Hp);
     }
     if (wx.rain) {
       ctx.strokeStyle = 'rgba(205,228,255,.55)'; ctx.lineWidth = 1.5 * D; ctx.beginPath();
@@ -1153,16 +1223,26 @@
   function sizeStoreCanvas() { const d = Math.min(window.devicePixelRatio || 1, 2); storeCv.width = 260 * d; storeCv.height = 300 * d; sctx.setTransform(d, 0, 0, d, 0, 0); }
   sizeStoreCanvas();
 
-  const SKIN_ITEMS = SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, shape: !!k.shape && !k.jelly, jelly: !!k.jelly }));
-  const STORE_CATS = [{ id: 'skin', name: 'Animals' }, { id: 'shapes', name: 'Shapes' }, { id: 'jelly', name: 'Jelly' }].concat(CATS);
+  const mkSkinItems = () => SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, custom: !!k.custom, shape: !!k.shape && !k.jelly && !k.custom, jelly: !!k.jelly && !k.custom }));
+  let SKIN_ITEMS = mkSkinItems();
+  const STORE_CATS = [{ id: 'skin', name: 'Animals' }, { id: 'shapes', name: 'Shapes' }, { id: 'jelly', name: 'Jelly' }, { id: 'build', name: '✨ Build-a-Goose' }].concat(CATS);
   const TINTS = [null, 30, 60, 120, 180, 210, 270, 300, 330, 'gray', 'dark', 'bright'];
-  const itemsFor = (cat) => (cat === 'skin' ? SKIN_ITEMS.filter((i) => !i.shape && !i.jelly) : cat === 'shapes' ? SKIN_ITEMS.filter((i) => i.shape) : cat === 'jelly' ? SKIN_ITEMS.filter((i) => i.jelly) : ITEMS.filter((i) => i.cat === cat)).slice().sort((a, b) => a.price - b.price);
+  const itemsFor = (cat) => (cat === 'build' ? [] : cat === 'skin' ? SKIN_ITEMS.filter((i) => !i.shape && !i.jelly && !i.custom) : cat === 'shapes' ? SKIN_ITEMS.filter((i) => i.shape) : cat === 'jelly' ? SKIN_ITEMS.filter((i) => i.jelly) : ITEMS.filter((i) => i.cat === cat)).slice().sort((a, b) => a.price - b.price);
   const storeItem = (id) => BY_ID[id] || SKIN_ITEMS.find((x) => x.id === id);
   const isOwned = (it) => it.cat === 'skin' ? !!save.skins[it.sid] : !!save.owned[it.id];
   const isWearing = (it) => it.cat === 'skin' ? save.skin === it.sid : save.equip[it.cat] === it.id;
   function currentLook() { const l = Object.assign({}, save.equip, tryOn); delete l.skin; l._tint = save.tint; return l; }
-  function currentSkin() { return tryOn.skin ? tryOn.skin.slice(5) : save.skin; }
+  function currentSkin() { if (state === 'store' && storeCat === 'build' && window.BuildAGoose && window.BuildAGoose.draft) return 'custom_draft'; return tryOn.skin ? tryOn.skin.slice(5) : save.skin; }
 
+  // scale + offset that fit a (possibly very long or tall) skin into the preview box; base box is 220 x 215 at 1.2x
+  function fitFor(fg, sid) {
+    const sk = SKINS.BY_ID[sid] || SKINS.BY_ID.goose, sw = ((sk.shape || {}).w) || 1;
+    let minX = -42 * sw - 40, maxX = 42 * sw + 20, minY = -50;
+    for (const p of fg.neck) { minX = Math.min(minX, p.x - 18); maxX = Math.max(maxX, p.x + 30); minY = Math.min(minY, p.y - 20); }
+    for (const p of fg.feet) maxX = Math.max(maxX, p.x + 16);
+    const wide = (maxX - minX) * 1.2, tall = (-minY + 40 + 20) * 1.2;
+    return { s: Math.min(1, 220 / wide, 215 / tall), ox: -(minX + maxX) / 2 };
+  }
   function drawStorePreview() {
     sctx.clearRect(0, 0, 260, 300);
     const g = sctx.createRadialGradient(130, 150, 20, 130, 150, 170);
@@ -1170,16 +1250,18 @@
     sctx.fillStyle = g; sctx.fillRect(0, 0, 260, 300);
     sctx.fillStyle = 'rgba(0,0,0,.12)'; sctx.beginPath(); sctx.ellipse(120, 262, 70, 9, 0, 0, 7); sctx.fill();
     sctx.save();
-    sctx.translate(100, 235); sctx.scale(1.2, 1.2);
-    drawGoose(sctx, fakeGoose(clock, currentSkin()), currentLook(), currentSkin());
+    const fg = fakeGoose(clock, currentSkin()), ft = fitFor(fg, currentSkin());
+    sctx.translate(130 + ft.ox * ft.s * 1.2, 250); sctx.scale(1.2 * ft.s, 1.2 * ft.s);
+    drawGoose(sctx, fg, currentLook(), currentSkin());
     sctx.restore();
   }
 
   function iconFor(item) {
     if (item.cat === 'skin') {
       const cv = document.createElement('canvas'); cv.width = cv.height = 96;
-      const c = cv.getContext('2d'); c.translate(34, 72); c.scale(0.36, 0.36);
-      drawGoose(c, fakeGoose(0, item.sid), {}, item.sid); return cv;
+      const c = cv.getContext('2d'), fg = fakeGoose(0, item.sid), ft = fitFor(fg, item.sid), k = Math.min(0.36, 0.36 * ft.s * 1.25);
+      c.translate(48 + ft.ox * k, 74); c.scale(k, k);
+      drawGoose(c, fg, {}, item.sid); return cv;
     }
     const cv = document.createElement('canvas'); cv.width = cv.height = 96;
     const c = cv.getContext('2d'); c.scale(2, 2);
@@ -1246,12 +1328,20 @@
     tabs.innerHTML = '';
     STORE_CATS.forEach((cat) => {
       const b = document.createElement('button');
-      b.textContent = cat.name + ' ' + ownedCount(cat.id);
+      b.textContent = cat.id === 'build' ? cat.name : cat.name + ' ' + ownedCount(cat.id);
       if (cat.id === storeCat) b.classList.add('sel');
       b.addEventListener('click', () => { storeCat = cat.id; selectedItem = null; renderStore(); });
       tabs.appendChild(b);
     });
     const isSkinTab = storeCat === 'skin' || storeCat === 'shapes' || storeCat === 'jelly';
+    if (storeCat === 'build') {   // Build-a-Goose: describe, re-roll, modify, move parts, save for 1000
+      $('storeTools').innerHTML = ''; $('buyBar').classList.add('hidden');
+      const grid = $('storeGrid'); grid.style.display = 'block'; grid.style.maxHeight = 'none'; grid.style.overflow = 'visible';
+      window.BuildAGoose.panel(grid, { save, persist, rich, snd, toast, rerender: renderStore, refreshSkins: () => { SKIN_ITEMS = mkSkinItems(); },
+        iconFor: (sid) => iconFor({ cat: 'skin', sid }) });
+      return;
+    }
+    { const g0 = $('storeGrid'); g0.style.display = ''; g0.style.maxHeight = ''; g0.style.overflow = ''; }
     // tools: random outfit, clear all, colour swatches for the worn item in this slot
     const tools = $('storeTools'); tools.innerHTML = '';
     const tb = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', () => { audio(); fn(); }); tools.appendChild(b); };
@@ -1334,7 +1424,7 @@
     renderStore();
   }
   $('storeBtn').addEventListener('click', () => { audio(); openStore(); });
-  $('storeBack').addEventListener('click', () => { tryOn = {}; showMenu(); });
+  $('storeBack').addEventListener('click', () => { tryOn = {}; if (window.BuildAGoose) window.BuildAGoose.draft = null; showMenu(); });
 
 
   // ---------------------------------------------------------------- admin console (needs the admin code)

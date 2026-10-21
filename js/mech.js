@@ -114,6 +114,11 @@
         const g = c.createLinearGradient(0, z.y + z.h, 0, z.y); g.addColorStop(0, 'rgba(190,235,255,.4)'); g.addColorStop(1, 'rgba(190,235,255,0)'); c.fillStyle = g; c.fillRect(z.x, z.y, z.w, z.h);
         c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 3; c.lineCap = 'round';
         for (let i = 0; i < 9; i++) { const u = ((t * 0.9 + i * 0.37) % 1), x = z.x + 10 + ((i * 53) % (z.w - 20)), y = z.y + z.h - u * z.h; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.sin(u * 9 + i) * 5, y - 26); c.stroke(); }
+      } else if (z.kind === 'current') {
+        const dir = Math.sign(z.ax) || 1;
+        c.fillStyle = 'rgba(190,240,255,.10)'; c.fillRect(z.x, z.y, z.w, z.h);
+        c.strokeStyle = 'rgba(220,250,255,.55)'; c.lineWidth = 3; c.lineCap = 'round';
+        for (let i = 0; i < 12; i++) { const u = (((t * 0.35 * dir + i * 0.137) % 1) + 1) % 1, x = z.x + u * z.w, y = z.y + ((i * 83) % Math.max(20, z.h - 20)) + 10; c.beginPath(); c.moveTo(x, y); c.lineTo(x + dir * 34, y); c.stroke(); }
       } else {
         const anti = z.g < 0, col = anti ? [255, 120, 200] : [150, 130, 255];
         const g = c.createLinearGradient(0, z.y, 0, z.y + z.h); g.addColorStop(0, 'rgba(' + col + ',.16)'); g.addColorStop(1, 'rgba(' + col + ',.05)'); c.fillStyle = g; c.fillRect(z.x, z.y, z.w, z.h);
