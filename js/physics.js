@@ -249,6 +249,11 @@
       this.neckMul = opt.neck || 1;                        // neck length multiplier (code: neck)
       this.seg = SEG * this.neckMul;
       this.infFlaps = !!opt.infFlaps;                      // never runs out of flaps (code: flaps)
+      const L = opt.layout || {};                          // layout skins (dog, brontosaurus...): where the neck, legs and head sit on the body
+      this.nax = (L.nx != null ? L.nx : 24); this.nay = (L.ny != null ? L.ny : -17);   // neck anchor, in goose-px (scaled by body size below)
+      this.neckAng = L.ang != null ? L.ang : -98; this.neckBend = L.bend != null ? L.bend : 4.2; this.neckStiff = L.stiff || 1;
+      this.hipFrac = L.hip || [-13 / 28, 13 / 28];
+      this.jelly = opt.jelly ? Object.assign({ k: 5200, c: 0.0009, damp: 6 }, opt.jelly) : null;   // soft-body pressure model (JellyCar-style)
       this.sw = opt.shapeW || 1; this.sh = opt.shapeH || 1; this.lm = opt.legM || 1;   // shape skins: body width/height and leg length multipliers
       this.legless = !!opt.legless;                        // Neck mode: no legs, drag yourself along with the neck
       this.chaos = !!opt.chaos;                            // Spaghetti mode: haunted neck steering + random whiplash
@@ -267,14 +272,16 @@
 
       // body: 4 kg braced quad. Slightly buoyant: rho 0.75 of water.
       const bo = { m: 1, r: 8, mu: opt.legless ? 0.35 : 0.9, drag: 0.02, cd: 0.0006, rho: 0.75 };
+      this.nax *= this.sw; this.nay *= this.sh;
       this.bodyRest = [[-28 * this.sw, 13 * this.sh], [28 * this.sw, 13 * this.sh], [28 * this.sw, -13 * this.sh], [-28 * this.sw, -13 * this.sh]];
       this.body = this.bodyRest.map((r) => mk(r[0], r[1], bo));
-      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) world.link(this.body[i], this.body[j]);
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) world.link(this.body[i], this.body[j], this.jelly ? { compliance: this.jelly.c } : undefined);
+      this.area0 = 56 * this.sw * 26 * this.sh;
 
       // legs
-      this.hipX = [-13 * this.sw, 13 * this.sw]; this.hipY = 8 * this.sh; this.L0 = 30 * this.lm;
+      this.hipX = this.hipFrac.map((f) => f * 28 * this.sw); this.hipY = 8 * this.sh; this.L0 = 30 * this.lm;
       this.hips = this.hipX.map((hx) => mk(hx, this.hipY, { m: 0.3, drag: 0.02 }));
-      this.hips.forEach((h) => this.body.forEach((b) => world.link(h, b)));
+      this.hips.forEach((h) => this.body.forEach((b) => world.link(h, b, this.jelly ? { compliance: this.jelly.c } : undefined)));
       this.feet = this.hipX.map((hx) => mk(hx, this.hipY + this.L0, { m: 0.2, r: 5, mu: 1.3, drag: 0.05, rho: 1.4 }));
       this.feet.forEach((f, i) => {
         world.link(this.hips[i], f, { mode: 'rope', len: 40 * this.lm });
@@ -282,14 +289,14 @@
       });
 
       // neck
-      const ax = 24 * this.sw, ay = -17 * this.sh;
+      const ax = this.nax, ay = this.nay, na0 = (this.neckAng * Math.PI) / 180;
       this.neck = [];
       for (let i = 0; i <= NECK_SEGS; i++) {
         let o;
         if (i === 0) o = { m: 0.2, drag: 0.1 };
         else if (i < NECK_SEGS) o = { m: 0.05, r: 3.5, mu: 0.4, drag: 0.4, cd: 0.002, rho: 1.05 };
         else o = { m: 0.4, r: 9, mu: opt.legless ? 3.5 : 0.6, drag: 0.5, cd: 0.001, rho: 0.9 };
-        this.neck.push(mk(ax, ay - i * this.seg, o));
+        this.neck.push(mk(ax + Math.cos(na0) * i * this.seg, ay + Math.sin(na0) * i * this.seg, o));
       }
       for (let i = 0; i < NECK_SEGS; i++) world.link(this.neck[i], this.neck[i + 1], { len: this.seg });
       // bending stiffness: soft links skipping a vertebra (compliance scales with floppiness)
@@ -298,7 +305,7 @@
         this.bend.push(world.link(this.neck[i], this.neck[i + 2], { len: this.seg * 1.985, compliance: 0.004 / this.wobble }));
       }
       this.mount = this.body.map((b, i) => ({
-        c: world.link(b, this.neck[0], { len: Math.hypot(ax - this.bodyRest[i][0], ay - this.bodyRest[i][1]) }),
+        c: world.link(b, this.neck[0], { len: Math.hypot(ax - this.bodyRest[i][0], ay - this.bodyRest[i][1]), compliance: this.jelly ? this.jelly.c : 0 }),
         rx: this.bodyRest[i][0], ry: this.bodyRest[i][1],
       }));
       this.head = this.neck[NECK_SEGS];
@@ -373,13 +380,19 @@
         }
       }
 
+      const wasGrounded = this.grounded;
       this.grounded = this.feet.some((f) => W.time - f.groundT < 0.08) || body.some((b) => W.time - b.groundT < 0.08);
+      if (this.jelly && this.grounded && !wasGrounded && this.prevVy > 260 && !this.swimming) {   // jelly boing: soaks up the landing and gives some back
+        const up = -Math.min(620, this.prevVy * 0.62);
+        for (const q of body.concat(this.hips, this.feet)) q.vy = Math.min(q.vy, up);
+      }
+      this.prevVy = v.y;
       this.swimming = body.filter((b) => b.wet > 0.3).length >= 2;
       this.airT = this.grounded || this.swimming ? 0 : this.airT + dt;
 
       if (this.move !== 0) this.facing = Math.sign(this.move);
       this.faceBlend += (this.facing - this.faceBlend) * Math.min(1, dt * 6);
-      const mx = 24 * this.sw * this.faceBlend, my = -17 * this.sh;
+      const mx = this.nax * this.faceBlend, my = this.nay;
       for (const m of this.mount) m.c.len = Math.hypot(mx - m.rx, my - m.ry);
 
       this.mv += (Math.abs(this.move) - this.mv) * Math.min(1, dt * 8);
@@ -435,6 +448,22 @@
         b.fy += (tau * rx) / (4 * r2);
       }
 
+      // jelly: pressure pushes the skin outward when the volume shrinks, like JellyCar's soft bodies
+      if (this.jelly) {
+        let area = 0;
+        for (let i = 0; i < 4; i++) { const a = body[i], b = body[(i + 1) % 4]; area += a.x * b.y - b.x * a.y; }
+        area *= 0.5;
+        const sgn = area >= 0 ? 1 : -1, ratio = this.area0 / Math.max(this.area0 * 0.25, Math.abs(area));
+        const press = this.jelly.k * Math.max(-0.6, Math.min(2.2, ratio - 1));
+        for (let i = 0; i < 4; i++) {
+          const a = body[i], b = body[(i + 1) % 4];
+          const ex = b.x - a.x, ey = b.y - a.y;
+          const fx = sgn * ey * press * 0.5, fy = -sgn * ex * press * 0.5;
+          a.fx += fx; a.fy += fy; b.fx += fx; b.fy += fy;
+        }
+        for (const b of body) { b.fx -= (b.vx - v.x) * this.jelly.damp; b.fy -= (b.vy - v.y) * this.jelly.damp; }
+      }
+
       // legs: spring-damper toward the walk-cycle target
       for (let i = 0; i < 2; i++) {
         const th = this.phase + i * Math.PI;
@@ -471,12 +500,12 @@
       if (aim && Math.hypot(aim.x, aim.y) > 0.2) {
         ang0 = Math.atan2(aim.y, aim.x); bend = 0; boost = 1.8;
       } else {
-        const a = (-98 * Math.PI) / 180, step = (4.2 * Math.PI) / 180;
+        const a = (this.neckAng * Math.PI) / 180, step = (this.neckBend * Math.PI) / 180;
         ang0 = f > 0 ? a : Math.PI - a; bend = f > 0 ? step : -step;
       }
       const base = this.neck[0];
       let tx = base.x, ty = base.y, a = ang0, rx = 0, ry = 0;
-      const kBase = 260 * this.wobble * boost, kTip = 11 * this.wobble * boost;
+      const kBase = 260 * this.wobble * boost * this.neckStiff, kTip = 11 * this.wobble * boost * this.neckStiff;
       for (let i = 1; i <= n; i++) {
         a += bend; tx += Math.cos(a) * this.seg; ty += Math.sin(a) * this.seg;
         const t = i / n;

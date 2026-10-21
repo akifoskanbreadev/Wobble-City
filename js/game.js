@@ -88,6 +88,7 @@
   function gooseOpts() {
     const d = diff();
     return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
+      layout: SKINS.BY_ID[save.skin].shape || {}, jelly: SKINS.BY_ID[save.skin].jelly || null,
       shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: (SKINS.BY_ID[save.skin].shape || {}).leg || 1 };
   }
 
@@ -583,6 +584,33 @@
 
   // The goose. `cx` is any 2D context, `g` any object with the Goose drawing interface (so the store preview and
   // remote players can fake one), `equip` the worn clothes and `skin` a skin id (or object).
+  // jelly skins: translucent gradient + shine; the body outline follows the four soft body particles
+  function jellyFill(cx, sk, y0, y1) {
+    const jc = sk.jellyC || ['#ff5c7a', '#ffb3c1'];
+    const gr = cx.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, jc[1]); gr.addColorStop(1, jc[0]); return gr;
+  }
+  function jellyShine(cx) { cx.save(); cx.fillStyle = 'rgba(255,255,255,.5)'; cx.beginPath(); cx.ellipse(-12, -13, 15, 5, -0.2, 0, 7); cx.fill(); cx.fillStyle = 'rgba(255,255,255,.28)'; cx.beginPath(); cx.ellipse(18, -8, 5, 3, 0.4, 0, 7); cx.fill(); cx.restore(); }
+  function drawJellyBody(cx, g, sk, f) {
+    const P = g.body, c = g.center(), m = 10 + 4 * Math.max(0.6, ((sk.shape && sk.shape.h) || 1));
+    const pts = P.map((p) => { const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1; return [p.x + (dx / d) * m, p.y + (dy / d) * m]; });
+    // exaggerate the squish a little so it reads as jelly
+    const wob = Math.sin(clock * 5) * 0.4;
+    cx.save();
+    cx.beginPath();
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let st = mid(pts[3], pts[0]); cx.moveTo(st[0], st[1]);
+    for (let i = 0; i < 4; i++) { const q = pts[i], e = mid(pts[i], pts[(i + 1) % 4]); cx.quadraticCurveTo(q[0], q[1], e[0] + wob * 0, e[1]); }
+    cx.closePath();
+    const top = Math.min(...pts.map((p) => p[1])), bot = Math.max(...pts.map((p) => p[1])), jc = sk.jellyC || ['#ff5c7a', '#ffb3c1'];
+    const gr = cx.createLinearGradient(0, top, 0, bot); gr.addColorStop(0, jc[1]); gr.addColorStop(1, jc[0]);
+    cx.globalAlpha = 0.93; cx.fillStyle = gr; cx.fill(); cx.globalAlpha = 1;
+    cx.strokeStyle = INK; cx.lineWidth = 3; cx.stroke();
+    cx.clip();
+    cx.fillStyle = 'rgba(255,255,255,.45)'; const bx = (pts[0][0] + pts[1][0] + pts[2][0] + pts[3][0]) / 4, by = top + (bot - top) * 0.2;
+    cx.beginPath(); cx.ellipse(bx - 10 * f, by, 16, 5, 0, 0, 7); cx.fill();
+    cx.restore();
+  }
+
   function drawGoose(cx, g, equip, skin) {
     equip = equip || {};
     const sk = typeof skin === 'object' && skin ? skin : (SKINS.BY_ID[skin] || SKINS.BY_ID.goose);
@@ -643,10 +671,19 @@
     else { cx.beginPath(); cx.moveTo(-30, -8); cx.lineTo(-52, -20); cx.lineTo(-36, 6); cx.closePath(); cx.fill(); cx.stroke(); }
     const tailItem = it('tail');
     if (tailItem) { cx.save(); cx.translate(-34, -4); tint('tail', () => tailItem.draw(cx)); cx.restore(); }
-    cx.fillStyle = bodyC; cx.strokeStyle = INK; cx.lineWidth = 3;
-    cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.fill();
-    if (sk.bodyDeco) { cx.save(); cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.clip(); sk.bodyDeco(cx); cx.restore(); }
-    cx.beginPath(); cx.ellipse(0, 0, 38, 24, 0, 0, 7); cx.stroke();
+    const bodyPath = () => { cx.beginPath(); if (shp.rect) roundRect(cx, -38, -24, 76, 48, 9); else cx.ellipse(0, 0, 38, 24, 0, 0, 7); };
+    const jb = sk.jelly && g.body && g.body.length === 4;
+    if (jb) {
+      cx.restore();                                   // the jelly body is drawn straight from its four soft particles
+      drawJellyBody(cx, g, sk, f);
+      cx.save(); cx.translate(c.x, c.y); cx.rotate(ang); cx.scale(f * dsx, dsy);
+    } else {
+      cx.fillStyle = sk.jelly ? jellyFill(cx, sk, -24, 24) : bodyC; cx.strokeStyle = INK; cx.lineWidth = 3;
+      bodyPath(); cx.fill();
+      if (sk.bodyDeco) { cx.save(); bodyPath(); cx.clip(); sk.bodyDeco(cx); cx.restore(); }
+      bodyPath(); cx.stroke();
+      if (sk.jelly) jellyShine(cx);
+    }
     const backItem = it('back');
     if (backItem) tint('back', () => backItem.draw(cx));
     if (bodyItem && !bodyItem.back) tint('body', () => bodyItem.draw(cx));
@@ -708,18 +745,22 @@
   }
 
   // a stand-in goose for the store preview
-  function fakeGoose(t) {
+  function fakeGoose(t, skin) {
+    const sk = typeof skin === 'object' && skin ? skin : (SKINS.BY_ID[skin] || SKINS.BY_ID.goose), L = sk.shape || {};
+    const sw = L.w || 1, sh = L.h || 1, seg = 7 * (sk.neck || 1) * (L.neck || 1), lm = L.leg || 1, hf = L.hip || [-13 / 28, 13 / 28];
     const n = [];
-    let x = 24, y = -17, a = (-98 * Math.PI) / 180;
+    let x = (L.nx != null ? L.nx : 24) * sw, y = (L.ny != null ? L.ny : -17) * sh, a = ((L.ang != null ? L.ang : -98) * Math.PI) / 180;
+    const step = ((L.bend != null ? L.bend : 4.2) * Math.PI) / 180;
     n.push({ x, y });
     for (let i = 1; i <= NECK_SEGS; i++) {
-      a += (4.2 * Math.PI) / 180 + Math.sin(t * 2 + i * 0.35) * 0.012 * (i / NECK_SEGS) * 6;
-      x += Math.cos(a) * 7; y += Math.sin(a) * 7;
+      a += step + Math.sin(t * 2 + i * 0.35) * 0.012 * (i / NECK_SEGS) * 6;
+      x += Math.cos(a) * seg; y += Math.sin(a) * seg;
       n.push({ x, y });
     }
+    const hx = hf.map((q) => q * 28 * sw), hy = 8 * sh;
     return {
       facing: 1, flapT: 0, honkT: 0, neck: n, head: n[n.length - 1],
-      hips: [{ x: -13, y: 8 }, { x: 13, y: 8 }], feet: [{ x: -13, y: 38 }, { x: 13, y: 38 }],
+      hips: hx.map((q) => ({ x: q, y: hy })), feet: hx.map((q) => ({ x: q, y: hy + 30 * lm })),
       center: () => ({ x: 0, y: 0 }), axes: () => ({ ux: 1, uy: 0, vx: 0, vy: 1 }),
     };
   }
@@ -1112,10 +1153,10 @@
   function sizeStoreCanvas() { const d = Math.min(window.devicePixelRatio || 1, 2); storeCv.width = 260 * d; storeCv.height = 300 * d; sctx.setTransform(d, 0, 0, d, 0, 0); }
   sizeStoreCanvas();
 
-  const SKIN_ITEMS = SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, shape: !!k.shape }));
-  const STORE_CATS = [{ id: 'skin', name: 'Animals' }, { id: 'shapes', name: 'Shapes' }].concat(CATS);
+  const SKIN_ITEMS = SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, shape: !!k.shape && !k.jelly, jelly: !!k.jelly }));
+  const STORE_CATS = [{ id: 'skin', name: 'Animals' }, { id: 'shapes', name: 'Shapes' }, { id: 'jelly', name: 'Jelly' }].concat(CATS);
   const TINTS = [null, 30, 60, 120, 180, 210, 270, 300, 330, 'gray', 'dark', 'bright'];
-  const itemsFor = (cat) => (cat === 'skin' ? SKIN_ITEMS.filter((i) => !i.shape) : cat === 'shapes' ? SKIN_ITEMS.filter((i) => i.shape) : ITEMS.filter((i) => i.cat === cat)).slice().sort((a, b) => a.price - b.price);
+  const itemsFor = (cat) => (cat === 'skin' ? SKIN_ITEMS.filter((i) => !i.shape && !i.jelly) : cat === 'shapes' ? SKIN_ITEMS.filter((i) => i.shape) : cat === 'jelly' ? SKIN_ITEMS.filter((i) => i.jelly) : ITEMS.filter((i) => i.cat === cat)).slice().sort((a, b) => a.price - b.price);
   const storeItem = (id) => BY_ID[id] || SKIN_ITEMS.find((x) => x.id === id);
   const isOwned = (it) => it.cat === 'skin' ? !!save.skins[it.sid] : !!save.owned[it.id];
   const isWearing = (it) => it.cat === 'skin' ? save.skin === it.sid : save.equip[it.cat] === it.id;
@@ -1130,7 +1171,7 @@
     sctx.fillStyle = 'rgba(0,0,0,.12)'; sctx.beginPath(); sctx.ellipse(120, 262, 70, 9, 0, 0, 7); sctx.fill();
     sctx.save();
     sctx.translate(100, 235); sctx.scale(1.2, 1.2);
-    drawGoose(sctx, fakeGoose(clock), currentLook(), currentSkin());
+    drawGoose(sctx, fakeGoose(clock, currentSkin()), currentLook(), currentSkin());
     sctx.restore();
   }
 
@@ -1138,7 +1179,7 @@
     if (item.cat === 'skin') {
       const cv = document.createElement('canvas'); cv.width = cv.height = 96;
       const c = cv.getContext('2d'); c.translate(34, 72); c.scale(0.36, 0.36);
-      drawGoose(c, fakeGoose(0), {}, item.sid); return cv;
+      drawGoose(c, fakeGoose(0, item.sid), {}, item.sid); return cv;
     }
     const cv = document.createElement('canvas'); cv.width = cv.height = 96;
     const c = cv.getContext('2d'); c.scale(2, 2);
@@ -1210,7 +1251,7 @@
       b.addEventListener('click', () => { storeCat = cat.id; selectedItem = null; renderStore(); });
       tabs.appendChild(b);
     });
-    const isSkinTab = storeCat === 'skin' || storeCat === 'shapes';
+    const isSkinTab = storeCat === 'skin' || storeCat === 'shapes' || storeCat === 'jelly';
     // tools: random outfit, clear all, colour swatches for the worn item in this slot
     const tools = $('storeTools'); tools.innerHTML = '';
     const tb = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', () => { audio(); fn(); }); tools.appendChild(b); };
