@@ -41,7 +41,7 @@
       terrain: [{ pts: t.pts() }],
       water: [[1390, G - 6, 560, 200]],
       checkpoints: [[2000, G - 45]],
-      bread: [[360, G - 120], [640, G - 130], [1000, G - 170], [1250, G - 100], [1660, G - 40], [2150, G - 70], [2480, G - 150]],
+      bread: [[360, G - 120], [640, G - 130], [1000, G - 170], [1250, G - 200], [1660, G - 40], [2150, G - 70], [2480, G - 150]],
       egg: [2940, G - 28],
     });
   }
@@ -361,12 +361,12 @@
     for (let i = 0; i < n; i++) { c.lv.belts.push([x0 + 30 + i * seg, y, seg - 20, (i % 2 ? -1 : 1) * 135]); br(c, x0 + 30 + i * seg + seg / 2, y - 70); }
     c.x = x0 + W; c.lv.checkpoints.push([x0 + 30 + Math.floor(n / 2) * seg + 60, y - 50]);
   };
-  S.saws = (n) => (c) => {          // bobbing spinning blades; slip under when they rise
-    const p = cont(c), x0 = c.x; p.flat(240 + n * 260); sync(c, p);
+  S.saws = (n) => (c) => {          // spinning blades sweeping to and fro along the ground: hop over them
+    const p = cont(c), x0 = c.x; p.flat(260 + n * 360); sync(c, p);
     for (let i = 0; i < n; i++) {
-      const sx = x0 + 240 + i * 260;
-      c.lv.saws.push({ x: sx, y: c.y - 95, r: 30, ax: 0, ay: 60, per: 2.3 + (i % 3) * 0.45, ph: (i * 0.37) % 1 });
-      br(c, sx + 130, c.y - 70);
+      const sx = x0 + 330 + i * 360;
+      c.lv.saws.push({ x: sx, y: c.y - 27, r: 26, ax: 60, ay: 0, per: 3.2 + (i % 3) * 0.5, ph: (i * 0.37) % 1 });
+      br(c, sx, c.y - 150); br(c, sx + 180, c.y - 75);
     }
   };
   S.portals = (n) => (c) => {       // pits too wide to cross: hop through the portals instead
@@ -394,7 +394,7 @@
     c.lv.zones.push([x0 - 120, y - 1000, W + 240, 1400, 0, 0, 0.28, 'moon']);
     const tops = [0, 80, 30, 120, 50, 90];
     for (let i = 0; i * 380 + 150 < W; i++) { const top = y - tops[i % 6]; c.lv.solids.push([x0 + 80 + i * 380, top, 150, 24]); br(c, x0 + 155 + i * 380, top - 140); }
-    c.x = x0 + W; c.lv.checkpoints.push([x0 + Math.floor(W / 760) * 380 + 120, y - 60]);
+    c.x = x0 + W; { const ci = Math.max(0, Math.floor((W - 300) / 760)); c.lv.checkpoints.push([x0 + 80 + ci * 380 + 75, y - tops[ci % 6] - 45]); }
   };
   S.antigrav = (h) => (c) => {      // a column that floats you up to a high ledge
     const p = cont(c), x0 = c.x, y = c.y; p.flat(340); sync(c, p);
@@ -424,8 +424,8 @@
   };
   S.cave = (len) => (c) => {         // a low roof over a thorny floor: stay in the middle
     const p = cont(c), x0 = c.x, y = c.y; p.flat(len + 120); sync(c, p);
-    c.lv.solids.push([x0 + 60, y - 1000, len, 740]);                                     // roof, bottom at y - 260
-    for (let x = 220; x < len - 100; x += 300) { c.lv.hazards.push([x0 + x, y - 24, 110, 24]); c.lv.hazards.push([x0 + x + 150, y - 284, 90, 24]); }
+    c.lv.solids.push([x0 + 60, y - 1000, len, 660]);                                     // roof, bottom at y - 340
+    for (let x = 220; x < len - 100; x += 380) { c.lv.hazards.push([x0 + x, y - 24, 100, 24]); c.lv.hazards.push([x0 + x + 190, y - 364, 80, 24]); }
     for (let x = 200; x < len - 100; x += 300) br(c, x0 + x + 60, y - 130);
     quiet(c, x0 + 60, x0 + 60 + len);
   };

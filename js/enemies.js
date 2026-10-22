@@ -38,6 +38,9 @@
       }
       if (s) stretches.push(s);
     }
+    const rects = (level.solids || []).concat(level.crumble || [], level.belts || [], (level.gates || []).map((g) => g.box));
+    const blockedAt = (x, y, pad) => rects.some((a) => x > a[0] - pad && x < a[0] + a[2] + pad && y > a[1] - pad && y < a[1] + (a[3] || 26) + pad);
+    const flatPatrol = (x0, x1, y) => { const a = groundAt(level, x0), b = groundAt(level, x1); return a !== null && b !== null && Math.abs(a - y) < 8 && Math.abs(b - y) < 8 && !rects.some((r) => r[0] < x1 + 30 && r[0] + r[2] > x0 - 30 && r[1] < y && r[1] + (r[3] || 26) > y - 80); };
     const nearAny = (x, arr, d) => arr.some((a) => Math.abs(a[0] - x) < d);
     const inWater = (x) => (level.water || []).some((w) => x > w[0] - 40 && x < w[0] + w[2] + 40);
     const inHaz = (x) => (level.hazards || []).some((h) => x > h[0] - 60 && x < h[0] + h[2] + 60);
@@ -53,11 +56,12 @@
       const e0 = { kind: spiky ? 'urchin' : 'blob', cx: mid, y: s.y, amp: half, sp: 38 + R() * 22, ph: R() * 6, hue: Math.floor(R() * 360), theme };
       // specialised enemies take over some stretches, more of them the further you get
       const sp = Math.min(0.75, 0.22 + idx * 0.007 + (level.mega ? 0.12 : 0) + (level.weather ? 0.06 : 0));
+      if (!flatPatrol(mid - e0.amp, mid + e0.amp, s.y)) continue;
       if (!spiky && idx >= 5 && R2() < sp && !level.sea) {
         const q = R2();
-        if (q < 0.34) { e0.kind = 'charger'; e0.amp = Math.max(e0.amp, 85); e0.sp = 46; }
-        else if (q < 0.68) { e0.kind = 'hopper'; e0.sp = 46; e0.amp = Math.max(e0.amp, 70); }
-        else if (len >= 260) { e0.kind = 'turret'; e0.cx = s.x1 - 60; e0.dir = -1; e0.per = 3.4 - Math.min(1, idx / 130) * 0.7; e0.amp = 0; }
+        if (q < 0.34 && flatPatrol(mid - 85, mid + 85, s.y) && len >= 240) { e0.kind = 'charger'; e0.amp = Math.max(e0.amp, 85); e0.sp = 46; }
+        else if (q < 0.68 && flatPatrol(mid - 70, mid + 70, s.y)) { e0.kind = 'hopper'; e0.sp = 46; e0.amp = Math.max(e0.amp, 70); }
+        else if (len >= 260) { e0.kind = 'turret'; e0.cx = mid; e0.dir = -1; e0.per = 3.4 - Math.min(1, idx / 130) * 0.7; e0.amp = 0; }
       }
       list.push(e0);
     }
@@ -66,7 +70,7 @@
     for (let x = 1100 + R() * 400; x < xs - 400; x += 900 + R() * 700) {
       if (R() > dens) continue;
       const g = groundAt(level, x);
-      if (g === null || inWater(x)) continue;
+      if (g === null || inWater(x) || blockedAt(x, g - 130, 40) || blockedAt(x - 110, g - 130, 20) || blockedAt(x + 110, g - 130, 20)) continue;
       list.push({ kind: idx >= 8 && R2() < 0.45 ? 'diver' : 'bat', cx: x, y: g - 120 - R() * 50, amp: 110, sp: 1.1 + R() * 0.6, ph: R() * 6, hue: 0, theme });
     }
     for (const e of list) { e.id = list.indexOf(e); }

@@ -69,3 +69,12 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Weather & waves** (levels 104-115, open after level 33): wind gusts that blow your neck, rain slipperiness, snow, storms, and choppy water with waves.
 - **Mega Worlds** (levels 116-130, long levels in 5 new environments: sky islands, jungle ruins, crystal caverns, clockwork factory, outer space) with fans, crumbling platforms, conveyor belts, saw blades, portals, switch gates, low gravity and anti-gravity lifts. Some also have weather.
 - Clouds are now soft procedurally-painted cumulus in three parallax layers, tinted per environment.
+
+## Latest additions
+- **Levels:** 20 weather levels, 30 Mega levels, 10 completely underwater Deep Sea levels (163 total).
+- **Weather:** lightning (warning ring, then strike), hail, whiteout fog, stronger wind.
+- **Enemies:** charger, hopper, turret, diver, jellyfish, pufferfish, eel, shark.
+- **Bosses:** more HP, attack patterns, and they can only be hurt while tired or dazed.
+- **Skins:** layout shapes (Lovely Dog etc.), jelly soft-body skins, and Build-a-Goose (1000 each).
+  Build-a-Goose uses a built-in text generator, not a real AI model.
+- **Code `sync`:** match a secret word (5+ letters) on two devices that are online at once; saves merge peer-to-peer (PeerJS).
