@@ -77,18 +77,20 @@
   function seaLife(level, idx, dens, R) {
     const list = [], xs = level.egg ? level.egg[0] : 3000, floor = level.seaFloor || 520;
     let k = 0;
-    for (let x = 1000 + R() * 300; x < xs - 500; x += (780 - dens * 150) + R() * 420) {
+    const dn = level.seaDense || 1;
+    for (let x = 1000 + R() * 300; x < xs - 500; x += (780 - dens * 150) / dn + R() * 420 / dn) {
+      if ((level.noLife || []).some((r) => x > r[0] && x < r[1])) continue;
       if ((level.checkpoints || []).some((c) => Math.abs(c[0] - x) < 240)) continue;
       const g = groundAt(level, x); if (g === null) continue;
       const kind = ['jelly', 'puffer', 'eel', 'shark', 'jelly', 'puffer'][(k++ + Math.floor(R() * 3)) % 6];
       const e = { kind, cx: x, y: g - 190 - R() * 120, amp: 90, sp: 1.0 + R() * 0.5, ph: R() * 6, theme: 'ocean', hue: Math.floor(R() * 360) };
-      if (kind === 'shark') { e.amp = 420; e.sp = 1; e.y = g - 330; }
+      if (kind === 'shark') { e.amp = 420; e.sp = 1; e.y = g - 330; if ((level.noLife || []).some((r) => e.cx + e.amp > r[0] && e.cx - e.amp < r[1])) e.skip = true; }
       if (kind === 'eel') { e.amp = 160; e.sp = 0.9; }
       if (kind === 'puffer') { e.amp = 70; }
       list.push(e);
     }
-    list.forEach((e, i) => { e.id = i; });
-    return list;
+    const out = list.filter((e) => !e.skip); out.forEach((e, i) => { e.id = i; });
+    return out;
   }
 
   const tri = (u) => { u = ((u % 2) + 2) % 2; return u < 1 ? u * 2 - 1 : 3 - u * 2; };   // triangle wave -1..1

@@ -11,9 +11,9 @@
   const FLOOR = 520;
 
   const TYPES = {
-    farmer: { name: 'Angry Farmer', hp: 3, r: 60, speed: 85, throwEvery: 3.4, proj: 'fork', intro: 'The Angry Farmer wants his egg back! Stomp him or HONK in his face.' },
-    fox:    { name: 'Giant Fox', hp: 4, r: 64, speed: 120, dash: true, intro: 'A Giant Fox! Dodge his charge, then stomp or honk.' },
-    dragon: { name: 'Lava Dragon', hp: 5, r: 72, speed: 75, throwEvery: 2.4, proj: 'fire', intro: 'The Lava Dragon guards the final egg! Dodge the fireballs.' },
+    farmer: { name: 'Angry Farmer', hp: 6, r: 60, speed: 100, throwEvery: 2.2, proj: 'fork', pat: ['fork3', 'bale', 'slam', 'fork3', 'slam', 'bale'], intro: 'The Angry Farmer wants his egg back! Dodge his forks, hay bales and stomps. Hit him only when he is out of breath!' },
+    fox:    { name: 'Giant Fox', hp: 7, r: 64, speed: 135, dash: true, pat: ['dash', 'leap', 'dash', 'leap', 'dash2'], intro: 'A Giant Fox! Dodge his charge and pounce. When he is dizzy, stomp or honk!' },
+    dragon: { name: 'Lava Dragon', hp: 10, r: 72, speed: 95, throwEvery: 1.8, proj: 'fire', pat: ['fire', 'rain', 'fire2', 'rain', 'fire2', 'rain'], intro: 'The Lava Dragon guards the final egg! Dodge fireballs and the fire rain. Hit him when he is worn out!' },
   };
   const BOSS_LEVELS = { 9: 'farmer', 19: 'fox', 32: 'dragon' };
   const SPEED = { easy: 0.75, normal: 1, hard: 1.2, insane: 1.4, noodle: 1.4 };
@@ -39,71 +39,125 @@
 
   function create(spec, dKey) {
     const T = TYPES[spec.type];
-    const hp = Math.max(2, T.hp - (dKey === 'easy' ? 1 : 0));
-    const b = { spec, T, type: spec.type, hp, max: hp, mul: SPEED[dKey] || 1, proj: [] };
+    const hp = Math.max(3, T.hp - (dKey === 'easy' ? 2 : 0));
+    const b = { spec, T, type: spec.type, hp, max: hp, mul: SPEED[dKey] || 1, proj: [], dKey };
     reset(b);
     return b;
   }
   function reset(b) {
-    b.x = b.spec.x1 - 230; b.dir = -1; b.state = 'walk'; b.st = 0; b.inv = 0; b.atk = 2.2; b.t = 0;
-    b.dead = false; b.deadT = 0; b.proj.length = 0; b.dashDir = -1; b.vx = 0;
+    b.x = b.spec.x1 - 230; b.dir = -1; b.state = 'walk'; b.st = 0; b.inv = 0; b.atk = 2.4; b.t = 0; b.n = 0; b.pi = 0; b.jy = 0;
+    b.dead = false; b.deadT = 0; b.proj.length = 0; b.dashDir = -1; b.vx = 0; b.vuln = false; b.dashes = 0; b.tx = 0; b.fx = 0; b.pending = null;
   }
   const radius = (b) => b.T.r;
-  const centre = (b) => ({ x: b.x, y: b.spec.floor - b.T.r });
+  const centre = (b) => ({ x: b.x, y: b.spec.floor - b.T.r - (b.jy || 0) });
 
-  // Returns a list of events for the game: 'throw', 'dash', 'bonk', 'dead'.
+  // Attacks come in a fixed pattern. After every two attacks the boss gets TIRED for a few seconds:
+  // only then can a stomp or a honk hurt it. (Hits at any other time just bounce off.)
+  function startAttack(b, p, ev) {
+    const sp = b.spec, T = b.T, r = T.r, name = T.pat[b.pi % T.pat.length]; b.pi++; b.cur = name;
+    const toward = p.x < b.x ? -1 : 1; b.dir = toward;
+    const hx = b.x + b.dir * 50, hy = sp.floor - r * 1.6;
+    if (name === 'fork3') {
+      for (const k of [-0.55, 0, 0.55]) b.proj.push({ k: 'fork', x: hx, y: hy, vx: Math.max(-460, Math.min(460, (p.x - hx) / 1.05 + k * 220)), vy: -470 - k * 40, r: 16, a: 0 });
+      ev.push('throw'); b.state = 'recover'; b.st = 0.9;
+    } else if (name === 'bale') {
+      b.proj.push({ k: 'bale', x: b.x + b.dir * 80, y: sp.floor - 30, vx: b.dir * 330 * b.mul, vy: 0, r: 30, a: 0, spin: 0 }); ev.push('throw'); b.state = 'recover'; b.st = 1.1;
+    } else if (name === 'slam' || name === 'leap') {
+      b.state = 'crouch'; b.st = 0.85 / Math.min(1.4, b.mul); b.tx = Math.max(sp.x0 + r + 10, Math.min(sp.x1 - r - 10, p.x)); b.fx = b.x; ev.push('dash');
+    } else if (name === 'dash' || name === 'dash2') {
+      b.state = 'telegraph'; b.st = 0.9 / Math.min(1.4, b.mul); b.dashDir = toward; b.dashes = name === 'dash2' ? 2 : 1; ev.push('dash');
+    } else if (name === 'fire') {
+      b.proj.push({ k: 'fire', x: b.x + b.dir * 60, y: sp.floor - r * 1.2, vx: b.dir * 300 * b.mul, vy: 0, r: 20, a: 0 }); ev.push('throw'); b.state = 'recover'; b.st = 0.8;
+    } else if (name === 'fire2') {   // one low and one high fireball
+      b.proj.push({ k: 'fire', x: b.x + b.dir * 60, y: sp.floor - 40, vx: b.dir * 330 * b.mul, vy: 0, r: 20, a: 0 }); b.pending = { t: 0.55, k: 'fire', y: sp.floor - 190, dir: b.dir }; ev.push('throw'); b.state = 'recover'; b.st = 1.3;
+    } else if (name === 'rain') {
+      b.state = 'rainTele'; b.st = 1.0 / Math.min(1.4, b.mul); b.fx = p.x; ev.push('dash');
+    }
+  }
+  function endAttack(b, ev) {
+    b.n++;
+    const rage = 1 + (1 - b.hp / b.max) * 1.0;
+    if (b.n % 2 === 0) { b.state = 'tired'; b.st = Math.max(2.0, 3.0 - (rage - 1) * 0.8); b.vuln = true; b.jy = 0; ev.push('tired'); }
+    else { b.state = 'walk'; b.atk = Math.max(0.5, (b.T.throwEvery || 1.8) * 0.5 / (b.mul * rage)); b.vuln = false; }
+  }
+
+  // Returns a list of events for the game: 'throw', 'dash', 'bonk', 'tired'.
   function update(b, dt, p) {
     const ev = [];
     const sp = b.spec, T = b.T, r = T.r;
     const lo = sp.x0 + r + 10, hi = sp.x1 - r - 10;
     b.t += dt;
     b.inv = Math.max(0, b.inv - dt);
-    const rage = 1 + (1 - b.hp / b.max) * 0.6;
+    const rage = 1 + (1 - b.hp / b.max) * 1.0;
     if (b.dead) { b.deadT += dt; return ev; }
     const toward = p.x < b.x ? -1 : 1;
+    b.vuln = b.state === 'tired' || b.state === 'dazed';
+    if (b.pending) { b.pending.t -= dt; if (b.pending.t <= 0) { const q = b.pending; b.proj.push({ k: q.k, x: b.x + q.dir * 60, y: q.y, vx: q.dir * 330 * b.mul, vy: 0, r: 20, a: 0 }); b.pending = null; ev.push('throw'); } }
     if (b.state === 'hurt') {
       b.st -= dt; b.vx = 0;
-      if (b.st <= 0) b.state = 'walk';
+      if (b.st <= 0) { b.state = 'tired'; b.st = 1.0; b.vuln = true; }
+    } else if (b.state === 'tired') {
+      b.st -= dt; b.dir = toward;
+      if (b.st <= 0) { b.state = 'walk'; b.vuln = false; b.atk = Math.max(0.6, (T.throwEvery || 1.8) * 0.6 / (b.mul * rage)); }
     } else if (b.state === 'walk') {
       b.dir = toward;
       b.x += b.dir * T.speed * b.mul * rage * dt;
       b.atk -= dt;
-      if (b.atk <= 0) {
-        if (T.dash) { b.state = 'telegraph'; b.st = 0.9 / Math.min(1.4, b.mul); b.dashDir = toward; b.dir = toward; ev.push('dash'); }
-        else {
-          const hx = b.x + b.dir * 50, hy = sp.floor - r * 1.6;
-          if (T.proj === 'fork') b.proj.push({ k: 'fork', x: hx, y: hy, vx: Math.max(-430, Math.min(430, (p.x - hx) / 1.05)), vy: -470, r: 16, a: 0 });
-          else b.proj.push({ k: 'fire', x: b.x + b.dir * 60, y: sp.floor - r * 1.2, vx: b.dir * 300 * b.mul, vy: 0, r: 20, a: 0 });
-          ev.push('throw');
-          b.atk = (T.throwEvery / (b.mul * rage));
-        }
-      }
+      if (b.atk <= 0) startAttack(b, p, ev);
+    } else if (b.state === 'recover') {
+      b.dir = toward; b.st -= dt; if (b.st <= 0) endAttack(b, ev);
     } else if (b.state === 'telegraph') {
       b.st -= dt;
-      if (b.st <= 0) { b.state = 'dash'; b.vx = b.dashDir * 560 * b.mul; }
+      if (b.st <= 0) { b.state = 'dash'; b.vx = b.dashDir * 560 * b.mul * (1 + (rage - 1) * 0.3); }
     } else if (b.state === 'dash') {
       b.x += b.vx * dt;
-      if (b.x <= lo || b.x >= hi) { b.x = Math.max(lo, Math.min(hi, b.x)); b.state = 'dazed'; b.st = 1.5; b.vx = 0; ev.push('bonk'); }
+      if (b.x <= lo || b.x >= hi) {
+        b.x = Math.max(lo, Math.min(hi, b.x)); b.vx = 0; ev.push('bonk');
+        if (--b.dashes > 0) { b.state = 'telegraph'; b.st = 0.55; b.dashDir = -b.dashDir; b.dir = b.dashDir; }
+        else { b.state = 'dazed'; b.st = Math.max(1.8, 2.6 - (rage - 1) * 0.6); b.n++; }
+      }
     } else if (b.state === 'dazed') {
       b.st -= dt;
-      if (b.st <= 0) { b.state = 'walk'; b.atk = 2.2 / rage; }
+      if (b.st <= 0) { b.state = 'walk'; b.atk = 1.4 / rage; b.vuln = false; }
+    } else if (b.state === 'crouch') {      // slam / leap wind-up
+      b.st -= dt; b.dir = b.tx < b.x ? -1 : 1;
+      if (b.st <= 0) { b.state = 'air'; b.st = b.cur === 'leap' ? 0.85 : 0.75; b.air0 = b.st; b.fx = b.x; }
+    } else if (b.state === 'air') {
+      b.st -= dt; const u = 1 - b.st / b.air0;
+      b.jy = 4 * u * (1 - u) * (b.cur === 'leap' ? 190 : 230);
+      if (b.cur === 'leap') b.x = b.fx + (b.tx - b.fx) * Math.min(1, u);
+      else b.x = b.fx;
+      if (b.st <= 0) {
+        b.jy = 0; ev.push('bonk');
+        for (const d of [-1, 1]) b.proj.push({ k: 'wave', x: b.x + d * (r * 0.9), y: sp.floor - 18, vx: d * (b.cur === 'leap' ? 300 : 340) * b.mul, vy: 0, r: 18, a: 0 });
+        b.state = 'recover'; b.st = 0.5;
+      }
+    } else if (b.state === 'rainTele') {
+      b.st -= dt;
+      if (b.st <= 0) {
+        // seven fireballs fall; the gap in the middle of the pattern follows the player's position when it started
+        const base = Math.max(sp.x0 + 80, Math.min(sp.x1 - 80, b.fx)), n = 8, sp2 = 150, x0 = base - sp2 * (n / 2 - 0.5), gap = Math.floor(n / 2);
+        for (let i = 0; i < n; i++) { if (i === gap || i === gap - 1 && i % 2) continue; const x = x0 + i * sp2; if (x > sp.x0 + 30 && x < sp.x1 - 30) b.proj.push({ k: 'fire', x, y: sp.floor - 560 - (i % 3) * 70, vx: 0, vy: 360, r: 22, a: 0, rain: true }); }
+        ev.push('throw'); b.state = 'recover'; b.st = 1.2;
+      }
     }
+    if (b.state !== 'air' && b.state !== 'crouch') b.jy = b.jy || 0;
     b.x = Math.max(lo, Math.min(hi, b.x));
     for (let i = b.proj.length - 1; i >= 0; i--) {
       const q = b.proj[i];
-      q.a += dt; q.x += q.vx * dt; q.y += q.vy * dt;
+      q.a += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spin != null) q.spin += q.vx * dt / 30;
       if (q.k === 'fork') q.vy += 900 * dt;
-      if (q.y > sp.floor || q.x < sp.x0 || q.x > sp.x1 || q.a > 4) b.proj.splice(i, 1);
+      if (q.y > sp.floor + 10 || q.x < sp.x0 || q.x > sp.x1 || q.a > 4.5) b.proj.splice(i, 1);
     }
     return ev;
   }
 
   // Is the boss dangerous to touch right now? (Not while it is hurt or dying.)
-  const harmful = (b) => !b.dead && b.state !== 'hurt';
+  const harmful = (b) => !b.dead && b.state !== 'hurt' && b.state !== 'tired' && b.state !== 'dazed';
   // Hit it (a stomp or a honk). Returns 'dead', 'hit' or false (it was invulnerable).
   function hit(b) {
-    if (b.dead || b.inv > 0) return false;
-    b.hp -= 1; b.inv = 1.8; b.state = 'hurt'; b.st = 1.3; b.proj.length = 0;
+    if (b.dead || b.inv > 0 || !b.vuln) return false;
+    b.hp -= 1; b.inv = 1.8; b.state = 'hurt'; b.st = 1.2; b.proj.length = 0; b.pending = null;
     if (b.hp <= 0) { b.dead = true; b.deadT = 0; return 'dead'; }
     return 'hit';
   }
@@ -131,7 +185,7 @@
   function dizzy(c, t, y) { c.fillStyle = '#ffd23f'; for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; c.beginPath(); c.arc(Math.cos(a) * 34, y + Math.sin(a) * 9, 6, 0, 7); c.fill(); } }
 
   function drawFarmer(c, b, t) {
-    const walk = b.state === 'walk' ? Math.sin(t * 8) * 6 : 0, hurt = b.state === 'hurt';
+    const walk = b.state === 'walk' ? Math.sin(t * 8) * 6 : 0, hurt = b.state === 'hurt' || b.state === 'tired';
     fill(c, '#5b3d26'); c.beginPath(); c.ellipse(-16 + walk, -6, 18, 8, 0, 0, 7); c.ellipse(16 - walk, -6, 18, 8, 0, 0, 7); c.fill(); c.stroke();
     fill(c, '#2f5fb8'); c.beginPath(); c.rect(-26, -54, 20, 50); c.rect(6, -54, 20, 50); c.fill(); c.stroke();
     fill(c, '#d83a2e'); c.beginPath(); c.ellipse(0, -84, 40, 38, 0, 0, 7); c.fill(); c.stroke();
@@ -147,7 +201,7 @@
     if (hurt) dizzy(c, t, -170);
   }
   function drawFox(c, b, t) {
-    const tele = b.state === 'telegraph', dash = b.state === 'dash', dazed = b.state === 'dazed' || b.state === 'hurt';
+    const tele = b.state === 'telegraph', dash = b.state === 'dash', dazed = b.state === 'dazed' || b.state === 'hurt' || b.state === 'tired';
     const sh = tele ? Math.sin(t * 60) * 3 : 0, low = tele ? 14 : 0;
     c.translate(sh, low);
     c.strokeStyle = INK;
@@ -169,7 +223,7 @@
     c.translate(-sh, -low);
   }
   function drawDragon(c, b, t) {
-    const hurt = b.state === 'hurt', f = Math.sin(t * 7);
+    const hurt = b.state === 'hurt' || b.state === 'tired', f = Math.sin(t * 7);
     fill(c, '#2f8f3c'); c.beginPath(); c.moveTo(-70, -50); c.quadraticCurveTo(-140, -50 + f * 10, -150, -100); c.quadraticCurveTo(-110, -70, -60, -30); c.closePath(); c.fill(); c.stroke();
     fill(c, '#1f6a2d'); c.beginPath(); c.moveTo(-30, -100); c.lineTo(-70, -170 + f * 8); c.lineTo(-90, -130); c.lineTo(-110, -150 + f * 8); c.lineTo(-100, -90); c.closePath(); c.fill(); c.stroke();    // wing
     fill(c, '#2f8f3c'); for (const lx of [-30, 24]) { c.beginPath(); c.rect(lx - 14, -44, 28, 44); c.fill(); c.stroke(); c.beginPath(); c.ellipse(lx + 8, -4, 20, 8, 0, 0, 7); c.fill(); c.stroke(); }
@@ -179,12 +233,14 @@
     fill(c, '#3aa84a'); c.beginPath(); c.ellipse(60, -130, 38, 30, 0, 0, 7); c.fill(); c.stroke(); c.beginPath(); c.ellipse(96, -122, 26, 18, 0, 0, 7); c.fill(); c.stroke();
     fill(c, '#fff'); for (const hx of [-8, 14]) { c.beginPath(); c.moveTo(60 + hx, -156); c.lineTo(66 + hx, -186); c.lineTo(76 + hx, -154); c.closePath(); c.fill(); c.stroke(); }
     eyeAngry(c, 62, -136, 0.9);
-    if (!hurt && b.atk < 0.6) { const g = c.createRadialGradient(116, -122, 2, 116, -122, 40); g.addColorStop(0, 'rgba(255,200,60,.95)'); g.addColorStop(1, 'rgba(255,80,20,0)'); c.fillStyle = g; c.beginPath(); c.arc(116, -122, 40, 0, 7); c.fill(); }
+    if (!hurt && (b.state === 'rainTele' || b.cur && b.state === 'walk' && b.atk < 0.6)) { const g = c.createRadialGradient(116, -122, 2, 116, -122, 40); g.addColorStop(0, 'rgba(255,200,60,.95)'); g.addColorStop(1, 'rgba(255,80,20,0)'); c.fillStyle = g; c.beginPath(); c.arc(116, -122, 40, 0, 7); c.fill(); }
     if (hurt) dizzy(c, t, -196);
   }
   function drawProj(c, q, t) {
     c.save(); c.translate(q.x, q.y); c.strokeStyle = INK; c.lineWidth = 2.5;
     if (q.k === 'fork') { c.rotate(Math.atan2(q.vy, q.vx)); c.strokeStyle = '#7a5230'; c.lineWidth = 5; c.beginPath(); c.moveTo(-24, 0); c.lineTo(14, 0); c.stroke(); c.strokeStyle = '#bbb'; c.lineWidth = 3; c.beginPath(); c.moveTo(10, -8); c.lineTo(28, -8); c.moveTo(10, 0); c.lineTo(30, 0); c.moveTo(10, 8); c.lineTo(28, 8); c.moveTo(10, -8); c.lineTo(10, 8); c.stroke(); }
+    else if (q.k === 'bale') { c.rotate(q.spin || 0); c.fillStyle = '#e8c15a'; c.beginPath(); c.arc(0, 0, 30, 0, 7); c.fill(); c.stroke(); c.strokeStyle = '#a07a22'; c.lineWidth = 2; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(-26, i * 10); c.lineTo(26, i * 10 + 3); c.stroke(); } c.strokeStyle = '#7a5a1a'; c.lineWidth = 4; c.beginPath(); c.arc(0, 0, 30, 0, 7); c.stroke(); c.beginPath(); c.moveTo(-30, 0); c.lineTo(30, 0); c.stroke(); }
+    else if (q.k === 'wave') { const g = c.createLinearGradient(0, -22, 0, 18); g.addColorStop(0, 'rgba(255,230,140,.95)'); g.addColorStop(1, 'rgba(255,140,40,.6)'); c.fillStyle = g; c.beginPath(); c.moveTo(-8, 18); c.lineTo(Math.sign(q.vx) * 10, -22); c.lineTo(Math.sign(q.vx) * 24, 18); c.closePath(); c.fill(); c.stroke(); }
     else { const g = c.createRadialGradient(0, 0, 2, 0, 0, 26); g.addColorStop(0, '#fff2a8'); g.addColorStop(0.5, '#ff9a2e'); g.addColorStop(1, 'rgba(230,50,20,0)'); c.fillStyle = g; c.beginPath(); c.arc(0, 0, 26 + Math.sin(t * 20) * 3, 0, 7); c.fill(); }
     c.restore();
   }
@@ -195,12 +251,14 @@
     c.fillStyle = 'rgba(0,0,0,.2)'; c.beginPath(); c.ellipse(b.x, sp.floor + 2, b.T.r * 1.1, 8, 0, 0, 7); c.fill();
     for (const q of b.proj) drawProj(c, q, t);
     if (!b.dead || b.deadT < 1.4) {
-      c.save(); c.translate(b.x, sp.floor);
+      c.save(); c.translate(b.x, sp.floor - (b.jy || 0));
       if (b.dead) { c.globalAlpha = Math.max(0, 1 - b.deadT / 1.4); c.rotate(b.dir * b.deadT * 0.8); }
       else if (b.inv > 0 && Math.floor(b.inv * 12) % 2) c.globalAlpha = 0.45;
       c.scale(b.dir, 1);
       (b.type === 'farmer' ? drawFarmer : b.type === 'fox' ? drawFox : drawDragon)(c, b, t);
       c.restore();
+      if (b.state === 'crouch' || b.state === 'rainTele' || b.state === 'telegraph') { c.save(); c.font = '900 44px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ff2a2a'; c.strokeStyle = '#fff'; c.lineWidth = 5; const wy = sp.floor - b.T.r * 2 - 110 + Math.sin(t * 20) * 3; c.strokeText('!', b.x, wy); c.fillText('!', b.x, wy); if (b.state === 'rainTele') { c.fillStyle = 'rgba(255,80,20,.18)'; c.fillRect(sp.x0, sp.floor - 700, sp.x1 - sp.x0, 700); } c.restore(); }
+      if (b.vuln && !b.dead) { c.save(); c.font = '800 15px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ffd23f'; c.strokeStyle = INK; c.lineWidth = 4; const wy = sp.floor - b.T.r * 2 - 98; c.strokeText('★ HIT HIM NOW ★', b.x, wy); c.fillText('★ HIT HIM NOW ★', b.x, wy); c.restore(); }
       if (!b.dead) {   // name and hearts
         c.font = '800 16px system-ui, sans-serif'; c.textAlign = 'center'; c.fillStyle = INK; c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 4;
         const label = b.T.name + '  ' + '❤'.repeat(b.hp) + '🖤'.repeat(b.max - b.hp), ty = sp.floor - b.T.r * 2 - 70;

@@ -405,6 +405,52 @@
     c.x = x0 + 670; c.y = y - h; brk(c); low(c, y + 400);
   };
 
+  // ---------------------------------------------------------------------------- Deep Sea sections (the whole level is under water; see composeSea)
+  const quiet = (c, x0, x1) => { (c.lv.noLife = c.lv.noLife || []).push([x0 - 160, x1 + 160]); };
+  S.slalom = (n) => (c) => {        // pillars rising from the floor and hanging from the roof: weave over and under
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(150 + n * 340 + 100); sync(c, p);
+    for (let i = 0; i < n; i++) {
+      const px = x0 + 170 + i * 340;
+      if (i % 2 === 0) { c.lv.solids.push([px, y - 220, 90, 520]); br(c, px + 45, y - 300); }
+      else { c.lv.solids.push([px, y - 1000, 90, 700]); br(c, px + 45, y - 110); }
+    }
+    quiet(c, x0 + 170, x0 + 170 + n * 340);
+  };
+  S.current = (len, dir) => (c) => {   // a river in the sea: with it you fly, against it you swim hard
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(len); sync(c, p);
+    c.lv.zones.push([x0, y - 560, len, 620, dir * 150, 0, 1, 'current']);
+    for (let i = 0; i < 2; i++) c.lv.hazards.push([x0 + len * (0.3 + i * 0.35), y - 24, 120, 24]);
+    br(c, x0 + len * 0.25, y - 150); br(c, x0 + len * 0.5, y - 260); br(c, x0 + len * 0.75, y - 150);
+  };
+  S.cave = (len) => (c) => {         // a low roof over a thorny floor: stay in the middle
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(len + 120); sync(c, p);
+    c.lv.solids.push([x0 + 60, y - 1000, len, 740]);                                     // roof, bottom at y - 260
+    for (let x = 220; x < len - 100; x += 300) { c.lv.hazards.push([x0 + x, y - 24, 110, 24]); c.lv.hazards.push([x0 + x + 150, y - 284, 90, 24]); }
+    for (let x = 200; x < len - 100; x += 300) br(c, x0 + x + 60, y - 130);
+    quiet(c, x0 + 60, x0 + 60 + len);
+  };
+  S.trench = (d) => (c) => {         // the floor drops away into a thorny trench; follow the up-current back out
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(60).step(240, d).flat(520).step(240, -d).flat(60); sync(c, p);
+    c.lv.hazards.push([x0 + 360, y + d - 24, 140, 24]); c.lv.hazards.push([x0 + 620, y + d - 24, 110, 24]);
+    c.lv.zones.push([x0 + 560, y - 200, 340, d + 280, 0, -260, 1, 'current']);
+    br(c, x0 + 250, y + d * 0.45); br(c, x0 + 480, y + d - 150); br(c, x0 + 760, y + d * 0.4);
+    low(c, y + d + 100); quiet(c, x0 + 150, x0 + 900);
+  };
+  function composeSea(name, hint, secs, o) {
+    o = o || {};
+    const lv = { name, hint, theme: 'ocean', sea: true, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null, crumble: [], belts: [], zones: [], saws: [], portals: [], gates: [], dark: !!o.dark, seaDense: o.dense || 1 };
+    const c = { x: -400, y: G, p: null, low: G, lv };
+    S.flat(700)(c);
+    secs.forEach((f, i) => { f(c); if (i < secs.length - 1) { S.flat(170)(c); lv.checkpoints.push([c.x - 70, c.y - 45]); } });
+    S.flat(260)(c); lv.egg = [c.x - 120, c.y - 28];
+    lv.deathY = c.low + 650;
+    const W = c.x + 1400;
+    lv.water.push([-700, -700, W, c.low + 1400]);                  // the whole level is under water
+    lv.solids.push([-700, -1000, W, 300]);                           // a roof far above (out of sight) so you can't escape upwards
+    lv.solids.push([-700, -1000, 300, c.low + 1800]);                // a wall at the start
+    return lv;
+  }
+
   function compose(name, hint, theme, secs) {
     const lv = { name, hint, theme, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null, crumble: [], belts: [], zones: [], saws: [], portals: [], gates: [] };
     const c = { x: -400, y: G, p: null, low: G, lv };
@@ -526,12 +572,21 @@
   W('Tidal Tumble', 'Big swells over a long swim.', 'sunset', { waves: 7, waveK: 300 }, [s.pond(500), s.walls(3, 110), s.stones(6), s.pond(500)]);
   W('Gale Gap', 'Thorn gaps and a howling wind. Time your hops.', 'desert', { wind: 520, per: 6 }, [s.gap(3, 90), s.hills(2, 70), s.gap(4, 110)]);
   W('Slip and Slide', 'Ice, a crosswind and a long skate.', 'snow', { wind: 300, per: 8 }, [s.ice(500, 280), s.hills(2, 60), s.ice(600, 320)]);
-  W('Thunder Climb', 'Rain, wind and a tall tower.', 'night', { rain: true, wind: 350, per: 7, storm: true }, [s.climb(4, 85), s.walls(3, 110), s.tower(6)]);
-  W('Stormy Seas', 'Rain, swells and stepping stones. Hold on.', 'night', { rain: true, waves: 8, waveK: 380, storm: true }, [s.stones(8), s.pond(500), s.stones(6)]);
-  W('Blizzard Run', 'Snow, gusts and ice, all at once.', 'snow', { snow: true, wind: 450, per: 6 }, [s.ice(700), s.walls(3, 100), s.ice(600, 300)]);
-  W('Hurricane Tower', 'A mighty wind, then a climb.', 'sunset', { wind: 650, per: 6 }, [s.climb(4, 85), s.walls(3, 110), s.tower(5)]);
-  W('Storm Chaser', 'Rain, wind and waves, then a floating finish.', 'night', { rain: true, wind: 420, per: 6, waves: 6, waveK: 300, storm: true }, [s.pond(400), s.gap(3, 100), s.movers(3), s.tower(6)]);
-  W('The Great Tempest', 'Every kind of weather, one big finale.', 'lava', { rain: true, wind: 560, per: 5.5, waves: 8, waveK: 380, storm: true }, [s.hills(3, 90), s.pond(500), s.ice(500, 280), s.gorge(), s.movers(4, true), s.tower(7)]);
+  W('Thunder Climb', 'Rain, wind and lightning. Run from the yellow ring!', 'night', { rain: true, wind: 350, per: 7, storm: true, lightning: 9 }, [s.climb(4, 85), s.walls(3, 110), s.tower(6)]);
+  W('Stormy Seas', 'Rain, swells and stepping stones. Hold on.', 'night', { rain: true, waves: 8, waveK: 380, storm: true, lightning: 10 }, [s.stones(8), s.pond(500), s.stones(6)]);
+  W('Blizzard Run', 'A whiteout! You can only see near yourself. Snow, gusts and ice.', 'snow', { snow: true, wind: 450, per: 6, whiteout: true }, [s.ice(700), s.walls(3, 100), s.ice(600, 300)]);
+  W('Hurricane Tower', 'A mighty wind, then a climb.', 'sunset', { wind: 700, per: 5.5 }, [s.climb(4, 85), s.walls(3, 110), s.tower(5)]);
+  W('Storm Chaser', 'Rain, wind and waves, then a floating finish.', 'night', { rain: true, wind: 420, per: 6, waves: 6, waveK: 300, storm: true, lightning: 8 }, [s.pond(400), s.gap(3, 100), s.movers(3), s.tower(6)]);
+  W('The Great Tempest', 'Every kind of weather, one big finale.', 'lava', { rain: true, wind: 600, per: 5.5, waves: 8, waveK: 380, storm: true, lightning: 7, hail: true }, [s.hills(3, 90), s.pond(500), s.ice(500, 280), s.gorge(), s.movers(4, true), s.tower(7)]);
+
+  W('Hailstorm Hill', 'Hailstones fall from the sky! Look up and dodge them.', 'meadow', { rain: true, storm: true, hail: true }, [s.hills(4, 90), s.walls(3, 100), s.stones(5), s.hills(2, 70)]);
+  W('Lightning Rod', 'Lightning picks a spot near you. Leave the ring before it strikes.', 'night', { rain: true, storm: true, lightning: 6.5, wind: 300, per: 8 }, [s.hills(3, 80), s.gap(3, 110), s.walls(3, 110), s.hills(2, 70)]);
+  W('Whiteout Pass', 'A blizzard so thick you can barely see. Follow the ice.', 'snow', { snow: true, whiteout: true, wind: 420, per: 6 }, [s.hills(3, 70), s.ice(600, 300), s.gap(3, 100), s.ice(500)]);
+  W('Typhoon Bay', 'Huge waves, wind and lightning over the water.', 'sunset', { rain: true, storm: true, waves: 10, waveK: 420, wind: 450, per: 6, lightning: 8 }, [s.pond(500), s.stones(6), s.pond(450), s.walls(3, 100)]);
+  W('Frozen Barrage', 'Hail and a bitter wind over slippery ice.', 'snow', { snow: true, hail: true, wind: 480, per: 6 }, [s.ice(600, 280), s.walls(3, 100), s.ice(700), s.climb(3, 80)]);
+  W('Dust Devil', 'A fierce desert gale: hop the thorn gaps between the gusts.', 'desert', { wind: 700, per: 4.5 }, [s.hills(3, 80), s.gap(4, 120), s.walls(3, 110), s.gap(4, 130)]);
+  W('Cyclone Summit', 'Wind, lightning and hail on the mountain top.', 'lava', { storm: true, wind: 650, per: 5, lightning: 7.5, hail: true }, [s.climb(4, 85), s.walls(3, 110), s.hills(2, 80), s.tower(6)]);
+  W('Apocalypse Gale', 'EVERYTHING: wind, waves, hail, lightning and rain. Good luck.', 'night', { rain: true, storm: true, wind: 700, per: 5, waves: 9, waveK: 400, lightning: 6, hail: true }, [s.hills(3, 90), s.pond(500), s.gap(3, 110), s.stones(6), s.movers(3), s.tower(6)]);
 
 
   // ------------------------------------------------------------------ bonus x3: MEGA WORLDS (indices tier3+): long levels, new mechanics, new environments
@@ -557,6 +612,37 @@
   M('Moon Walk', 'Low gravity! Jump much further. Then float up the pink column.', 'space', null, [s.lowgrav(1100), s.antigrav(420), s.lowgrav(1400), s.gap(4, 140), s.tower(6)]);
   M('Star Station', 'Low gravity, portals and anti-gravity lifts.', 'space', null, [s.lowgrav(1000), s.portals(3), s.antigrav(460), s.saws(4), s.belts(4), s.gates(), s.lowgrav(1300), s.tower(7)]);
   M('Event Horizon', 'The final mega level: everything, in space, in a storm of cosmic wind.', 'space', { wind: 500, per: 6 }, [s.antigrav(380), s.lowgrav(1200), s.portals(4), s.crumble(8), s.saws(6), s.belts(5), s.fans(4), s.gates(), s.antigrav(500), s.movers(5, true), s.tower(8)]);
+
+  // world 6-10: second lap, harder and with storms
+  M('Zephyr Heights', 'High winds up in the clouds: fans, crumbling paths and spinning blades.', 'sky', { wind: 480, per: 6 }, [s.fans(3), s.crumble(6), s.saws(4), s.movers(4, true), s.fans(3), s.crumble(8), s.tower(7)]);
+  M('Aurora Reach', 'A calm night above the clouds, but every platform falls.', 'sky', null, [s.crumble(7), s.fans(2), s.crumble(8), s.antigrav(420), s.saws(4), s.crumble(8), s.tower(8)]);
+  M('Skyfall', 'Lightning and gales over the sky islands.', 'sky', { rain: true, wind: 450, per: 6, storm: true, lightning: 9 }, [s.fans(4), s.crumble(7), s.saws(5), s.fans(3), s.movers(5, true), s.crumble(8), s.tower(8)]);
+  M('Canopy Crossing', 'Rope-bridge blades, a river swim and a locked gate.', 'jungle', null, [s.hills(3, 90), s.saws(4), s.pond(500), s.gates(), s.crumble(7), s.saws(5), s.stones(7), s.tower(7)]);
+  M('Poison Pools', 'Rough water and blades in the deep jungle.', 'jungle', { rain: true, waves: 7, waveK: 320, storm: true }, [s.pond(500), s.saws(4), s.stones(8), s.gates(), s.pond(500), s.crumble(7), s.saws(4), s.tower(7)]);
+  M('Jaguar Gate', 'Three gates, many blades, and crumbling bridges between them.', 'jungle', null, [s.gates(), s.crumble(7), s.saws(5), s.gates(), s.movers(5, true), s.walls(4, 120), s.gates(), s.tower(8)]);
+  M('Echo Chambers', 'Portals, wide pits and an icy wind.', 'cavern', { wind: 400, per: 7 }, [s.portals(3), s.crumble(6), s.saws(4), s.portals(3), s.gap(5, 140), s.gates(), s.tower(7)]);
+  M('Prism Pass', 'Portals and conveyor belts through glittering rock.', 'cavern', null, [s.portals(4), s.belts(5), s.gates(), s.saws(5), s.portals(3), s.movers(5, true), s.tower(8)]);
+  M('Geode Gauntlet', 'Everything the caves have: portals, blades, gates and a blizzard.', 'cavern', { snow: true, wind: 480, per: 6, whiteout: true }, [s.ice(700), s.portals(3), s.gates(), s.saws(5), s.crumble(8), s.portals(4), s.ice(600, 300), s.tower(8)]);
+  M('Boiler Room', 'Fast belts and bobbing blades over thorns.', 'factory', null, [s.belts(6), s.saws(5), s.gates(), s.belts(6), s.crumble(7), s.saws(5), s.belts(5), s.tower(7)]);
+  M('Assembly Line', 'Belts, gates and fan lifts. Mind the gaps.', 'factory', null, [s.belts(5), s.fans(3), s.gates(), s.belts(7), s.movers(5, true), s.saws(6), s.fans(3), s.tower(8)]);
+  M('Overclocked', 'A storm on the factory roof. Everything is faster and slipperier.', 'factory', { rain: true, wind: 560, per: 5.5, storm: true, lightning: 8 }, [s.belts(7), s.saws(6), s.fans(3), s.belts(6), s.gates(), s.crumble(8), s.saws(5), s.tower(8)]);
+  M('Asteroid Alley', 'Low gravity, anti-gravity columns and blades in orbit.', 'space', null, [s.lowgrav(1200), s.antigrav(460), s.saws(5), s.lowgrav(1500), s.portals(3), s.antigrav(500), s.tower(7)]);
+  M('Nebula Run', 'Gravity games with belts, gates and solar wind.', 'space', { wind: 520, per: 6 }, [s.lowgrav(1100), s.belts(5), s.antigrav(480), s.gates(), s.crumble(8), s.lowgrav(1400), s.portals(4), s.tower(8)]);
+  M('Big Bang', 'The very last Mega level. Everything, in space, in a cosmic storm.', 'space', { wind: 560, per: 5.5, storm: true, lightning: 8, hail: true }, [s.antigrav(420), s.lowgrav(1300), s.portals(4), s.crumble(9), s.saws(6), s.belts(6), s.fans(4), s.gates(), s.antigrav(520), s.movers(5, true), s.saws(5), s.tower(8)]);
+
+  // ------------------------------------------------------------------ bonus x4: DEEP SEA (completely underwater)
+  LEVELS.sea = LEVELS.length;
+  const D2 = (name, hint, secs, o) => { const lv = composeSea(name, hint, secs, o); LEVELS.push(lv); };
+  D2('Shallow Reef', 'The whole level is underwater! Tap FLAP to swim up; you sink slowly.', [S.slalom(3), S.current(700, 1), S.slalom(3)]);
+  D2('Kelp Forest', 'Weave between the rocks. Jellyfish drift about: swim around them!', [S.slalom(4), S.flat(500), S.current(800, 1), S.cave(700)]);
+  D2('Sandy Drift', 'Ride the current forwards, then fight it backwards.', [S.current(900, 1), S.slalom(4), S.current(900, -1), S.flat(400)]);
+  D2('Jellyfish Fields', 'Dozens of jellyfish. They sting! Keep your distance.', [S.flat(1200), S.slalom(3), S.flat(1100), S.current(700, 1)], { dense: 1.5 });
+  D2('Sunken Ship', 'A low cave, a deep trench, then more rocks.', [S.cave(900), S.trench(300), S.slalom(5), S.cave(800)]);
+  D2('Whirl Run', 'Currents both ways, with spinning propellers.', [S.current(1000, -1), S.saws(3), S.current(1000, 1), S.slalom(5)]);
+  D2('Shark Alley', 'Sharks sweep the open water. Watch for their fins, then swim behind them.', [S.flat(1500), S.cave(900), S.slalom(5), S.flat(1100)], { dense: 1.4 });
+  D2('Midnight Zone', 'No light down here except your lantern.', [S.slalom(4), S.cave(800), S.current(900, 1), S.trench(350), S.slalom(4)], { dark: true });
+  D2('Coral Gates', 'Find the button to open each gate, between the propellers.', [S.gates(), S.slalom(5), S.saws(4), S.cave(900), S.gates()]);
+  D2('The Abyss', 'The deepest, darkest level. Everything lives here.', [S.cave(900), S.slalom(6), S.current(1000, -1), S.saws(4), S.trench(400), S.cave(1000), S.slalom(5)], { dark: true, dense: 1.3 });
 
   // ------------------------------------------------------------------ dedicated multiplayer race tracks
   const RACE = [];

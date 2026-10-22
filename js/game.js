@@ -59,8 +59,15 @@
     if (!item) delete save.equip[k]; else if (item.cat !== k) { delete save.equip[k]; if (!save.equip[item.cat]) save.equip[item.cat] = item.id; }
   }
   save.skins.goose = true;
+  if (!save.lvv) {   // the weather tier grew from 12 to 20 levels, so Mega levels moved 8 places: move their progress too
+    save.lvv = 2;
+    for (const key of ['done', 'perfect', 'best', 'bestTime']) {
+      const o = save[key]; if (!o || typeof o !== 'object') continue;
+      const n = {}; for (const k of Object.keys(o)) { const i = +k; n[i >= 115 && i < 130 ? i + 8 : k] = o[k]; } save[key] = n;
+    }
+  }
   save.unlocked = Math.max(1, Math.min(LEVELS.length, save.unlocked | 0));
-  function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
+  function persist() { save.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
   if (save.mg) { save.cheats.lol = true; save.mg = false; }   // older saves: the minigame code is now a normal, removable code
   const mgUnlocked = () => !!(has('lol') || save.allDone);
   let diffOverride = null;                      // multiplayer: both players use the host's difficulty
@@ -81,7 +88,7 @@
   const levelOpen = (i) => {
     if (has('levels')) return true;
     if (i < (LEVELS.weather || LEVELS.length)) return i < save.unlocked;
-    const start = i >= tier3() ? tier3() : LEVELS.weather;      // the two bonus-bonus tiers open once the main 33 are done, one level at a time
+    const start = i >= (LEVELS.sea || 1e9) ? LEVELS.sea : i >= tier3() ? tier3() : LEVELS.weather;      // the two bonus-bonus tiers open once the main 33 are done, one level at a time
     return !!save.allDone && (i === start || !!(save.done && save.done[i - 1]));
   };
   const rich = () => has('money');
@@ -344,11 +351,12 @@
   function bossHurt(res) {
     if (res === 'dead') { save.bread += 25 * diff().mult; persist(); snd.egg(); toast('🏆 ' + boss.T.name + ' defeated! The egg is free! +' + (25 * diff().mult) + ' 🍞', 3.5); }
     else if (res === 'hit') { snd.boing(); toast('Direct hit! ' + boss.hp + ' to go', 1.2); }
+    else if (res === false && !boss.dead && boss.inv <= 0 && levelClock - (boss.lastWarn || -9) > 3) { boss.lastWarn = levelClock; snd.no(); toast('Too alert! Wait until he is out of breath (★), then hit him.', 2.2); }
   }
   function bossTick() {
     if (!boss || bossPhase !== 'fight' || state !== 'play') return;
     const c = goose.center(), parts = goose.body.concat(goose.feet);
-    for (const e of BOSS.update(boss, STEP, { x: c.x, y: c.y })) { if (e === 'bonk') snd.boing(); else if (e === 'dash') snd.no(); else snd.flap(); }
+    for (const e of BOSS.update(boss, STEP, { x: c.x, y: c.y })) { if (e === 'bonk') snd.boing(); else if (e === 'dash') snd.no(); else if (e === 'tired') snd.tick(); else snd.flap(); }
     if (boss.dead) return;
     if (BOSS.touches(boss, parts)) {
       const bc = BOSS.centre(boss), above = c.y < bc.y - boss.T.r * 0.1 && lastVy > 40;
@@ -467,6 +475,7 @@
     cavern: { top: '#1b1236', bot: '#5a3a8a', cloud: 'rgba(190,150,255,.2)', h1: '#3b2a66', h2: '#2a1d4d', grass: '#8a5ad6', grass2: '#b58aff', d1: '#4d3a78', d2: '#271c47', stars: true },
     factory:{ top: '#8f98a3', bot: '#e6dccb', cloud: 'rgba(110,110,110,.5)', h1: '#8a8f96', h2: '#6e737a', grass: '#8a9099', grass2: '#b4bac2', d1: '#6c5f55', d2: '#3e3733' },
     space:  { top: '#04020d', bot: '#2a1a5a', cloud: 'rgba(160,140,255,.15)', h1: '#3a2f66', h2: '#241d48', grass: '#9aa0b8', grass2: '#c4c9de', d1: '#5b5d78', d2: '#2c2d44', stars: true, dense: true },
+    ocean:  { top: '#2b97d6', bot: '#0a3566', cloud: 'rgba(0,0,0,0)', h1: '#1a6aa6', h2: '#104f86', grass: '#2fa6a0', grass2: '#58d0b8', d1: '#cdb27a', d2: '#7a6a4a' },
     lava:   { top: '#3a0f14', bot: '#a8321c', cloud: 'rgba(255,150,100,.3)', h1: '#6e2018', h2: '#4a1612', grass: '#d9522b', grass2: '#ff8a4d', d1: '#4a2a28', d2: '#2a1514', stars: true },
   };
   let th = THEMES.meadow;
@@ -476,9 +485,15 @@
     g.addColorStop(0, th.top); g.addColorStop(1, th.bot);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (th.stars) { ctx.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < (th.dense ? 130 : 46); i++) ctx.fillRect(((i * 197 + 40) % W), ((i * 89) % (H * 0.7)), 2, 2); }
-    window.Clouds.layers(ctx, cx, cy, W, H, S, level && level.theme, clock, level && level.weather && level.weather.storm);
+    if (level && level.sea) {   // under the sea: light rays and drifting bubbles instead of clouds and a sun
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 7; i++) { const x = ((i * 233 - cx * 0.12 * S + Math.sin(clock * 0.2 + i) * 40) % (W + 300) + W + 300) % (W + 300) - 150, w = (50 + (i % 3) * 30) * S; const gr = ctx.createLinearGradient(0, 0, 0, H * 0.9); gr.addColorStop(0, 'rgba(160,230,255,.20)'); gr.addColorStop(1, 'rgba(160,230,255,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + w, 0); ctx.lineTo(x + w * 2.4 - 120 * S, H); ctx.lineTo(x - 60 * S, H); ctx.fill(); }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(220,245,255,.45)'; ctx.lineWidth = 1.5;
+      for (let i = 0; i < 26; i++) { const u = (((clock * (0.05 + (i % 5) * 0.012) + i * 0.137) % 1) + 1) % 1, x = ((i * 97 - cx * (0.06 + (i % 4) * 0.03) * S) % W + W) % W + Math.sin(clock + i) * 6, y = (1 - u) * H; ctx.beginPath(); ctx.arc(x, y, (2 + (i % 4)) * S, 0, 7); ctx.stroke(); }
+    } else window.Clouds.layers(ctx, cx, cy, W, H, S, level && level.theme, clock, level && level.weather && level.weather.storm);
     // sun / moon
-    {
+    if (!(level && level.sea)) {
       const night = level && level.theme === 'night' || th.stars, sx = W * 0.8, sy = H * 0.2;
       if (night) { ctx.fillStyle = 'rgba(255,250,220,.15)'; ctx.beginPath(); ctx.arc(sx, sy, 60 * S, 0, 7); ctx.fill(); ctx.fillStyle = '#f6f1d6'; ctx.beginPath(); ctx.arc(sx, sy, 26 * S, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(160,150,120,.35)'; for (const [dx, dy, r] of [[-8, -6, 5], [7, 5, 6], [-2, 10, 3]]) { ctx.beginPath(); ctx.arc(sx + dx * S, sy + dy * S, r * S, 0, 7); ctx.fill(); } }
       else { const g2 = ctx.createRadialGradient(sx, sy, 8 * S, sx, sy, 90 * S); g2.addColorStop(0, 'rgba(255,245,190,.95)'); g2.addColorStop(0.35, 'rgba(255,235,150,.35)'); g2.addColorStop(1, 'rgba(255,235,150,0)'); ctx.fillStyle = g2; ctx.fillRect(sx - 100 * S, sy - 100 * S, 200 * S, 200 * S); ctx.fillStyle = '#fff6c4'; ctx.beginPath(); ctx.arc(sx, sy, 22 * S, 0, 7); ctx.fill(); }
@@ -627,6 +642,7 @@
 
     for (const w of world.waters) {
       if (w.x > camX + VW || w.x + w.w < camX || w.y > camY + VH + 100) continue;
+      if (level.sea) { ctx.fillStyle = 'rgba(20,120,190,.22)'; ctx.fillRect(Math.max(w.x, camX - 20), Math.max(w.y, camY - 20), Math.min(w.w, VW + 40), VH + 40); continue; }
       const g = ctx.createLinearGradient(0, w.y, 0, w.y + Math.min(w.h, 260));
       g.addColorStop(0, 'rgba(88,184,240,.55)'); g.addColorStop(1, 'rgba(42,118,192,.75)');
       ctx.fillStyle = g;
@@ -882,8 +898,8 @@
 
   // rain, snow, storm and wind overlay (screen space) from level.weather
   function drawWeather() {
-    const wx = level && level.weather;
-    if (!wx || state === 'mg' || state === 'mgdone') return;
+    const wx = (level && level.weather) || {};
+    if (!level || (!level.weather && !level.dark) || state === 'mg' || state === 'mgdone') return;
     const Wp = canvas.width, Hp = canvas.height, D = DPR;
     const slant = wx.wind ? (wxInfo.a / (world.windSpec ? world.windSpec.wind : 1)) * 0.6 : 0;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -893,6 +909,10 @@
       if (f > 3.2) { ctx.fillStyle = 'rgba(255,255,255,' + Math.min(0.6, (f - 3.2) * 1.6) + ')'; ctx.fillRect(0, 0, Wp, Hp); }
     }
     if (bolt && world.time >= bolt.strike) { const f = 1 - (world.time - bolt.strike) / 0.4; ctx.fillStyle = 'rgba(255,255,255,' + Math.max(0, 0.55 * f) + ')'; ctx.fillRect(0, 0, Wp, Hp); }
+    if (level && level.dark) {   // the midnight zone: only a lantern's glow around you
+      const gx = goose ? (goose.center().x - camX) * S : Wp / 2, gy = goose ? (goose.center().y - camY) * S : Hp / 2; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const g = ctx.createRadialGradient(gx, gy, 120 * D, gx, gy, 380 * D); g.addColorStop(0, 'rgba(0,8,24,0)'); g.addColorStop(1, 'rgba(0,8,24,.86)'); ctx.fillStyle = g; ctx.fillRect(0, 0, Wp, Hp); ctx.restore();
+    }
     if (wx.whiteout) {   // blizzard whiteout: it thickens and thins; only the area around you stays clear
       const k = Math.max(0, Math.sin(clock * 0.55)) * 0.8 + 0.12;
       const gx = (goose ? (goose.center().x - camX) * S : Wp / 2), gy = (goose ? (goose.center().y - camY) * S : Hp / 2);
@@ -1074,7 +1094,7 @@
     const box = $('levels');
     box.innerHTML = '';
     LEVELS.forEach((lv, i) => {
-      const hdr = i === LEVELS.campaign ? '⭐ Bonus levels' : i === LEVELS.weather ? '🌦️ Weather & waves' : i === tier3() ? '🚀 Mega worlds (long levels, new mechanics)' : '';
+      const hdr = i === LEVELS.campaign ? '⭐ Bonus levels' : i === LEVELS.weather ? '🌦️ Weather & waves' : i === tier3() ? '🚀 Mega worlds (long levels, new mechanics)' : i === LEVELS.sea ? '🌊 Deep Sea (completely underwater)' : '';
       if (hdr) { const d = document.createElement('div'); d.className = 'lvDiv'; d.textContent = hdr; box.appendChild(d); }
       const b = document.createElement('button');
       b.textContent = i + 1;
@@ -1166,7 +1186,7 @@
     const inp = $('codeInput'), c = inp.value.trim().toLowerCase();
     if (!c) return;
     if (c === 'akif') {
-      const all = Object.keys(CHEATS).map((k) => k + ' = ' + CHEATS[k]).concat(Object.keys(GIFTS).map((k) => k + ' = ' + GIFTS[k] + ' (one-time)'), ['codes = show your active codes', 'akif = this list']);
+      const all = Object.keys(CHEATS).map((k) => k + ' = ' + CHEATS[k]).concat(Object.keys(GIFTS).map((k) => k + ' = ' + GIFTS[k] + ' (one-time)'), ['codes = show your active codes', 'sync = match your game data between devices', 'akif = this list']);
       say('All codes:\n' + all.join('\n'), true); snd.egg();
     } else if (GIFTS[c]) {
       if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true;
@@ -1179,6 +1199,11 @@
       applyCodes(); turnOn ? snd.egg() : snd.tick();
       say(turnOn ? '✅ ' + c + ': ' + CHEATS[c] + ' ON' : '⛔ ' + c + ' removed', true);
       $('codeList').classList.remove('hidden');
+    } else if (c === 'sync') {
+      $('codeModal').classList.add('hidden');
+      window.Sync.open({ getSave: () => save,
+        apply: (r) => { const own = save.cheats; const base = defaults(); for (const k of Object.keys(save)) delete save[k]; Object.assign(save, base, r, { cheats: own || {} }); persist(); },
+        done: () => location.reload() });
     } else if (c === 'codes') {
       renderCodes(); $('codeList').classList.remove('hidden'); say(activeCodes().length ? 'Your active codes:' : 'You have no active codes yet.');
     } else { say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
