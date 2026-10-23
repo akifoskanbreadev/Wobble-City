@@ -41,6 +41,14 @@
     const canPay = () => ctx.rich() || save.bread >= price;
     const redraw = () => { if (B.draft) B.setDraft(B.draft.spec); };
 
+    // 0. optional real-AI link (paste the address of your own AI proxy; empty = built-in generator)
+    { const row = el('details', 'bagai'); const sm = el('summary', null, '🤖 Real AI link (optional)'); row.appendChild(sm);
+      const inp = el('input'); inp.type = 'url'; inp.placeholder = 'https://your-worker.workers.dev'; inp.style.cssText = 'width:100%;margin-top:6px;font-size:15px;padding:8px;border-radius:8px;border:2px solid #cfd5e8';
+      try { inp.value = localStorage.getItem('wobbleAiUrl') || ''; } catch (e) { /* ignore */ }
+      inp.addEventListener('keydown', (e) => e.stopPropagation()); inp.addEventListener('keyup', (e) => e.stopPropagation());
+      inp.addEventListener('change', () => { try { const v = inp.value.trim(); if (v) localStorage.setItem('wobbleAiUrl', v); else localStorage.removeItem('wobbleAiUrl'); } catch (e) { /* ignore */ } ctx.toast(inp.value.trim() ? 'Real AI link saved' : 'Using the built-in generator'); });
+      const note = el('div', null, 'Leave empty to use the built-in generator. See the README for the 5 easy steps.'); note.style.cssText = 'font-size:12px;opacity:.7;margin-top:4px';
+      row.appendChild(inp); row.appendChild(note); wrap.appendChild(row); }
     // 1. describe
     wrap.appendChild(el('div', 'bagh', '✨ Describe your goose'));
     const ta = el('textarea'); ta.rows = 2; ta.maxLength = 140; ta.placeholder = 'e.g. ' + EXAMPLES[0]; ta.value = draft ? draft.base : (B.lastPrompt || '');

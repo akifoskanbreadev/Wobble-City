@@ -81,3 +81,10 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Plumber Goose / Pipe Twin:** original plumber geese (red and green caps).
 - **Real AI for Build-a-Goose (optional):** deploy `ai-proxy/worker.js` (Cloudflare Worker, key kept as a secret), then run `localStorage.wobbleAiUrl='https://YOUR-WORKER.workers.dev'` in the game's console. Without it the built-in generator is used.
 - **3D Hide & Seek** (menu → 🫣 3D Hide & Seek): Roblox-style blocky geese with no neck, 15 big 3D maps (Sunny Suburb, Pine Camp, Goose School, Mega Mall, Old Farm, Haunted Mansion, Beach Resort, Snow Village, Candy Land, Space Station, Toy Factory, Castle Keep, Desert Ruins, Pirate Cove, Neon City), 130+ hiding places each in ~25 kinds, bots that hide and search, found hiders become seekers, minimap, touch controls, and online rooms for up to 8 (bots fill the rest). Own tiny WebGL renderer in `js/h3d_engine.js` (no libraries).
+
+## Real AI for Build-a-Goose: 5 easy steps (no coding tools needed)
+1. Get an API key at console.anthropic.com (API keys → Create key; add a few dollars of credit).
+2. Make a free account at cloudflare.com → Workers & Pages → Create → "Hello World" worker → Deploy → Edit code.
+3. Delete the sample code, paste in everything from `ai-proxy/worker.js`, press Deploy.
+4. In the worker's Settings → Variables and Secrets, add a Secret named `ANTHROPIC_API_KEY` with your key. Copy the worker's address (it ends in `.workers.dev`).
+5. In the game: Shop → Build-a-Goose → "Real AI link (optional)" → paste the address. Done.
