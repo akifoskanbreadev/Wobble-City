@@ -491,6 +491,16 @@
       ctx.restore();
       ctx.strokeStyle = 'rgba(220,245,255,.45)'; ctx.lineWidth = 1.5;
       for (let i = 0; i < 26; i++) { const u = (((clock * (0.05 + (i % 5) * 0.012) + i * 0.137) % 1) + 1) % 1, x = ((i * 97 - cx * (0.06 + (i % 4) * 0.03) * S) % W + W) % W + Math.sin(clock + i) * 6, y = (1 - u) * H; ctx.beginPath(); ctx.arc(x, y, (2 + (i % 4)) * S, 0, 7); ctx.stroke(); }
+      // schools of fish and a lazy turtle and manta, far behind the action (parallax)
+      const fish = (x, y, sz, col, dir) => { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y, sz, sz * 0.42, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.moveTo(x - dir * sz * 0.8, y); ctx.lineTo(x - dir * sz * 1.5, y - sz * 0.5); ctx.lineTo(x - dir * sz * 1.5, y + sz * 0.5); ctx.closePath(); ctx.fill(); };
+      for (let k = 0; k < 4; k++) {
+        const dir = k % 2 ? -1 : 1, sp = 18 + k * 7, span = W + 500, base = ((clock * sp * dir + k * 421 - cx * 0.15 * S) % span + span) % span - 250;
+        const cy0 = H * (0.18 + 0.17 * k) + Math.sin(clock * 0.5 + k) * 14, col = ['rgba(255,190,90,.55)', 'rgba(150,220,255,.5)', 'rgba(255,120,150,.5)', 'rgba(200,255,200,.45)'][k];
+        for (let j = 0; j < 7; j++) fish(base + (j % 4) * 26 * dir * S - j * 6 * dir, cy0 + ((j * 37) % 40) - 20 + Math.sin(clock * 2 + j) * 4, (7 + (j % 3) * 2) * S, col, dir);
+      }
+      { const tx = (((clock * 14 - cx * 0.2 * S) % (W + 400)) + W + 400) % (W + 400) - 200, ty = H * 0.62 + Math.sin(clock * 0.6) * 12, fl = Math.sin(clock * 2.2) * 0.5;
+        ctx.fillStyle = 'rgba(70,140,90,.55)'; ctx.beginPath(); ctx.ellipse(tx, ty, 34 * S, 20 * S, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(tx + 38 * S, ty - 2 * S, 8 * S, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(tx + 6 * S, ty + 16 * S, 22 * S, 6 * S, 0.5 + fl, 0, 7); ctx.fill(); ctx.beginPath(); ctx.ellipse(tx - 20 * S, ty + 14 * S, 14 * S, 5 * S, -0.4 - fl, 0, 7); ctx.fill(); }
     } else window.Clouds.layers(ctx, cx, cy, W, H, S, level && level.theme, clock, level && level.weather && level.weather.storm);
     // sun / moon
     if (!(level && level.sea)) {
@@ -656,12 +666,17 @@
   function drawPond(w) {
     const wa = world.waveH || 2.5, wt = world.waveH ? world.time : clock;
     const surf = (x) => w.y + Math.sin(x * 0.06 + wt * 2.4) * wa + Math.sin(x * 0.017 - wt * 1.1) * (wa * 0.6 + 1.2);
+    // the pond bed follows the real ground: water is only drawn above it, and not at all where the bank is higher than the water
+    if (!w._bot) { w._bot = []; for (let x = w.x; x <= w.x + w.w + 8; x += 8) { const g = window.Decor.groundAt(level, x); w._bot.push(g === null ? w.y + w.h : Math.min(w.y + w.h, g + 3)); } }
+    const botAt = (x) => { const i = Math.min(w._bot.length - 1, Math.max(0, Math.round((x - w.x) / 8))); return w._bot[i]; };
     const x0 = Math.max(w.x, camX - 20), x1 = Math.min(w.x + w.w, camX + VW + 20), dp = Math.min(w.h, 340);
+    const wetAt = (x) => botAt(x) > surf(x) + 5;
     const g = ctx.createLinearGradient(0, w.y, 0, w.y + dp);
     g.addColorStop(0, 'rgba(120,205,200,.55)'); g.addColorStop(0.35, 'rgba(56,150,160,.68)'); g.addColorStop(1, 'rgba(20,70,100,.86)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0, w.y + w.h);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0, surf(x0));
     for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, surf(x));
-    ctx.lineTo(x1, w.y + w.h); ctx.closePath(); ctx.fill();
+    for (let x = x1; x >= x0; x -= 8) ctx.lineTo(x, Math.max(surf(x), botAt(x)));
+    ctx.closePath(); ctx.fill();
     ctx.save(); ctx.clip();
     // caustic light ribbons
     ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(220,255,240,.14)';
@@ -687,20 +702,21 @@
       ctx.strokeStyle = '#3f7d3a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
       for (let k = 0; k < 4; k++) { const bx = rx + dir * k * 7, sw = Math.sin(wt * 1.6 + k) * 4; ctx.beginPath(); ctx.moveTo(bx, w.y + 34); ctx.quadraticCurveTo(bx + sw, w.y - 14, bx + sw * 1.6 + dir * 3, w.y - 44 - k * 6); ctx.stroke(); ctx.fillStyle = '#7a5230'; ctx.fillRect(bx + sw * 1.6 + dir * 3 - 2.5, w.y - 60 - k * 6, 5, 16); }
     };
-    if (w.x > camX - 60 && w.x < camX + VW + 60) reed(w.x + 8, 1);
-    if (w.x + w.w > camX - 60 && w.x + w.w < camX + VW + 60) reed(w.x + w.w - 8, -1);
+    let wl = null, wr = null; for (let x = w.x; x <= w.x + w.w; x += 8) if (wetAt(x)) { if (wl === null) wl = x; wr = x; }
+    if (wl !== null && wl > camX - 60 && wl < camX + VW + 60) reed(wl - 4, -1);
+    if (wr !== null && wr > camX - 60 && wr < camX + VW + 60) reed(wr + 4, 1);
     // lily pads
     for (let x = Math.ceil((w.x + 80) / 170) * 170; x < w.x + w.w - 80; x += 170) {
       if (x < camX - 30 || x > camX + VW + 30) continue;
       const h = Math.sin(x * 4.1) * 9301.7, r = h - Math.floor(h), lx = x + r * 60;
-      if (lx > w.x + w.w - 60) continue;
+      if (lx > w.x + w.w - 60 || !wetAt(lx - 18) || !wetAt(lx + 18)) continue;
       const ly = surf(lx) + 1; ctx.fillStyle = '#4fa14a'; ctx.strokeStyle = '#2b6a2e'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(lx, ly, 17, 5, 0, 0.35, Math.PI * 2 - 0.1); ctx.lineTo(lx, ly); ctx.closePath(); ctx.fill(); ctx.stroke();
       if (r > 0.6) { ctx.fillStyle = '#ffd1e6'; ctx.beginPath(); ctx.ellipse(lx + 3, ly - 5, 4, 5, 0, 0, 7); ctx.fill(); }
     }
     // surface sparkle + edge
     ctx.strokeStyle = 'rgba(235,255,250,.9)'; ctx.lineWidth = 2.5; ctx.beginPath();
-    for (let x = x0; x <= x1; x += 8) { const y = surf(x); if (x === x0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    for (let x = x0, pen = false; x <= x1; x += 8) { if (!wetAt(x)) { pen = false; continue; } const y = surf(x); if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.7)';
     for (let x = Math.floor(x0 / 60) * 60; x < x1; x += 60) { const a = Math.sin(wt * 3 + x * 0.7); if (a > 0.6) ctx.fillRect(x + 6, surf(x) - 1, 8 + a * 6, 2); }

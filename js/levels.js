@@ -218,14 +218,14 @@
   S.pond = (len) => (c) => {
     const p = cont(c), x0 = c.x, y = c.y;
     p.step(150, 60).flat(len).step(150, -60);
-    c.lv.water.push([x0 + 50, y - 6, len + 200, 200]);
+    c.lv.water.push([x0 + 30, y + 12, len + 240, 120]);
     br(c, x0 + 150 + len / 2, y - 70); sync(c, p); low(c, y + 200);
   };
   S.stones = (n) => (c) => {
     brk(c);
     const x0 = c.x, y = c.y, len = 100 + n * 190, tops = [10, 35, 5, 45, 15, 50, 25, 55];
     c.lv.solids.push([x0, y + 40, len, 600]);
-    c.lv.water.push([x0, y - 20, len, 400]);
+    c.lv.water.push([x0, y - 20, len, 60]);
     for (let i = 0; i < n; i++) {
       const top = y - tops[i % 8];
       c.lv.solids.push([x0 + 100 + i * 190, top, 115, 24]);
@@ -436,6 +436,42 @@
     br(c, x0 + 250, y + d * 0.45); br(c, x0 + 480, y + d - 150); br(c, x0 + 760, y + d * 0.4);
     low(c, y + d + 100); quiet(c, x0 + 150, x0 + 900);
   };
+  S.wreck = (len) => (c) => {        // a sunken ship: swim through the dark hold between the ribs, treasure inside, more bread on the mast
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(len + 200); sync(c, p);
+    const hx = x0 + 100, hl = len;
+    c.lv.solids.push([hx, y - 290, hl, 34]);                                   // the deck: a roof over the hold
+    for (let i = 0; i < Math.floor(hl / 170); i++) {                            // ribs, alternately rising and hanging
+      const rx = hx + 120 + i * 170;
+      if (i % 2) c.lv.solids.push([rx, y - 256, 24, 110]); else c.lv.solids.push([rx, y - 90, 24, 90]);
+    }
+    c.lv.solids.push([hx + hl / 2 - 12, y - 700, 24, 410]);                      // the mast
+    c.lv.solids.push([hx + hl / 2 - 70, y - 700, 140, 20]);                      // the crow's nest
+    for (let i = 0; i < Math.floor(hl / 170); i++) br(c, hx + 190 + i * 170, y - 190 + (i % 2 ? 40 : -20));
+    br(c, hx + hl / 2, y - 760); br(c, hx + hl / 2 - 40, y - 760); br(c, hx + hl / 2 + 40, y - 760);
+    c.lv.hazards.push([hx + hl - 150, y - 24, 90, 24]);
+    quiet(c, hx, hx + hl);
+  };
+  S.vent = (n) => (c) => {           // hot vents: ride the rising water up to the bread, then drift down to the next one
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(160 + n * 400); sync(c, p);
+    for (let i = 0; i < n; i++) {
+      const vx = x0 + 200 + i * 400;
+      c.lv.hazards.push([vx - 10, y - 24, 140, 24]);
+      c.lv.zones.push([vx, y - 760, 120, 780, 0, -300, 1, 'current']);
+      br(c, vx + 60, y - 260); br(c, vx + 60, y - 470); br(c, vx + 60, y - 680);
+      if (i < n - 1) br(c, vx + 260, y - 120);
+    }
+    quiet(c, x0 + 150, x0 + 150 + n * 400);
+  };
+  S.whirl = () => (c) => {           // a whirlpool slide: it lifts you, carries you across the top and drops you on the far side
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(1000); sync(c, p);
+    c.lv.hazards.push([x0 + 330, y - 24, 340, 24]);
+    c.lv.zones.push([x0 + 120, y - 640, 200, 700, 0, -280, 1, 'current']);
+    c.lv.zones.push([x0 + 300, y - 700, 420, 150, 260, 0, 1, 'current']);
+    c.lv.zones.push([x0 + 700, y - 640, 200, 700, 0, 200, 1, 'current']);
+    c.lv.solids.push([x0 + 480, y - 480, 90, 480]);                             // the pillar in the eye of it
+    br(c, x0 + 220, y - 300); br(c, x0 + 220, y - 520); br(c, x0 + 420, y - 630); br(c, x0 + 620, y - 630); br(c, x0 + 800, y - 400); br(c, x0 + 800, y - 160);
+    quiet(c, x0 + 100, x0 + 920);
+  };
   function composeSea(name, hint, secs, o) {
     o = o || {};
     const lv = { name, hint, theme: 'ocean', sea: true, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null, crumble: [], belts: [], zones: [], saws: [], portals: [], gates: [], dark: !!o.dark, seaDense: o.dense || 1 };
@@ -628,21 +664,21 @@
   M('Overclocked', 'A storm on the factory roof. Everything is faster and slipperier.', 'factory', { rain: true, wind: 560, per: 5.5, storm: true, lightning: 8 }, [s.belts(7), s.saws(6), s.fans(3), s.belts(6), s.gates(), s.crumble(8), s.saws(5), s.tower(8)]);
   M('Asteroid Alley', 'Low gravity, anti-gravity columns and blades in orbit.', 'space', null, [s.lowgrav(1200), s.antigrav(460), s.saws(5), s.lowgrav(1500), s.portals(3), s.antigrav(500), s.tower(7)]);
   M('Nebula Run', 'Gravity games with belts, gates and solar wind.', 'space', { wind: 520, per: 6 }, [s.lowgrav(1100), s.belts(5), s.antigrav(480), s.gates(), s.crumble(8), s.lowgrav(1400), s.portals(4), s.tower(8)]);
-  M('Big Bang', 'The very last Mega level. Everything, in space, in a cosmic storm.', 'space', { wind: 560, per: 5.5, storm: true, lightning: 8, hail: true }, [s.antigrav(420), s.lowgrav(1300), s.portals(4), s.crumble(9), s.saws(6), s.belts(6), s.fans(4), s.gates(), s.antigrav(520), s.movers(5, true), s.saws(5), s.tower(8)]);
+  M('Big Bang', 'The very last Mega level. Everything, in space, in a cosmic storm.', 'space', { wind: 380, per: 7, storm: true, lightning: 14, hail: false }, [s.antigrav(420), s.lowgrav(1100), s.portals(3), s.crumble(7), s.saws(4), s.belts(5), s.fans(3), s.gates(), s.antigrav(420), s.movers(4, true), s.tower(6)]);
 
   // ------------------------------------------------------------------ bonus x4: DEEP SEA (completely underwater)
   LEVELS.sea = LEVELS.length;
   const D2 = (name, hint, secs, o) => { const lv = composeSea(name, hint, secs, o); LEVELS.push(lv); };
-  D2('Shallow Reef', 'The whole level is underwater! Tap FLAP to swim up; you sink slowly.', [S.slalom(3), S.current(700, 1), S.slalom(3)]);
-  D2('Kelp Forest', 'Weave between the rocks. Jellyfish drift about: swim around them!', [S.slalom(4), S.flat(500), S.current(800, 1), S.cave(700)]);
-  D2('Sandy Drift', 'Ride the current forwards, then fight it backwards.', [S.current(900, 1), S.slalom(4), S.current(900, -1), S.flat(400)]);
+  D2('Shallow Reef', 'The whole level is underwater! Tap FLAP to swim up; you sink slowly.', [S.slalom(3), S.vent(3), S.current(700, 1), S.slalom(3)]);
+  D2('Kelp Forest', 'Weave between the rocks. Jellyfish drift about: swim around them!', [S.slalom(4), S.vent(4), S.current(800, 1), S.whirl(), S.cave(700)]);
+  D2('Sandy Drift', 'Ride the current forwards, then fight it backwards.', [S.current(900, 1), S.whirl(), S.slalom(4), S.current(900, -1), S.vent(3)]);
   D2('Jellyfish Fields', 'Dozens of jellyfish. They sting! Keep your distance.', [S.flat(1200), S.slalom(3), S.flat(1100), S.current(700, 1)], { dense: 1.5 });
-  D2('Sunken Ship', 'A low cave, a deep trench, then more rocks.', [S.cave(900), S.trench(300), S.slalom(5), S.cave(800)]);
+  D2('Sunken Ship', 'A low cave, a deep trench, then more rocks.', [S.wreck(900), S.trench(300), S.slalom(5), S.wreck(1100), S.cave(800)]);
   D2('Whirl Run', 'Currents both ways, with spinning propellers.', [S.current(1000, -1), S.saws(3), S.current(1000, 1), S.slalom(5)]);
   D2('Shark Alley', 'Sharks sweep the open water. Watch for their fins, then swim behind them.', [S.flat(1500), S.cave(900), S.slalom(5), S.flat(1100)], { dense: 1.4 });
-  D2('Midnight Zone', 'No light down here except your lantern.', [S.slalom(4), S.cave(800), S.current(900, 1), S.trench(350), S.slalom(4)], { dark: true });
-  D2('Coral Gates', 'Find the button to open each gate, between the propellers.', [S.gates(), S.slalom(5), S.saws(4), S.cave(900), S.gates()]);
-  D2('The Abyss', 'The deepest, darkest level. Everything lives here.', [S.cave(900), S.slalom(6), S.current(1000, -1), S.saws(4), S.trench(400), S.cave(1000), S.slalom(5)], { dark: true, dense: 1.3 });
+  D2('Midnight Zone', 'No light down here except your lantern.', [S.slalom(4), S.cave(800), S.current(900, 1), S.trench(350), S.vent(4), S.slalom(4)], { dark: true });
+  D2('Coral Gates', 'Find the button to open each gate, between the propellers.', [S.gates(), S.slalom(5), S.whirl(), S.saws(4), S.wreck(900), S.gates()]);
+  D2('The Abyss', 'The deepest, darkest level. Everything lives here.', [S.wreck(1000), S.slalom(6), S.whirl(), S.current(1000, -1), S.vent(5), S.saws(4), S.trench(400), S.cave(1000), S.slalom(5)], { dark: true, dense: 1.3 });
 
   // ------------------------------------------------------------------ dedicated multiplayer race tracks
   const RACE = [];

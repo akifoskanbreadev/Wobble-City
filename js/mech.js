@@ -115,6 +115,13 @@
         c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 3; c.lineCap = 'round';
         for (let i = 0; i < 9; i++) { const u = ((t * 0.9 + i * 0.37) % 1), x = z.x + 10 + ((i * 53) % (z.w - 20)), y = z.y + z.h - u * z.h; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.sin(u * 9 + i) * 5, y - 26); c.stroke(); }
       } else if (z.kind === 'current') {
+        if (!z.ax && z.ay) {   // vertical current: vents and whirlpool columns, drawn as rising (or sinking) bubbles
+          const up = z.ay < 0, col = up ? '255,200,140' : '190,235,255';
+          const g = c.createLinearGradient(0, z.y + z.h, 0, z.y); g.addColorStop(0, 'rgba(' + col + (up ? ',.22)' : ',.06)')); g.addColorStop(1, 'rgba(' + col + (up ? ',.03)' : ',.16)')); c.fillStyle = g; c.fillRect(z.x, z.y, z.w, z.h);
+          c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 2;
+          for (let i = 0; i < 16; i++) { const u = (((t * (up ? 0.5 : -0.4) + i * 0.0613 * 3) % 1) + 1) % 1, x = z.x + 14 + ((i * 47) % Math.max(20, z.w - 28)) + Math.sin(u * 14 + i) * 6, y = z.y + (up ? 1 - u : u) * z.h; c.beginPath(); c.arc(x, y, 2 + (i % 3) * 1.6, 0, 7); c.stroke(); }
+          c.restore(); continue;
+        }
         const dir = Math.sign(z.ax) || 1;
         c.fillStyle = 'rgba(190,240,255,.10)'; c.fillRect(z.x, z.y, z.w, z.h);
         c.strokeStyle = 'rgba(220,250,255,.55)'; c.lineWidth = 3; c.lineCap = 'round';
