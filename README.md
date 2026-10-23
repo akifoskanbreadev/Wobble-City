@@ -88,3 +88,6 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 3. Delete the sample code, paste in everything from `ai-proxy/worker.js`, press Deploy.
 4. In the worker's Settings → Variables and Secrets, add a Secret named `ANTHROPIC_API_KEY` with your key. Copy the worker's address (it ends in `.workers.dev`).
 5. In the game: Shop → Build-a-Goose → "Real AI link (optional)" → paste the address. Done.
+
+### Free version (no API key, no credit card)
+Use `ai-proxy/worker-free.js` instead of `worker.js` in step 3, skip steps 1 and 4's secret, and instead open the worker's Settings → Bindings → Add → Workers AI, variable name `AI`. It uses Cloudflare's free Workers AI (a Llama model, not Claude), so results are a bit rougher; if it returns nonsense the game quietly uses the built-in generator.
