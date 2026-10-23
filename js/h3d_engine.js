@@ -1,0 +1,123 @@
+/*
+ * A tiny WebGL engine for the 3D Hide & Seek mode: flat-shaded, Roblox-style blocks with fog and a directional light.
+ * No libraries. Everything is built from boxes (optionally turned around the Y axis).
+ *   const gl3 = H3E.create(canvas)         -> renderer, or null when WebGL is unavailable
+ *   const m = H3E.mesh()                    -> a box batch: m.box(cx, y0, cz, w, h, d, '#rrggbb', ry)   (y0 = bottom of the box)
+ *   gl3.setStatic(m) / gl3.drawFrame(cam, dynamicMesh)
+ */
+(function (root) {
+  'use strict';
+  const hexCache = {};
+  function rgb(c) {
+    if (typeof c !== 'string') return c;
+    let v = hexCache[c];
+    if (!v) { const n = parseInt(c.slice(1), 16); v = hexCache[c] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; }
+    return v;
+  }
+  const shade = (c, k) => { const v = rgb(c); return [Math.min(1, v[0] * k), Math.min(1, v[1] * k), Math.min(1, v[2] * k)]; };
+
+  // ----------------------------------------------------------------- box batch
+  const FACES = [   // normal, then 4 corner signs (x, y, z) in -1..1
+    [0, 1, 0, [-1, 1, -1], [-1, 1, 1], [1, 1, 1], [1, 1, -1]],
+    [0, -1, 0, [-1, -1, 1], [-1, -1, -1], [1, -1, -1], [1, -1, 1]],
+    [0, 0, 1, [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]],
+    [0, 0, -1, [1, -1, -1], [-1, -1, -1], [-1, 1, -1], [1, 1, -1]],
+    [1, 0, 0, [1, -1, 1], [1, -1, -1], [1, 1, -1], [1, 1, 1]],
+    [-1, 0, 0, [-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1]],
+  ];
+  function mesh() {
+    const m = { v: [], i: [], n: 0 };
+    // x/z are the centre, y the BOTTOM; w/h/d the size; ry the turn about the Y axis (radians); col a hex string or [r,g,b]
+    m.box = (cx, y0, cz, w, h, d, col, ry) => {
+      const c = rgb(col), hw = w / 2, hh = h / 2, hd = d / 2, cy = y0 + hh, co = ry ? Math.cos(ry) : 1, si = ry ? Math.sin(ry) : 0;
+      for (const f of FACES) {
+        let nx = f[0], nz = f[2]; const ny = f[1];
+        if (ry) { const rx = nx * co + nz * si, rz = -nx * si + nz * co; nx = rx; nz = rz; }
+        const base = m.n;
+        for (let k = 0; k < 4; k++) {
+          const s = f[3 + k]; let px = s[0] * hw, pz = s[2] * hd;
+          if (ry) { const rx = px * co + pz * si, rz = -px * si + pz * co; px = rx; pz = rz; }
+          m.v.push(cx + px, cy + s[1] * hh, cz + pz, nx, ny, nz, c[0], c[1], c[2]);
+        }
+        m.i.push(base, base + 1, base + 2, base, base + 2, base + 3); m.n += 4;
+      }
+    };
+    m.clear = () => { m.v.length = 0; m.i.length = 0; m.n = 0; };
+    return m;
+  }
+
+  // ----------------------------------------------------------------- matrices (column-major)
+  function persp(fov, asp, n, f) { const t = 1 / Math.tan(fov / 2), r = 1 / (n - f); return [t / asp, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) * r, -1, 0, 0, 2 * f * n * r, 0]; }
+  function look(e, c) {
+    let zx = e[0] - c[0], zy = e[1] - c[1], zz = e[2] - c[2]; const zl = Math.hypot(zx, zy, zz) || 1; zx /= zl; zy /= zl; zz /= zl;
+    let xx = zz, xz = -zx; const xl = Math.hypot(xx, xz) || 1; xx /= xl; xz /= xl;      // up = (0,1,0)
+    const yx = zy * xz, yy = zz * xx - zx * xz, yz = -zy * xx;
+    return [xx, yx, zx, 0, 0, yy, zy, 0, xz, yz, zz, 0, -(xx * e[0] + xz * e[2]), -(yx * e[0] + yy * e[1] + yz * e[2]), -(zx * e[0] + zy * e[1] + zz * e[2]), 1];
+  }
+  function mul(a, b) { const o = new Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; }
+
+  // ----------------------------------------------------------------- renderer
+  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;varying vec3 vC;varying float vD;' +
+    'void main(){gl_Position=uM*vec4(aP,1.0);float d=max(dot(aN,normalize(uL)),0.0);float l=0.58+0.42*d+0.12*aN.y;vC=aC*l;vD=distance(aP,uE);}';
+  const FS = 'precision mediump float;varying vec3 vC;varying float vD;uniform vec3 uF;uniform vec2 uFog;' +
+    'void main(){float f=smoothstep(uFog.x,uFog.y,vD);gl_FragColor=vec4(mix(vC,uF,f),1.0);}';
+
+  function create(canvas) {
+    let gl = null;
+    try { gl = canvas.getContext('webgl2', { antialias: true }) || canvas.getContext('webgl', { antialias: true }) || canvas.getContext('experimental-webgl'); } catch (e) { gl = null; }
+    if (!gl) return null;
+    if (!gl.drawElements) return null;
+    const isGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+    if (!isGL2 && !gl.getExtension('OES_element_index_uint')) return null;
+    const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr);
+    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return null;
+    gl.useProgram(pr);
+    const loc = { p: gl.getAttribLocation(pr, 'aP'), n: gl.getAttribLocation(pr, 'aN'), c: gl.getAttribLocation(pr, 'aC'), m: gl.getUniformLocation(pr, 'uM'), e: gl.getUniformLocation(pr, 'uE'), l: gl.getUniformLocation(pr, 'uL'), f: gl.getUniformLocation(pr, 'uF'), fog: gl.getUniformLocation(pr, 'uFog') };
+    gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    const mk = () => ({ vb: gl.createBuffer(), ib: gl.createBuffer(), count: 0 });
+    const stat = mk(), dyn = mk();
+    function upload(b, m, usage) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m.v), usage);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m.i), usage); b.count = m.i.length;
+    }
+    function draw(b) {
+      if (!b.count) return;
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.vb); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.ib);
+      gl.enableVertexAttribArray(loc.p); gl.vertexAttribPointer(loc.p, 3, gl.FLOAT, false, 36, 0);
+      gl.enableVertexAttribArray(loc.n); gl.vertexAttribPointer(loc.n, 3, gl.FLOAT, false, 36, 12);
+      gl.enableVertexAttribArray(loc.c); gl.vertexAttribPointer(loc.c, 3, gl.FLOAT, false, 36, 24);
+      gl.drawElements(gl.TRIANGLES, b.count, gl.UNSIGNED_INT, 0);
+    }
+    const R = {
+      gl, sky: [0.6, 0.8, 1], fogNear: 40, fogFar: 130,
+      setStatic(m) { upload(stat, m, gl.STATIC_DRAW); },
+      resize() {
+        const dpr = Math.min(2, root.devicePixelRatio || 1), w = Math.max(2, Math.floor(canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        gl.viewport(0, 0, w, h);
+      },
+      // cam: { eye:[x,y,z], at:[x,y,z], fov }
+      drawFrame(cam, dm) {
+        R.resize();
+        const s = R.sky;
+        gl.clearColor(s[0], s[1], s[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        const mvp = mul(persp(cam.fov || 1.0, canvas.width / canvas.height, 0.2, 400), look(cam.eye, cam.at));
+        gl.uniformMatrix4fv(loc.m, false, new Float32Array(mvp)); gl.uniform3fv(loc.e, new Float32Array(cam.eye));
+        gl.uniform3fv(loc.l, new Float32Array([0.45, 0.85, 0.3])); gl.uniform3fv(loc.f, new Float32Array(s)); gl.uniform2fv(loc.fog, new Float32Array([R.fogNear, R.fogFar]));
+        draw(stat);
+        if (dm) { upload(dyn, dm, gl.DYNAMIC_DRAW); draw(dyn); }
+        R.mvp = mvp;
+      },
+      // world point -> CSS pixel position (or null when behind the camera)
+      project(p) {
+        const m = R.mvp; if (!m) return null;
+        const x = m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], y = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+        if (w <= 0.1) return null;
+        return [(x / w * 0.5 + 0.5) * canvas.clientWidth, (1 - (y / w * 0.5 + 0.5)) * canvas.clientHeight, w];
+      },
+    };
+    return R;
+  }
+  root.H3E = { create, mesh, rgb, shade };
+})(window);

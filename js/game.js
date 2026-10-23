@@ -1296,6 +1296,8 @@
   $('battleBtn').addEventListener('click', () => { audio(); window.Battle.start(); });
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
+  window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); } });
+  $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
   window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
     setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },
     appendMgText: (t) => { $('mgDoneText').textContent += t; } });
