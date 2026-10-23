@@ -643,23 +643,67 @@
     for (const w of world.waters) {
       if (w.x > camX + VW || w.x + w.w < camX || w.y > camY + VH + 100) continue;
       if (level.sea) { ctx.fillStyle = 'rgba(20,120,190,.22)'; ctx.fillRect(Math.max(w.x, camX - 20), Math.max(w.y, camY - 20), Math.min(w.w, VW + 40), VH + 40); continue; }
-      const g = ctx.createLinearGradient(0, w.y, 0, w.y + Math.min(w.h, 260));
-      g.addColorStop(0, 'rgba(88,184,240,.55)'); g.addColorStop(1, 'rgba(42,118,192,.75)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.moveTo(w.x, w.y + w.h);
-      const wa = world.waveH || 2.5, wt = world.waveH ? world.time : clock;
-      for (let x = w.x; x <= w.x + w.w; x += 10) ctx.lineTo(x, w.y + Math.sin(x * 0.06 + wt * 2.4) * wa);
-      ctx.lineTo(w.x + w.w, w.y + w.h); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      for (let x = w.x; x <= w.x + w.w; x += 10) { const y = w.y + Math.sin(x * 0.06 + wt * 2.4) * wa; if (x === w.x) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
-      ctx.stroke();
+      drawPond(w);
     }
     for (const sp of splashes) {
       ctx.strokeStyle = 'rgba(255,255,255,' + (1 - sp.t) + ')'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(sp.x, sp.y + 16, 14 + sp.t * 46, 5 + sp.t * 10, 0, 0, 7); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // A proper pond: murky green-blue depth, drifting light caustics, rising bubbles, reeds and lily pads, rippled surface.
+  function drawPond(w) {
+    const wa = world.waveH || 2.5, wt = world.waveH ? world.time : clock;
+    const surf = (x) => w.y + Math.sin(x * 0.06 + wt * 2.4) * wa + Math.sin(x * 0.017 - wt * 1.1) * (wa * 0.6 + 1.2);
+    const x0 = Math.max(w.x, camX - 20), x1 = Math.min(w.x + w.w, camX + VW + 20), dp = Math.min(w.h, 340);
+    const g = ctx.createLinearGradient(0, w.y, 0, w.y + dp);
+    g.addColorStop(0, 'rgba(120,205,200,.55)'); g.addColorStop(0.35, 'rgba(56,150,160,.68)'); g.addColorStop(1, 'rgba(20,70,100,.86)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0, w.y + w.h);
+    for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, surf(x));
+    ctx.lineTo(x1, w.y + w.h); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.clip();
+    // caustic light ribbons
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(220,255,240,.14)';
+    for (let k = 0; k < 5; k++) {
+      const yy = w.y + 26 + k * 34; if (yy > w.y + w.h) break;
+      ctx.beginPath();
+      for (let x = x0; x <= x1; x += 14) { const y = yy + Math.sin(x * 0.045 + wt * 1.3 + k * 2) * 6 + Math.sin(x * 0.11 - wt * 0.9 + k) * 3; if (x === x0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+    // god rays
+    ctx.fillStyle = 'rgba(255,255,230,.05)';
+    for (let x = Math.floor(x0 / 150) * 150; x < x1; x += 150) { const sx = x + Math.sin(wt * 0.4 + x) * 14; ctx.beginPath(); ctx.moveTo(sx, w.y); ctx.lineTo(sx + 46, w.y); ctx.lineTo(sx + 12, w.y + Math.min(w.h, 240)); ctx.lineTo(sx - 30, w.y + Math.min(w.h, 240)); ctx.closePath(); ctx.fill(); }
+    // bubbles
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.5;
+    for (let x = Math.floor(x0 / 90) * 90; x < x1; x += 90) {
+      const h = Math.sin(x * 12.9898) * 43758.5453, r = h - Math.floor(h), per = 4 + r * 3, ph = ((wt / per) + r * 7) % 1;
+      const by = w.y + Math.min(w.h, 260) * (1 - ph) + 12; if (by > w.y + w.h) continue;
+      ctx.beginPath(); ctx.arc(x + r * 60 + Math.sin(ph * 12 + r * 9) * 5, by, 2 + r * 3, 0, 7); ctx.stroke();
+    }
+    ctx.restore();
+    // reeds at the edges
+    const reed = (rx, dir) => {
+      ctx.strokeStyle = '#3f7d3a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let k = 0; k < 4; k++) { const bx = rx + dir * k * 7, sw = Math.sin(wt * 1.6 + k) * 4; ctx.beginPath(); ctx.moveTo(bx, w.y + 34); ctx.quadraticCurveTo(bx + sw, w.y - 14, bx + sw * 1.6 + dir * 3, w.y - 44 - k * 6); ctx.stroke(); ctx.fillStyle = '#7a5230'; ctx.fillRect(bx + sw * 1.6 + dir * 3 - 2.5, w.y - 60 - k * 6, 5, 16); }
+    };
+    if (w.x > camX - 60 && w.x < camX + VW + 60) reed(w.x + 8, 1);
+    if (w.x + w.w > camX - 60 && w.x + w.w < camX + VW + 60) reed(w.x + w.w - 8, -1);
+    // lily pads
+    for (let x = Math.ceil((w.x + 80) / 170) * 170; x < w.x + w.w - 80; x += 170) {
+      if (x < camX - 30 || x > camX + VW + 30) continue;
+      const h = Math.sin(x * 4.1) * 9301.7, r = h - Math.floor(h), lx = x + r * 60;
+      if (lx > w.x + w.w - 60) continue;
+      const ly = surf(lx) + 1; ctx.fillStyle = '#4fa14a'; ctx.strokeStyle = '#2b6a2e'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(lx, ly, 17, 5, 0, 0.35, Math.PI * 2 - 0.1); ctx.lineTo(lx, ly); ctx.closePath(); ctx.fill(); ctx.stroke();
+      if (r > 0.6) { ctx.fillStyle = '#ffd1e6'; ctx.beginPath(); ctx.ellipse(lx + 3, ly - 5, 4, 5, 0, 0, 7); ctx.fill(); }
+    }
+    // surface sparkle + edge
+    ctx.strokeStyle = 'rgba(235,255,250,.9)'; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let x = x0; x <= x1; x += 8) { const y = surf(x); if (x === x0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    for (let x = Math.floor(x0 / 60) * 60; x < x1; x += 60) { const a = Math.sin(wt * 3 + x * 0.7); if (a > 0.6) ctx.fillRect(x + 6, surf(x) - 1, 8 + a * 6, 2); }
   }
 
   // The goose. `cx` is any 2D context, `g` any object with the Goose drawing interface (so the store preview and
@@ -1012,8 +1056,9 @@
   window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') { mouseDown = false; input.mouseAim = null; } });
 
   const keymap = { ArrowLeft: 'kLeft', KeyA: 'kLeft', ArrowRight: 'kRight', KeyD: 'kRight' };
+  const isTyping = (t) => !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   window.addEventListener('keydown', (e) => {
-    if (e.target && e.target.tagName === 'INPUT') return;
+    if (isTyping(e.target)) return;
     keys.add(e.code);
     if (state === 'mg' && mgInst && mgInst.key && mgInst.key(e.code, true, e)) { e.preventDefault(); return; }
     if (keymap[e.code]) { input[keymap[e.code]] = true; e.preventDefault(); return; }
@@ -1029,6 +1074,7 @@
     else if (e.code === 'Escape') { if (state === 'play' || state === 'mg') showMenu(); }
   });
   window.addEventListener('keyup', (e) => {
+    if (isTyping(e.target)) return;
     keys.delete(e.code);
     if (state === 'mg' && mgInst && mgInst.key) mgInst.key(e.code, false, e);
     if (keymap[e.code]) input[keymap[e.code]] = false;

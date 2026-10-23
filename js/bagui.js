@@ -22,6 +22,13 @@
     ['Tail length', (s) => s.tailLen || 1, (s, v) => { s.tailLen = v; }, null, [0.3, 2.5, 0.05]],
   ];
 
+  // Optional real AI: if localStorage.wobbleAiUrl points at the proxy in /ai-proxy, ask it first; fall back to the built-in generator.
+  function remote(prompt, spec) {
+    let url = ''; try { url = localStorage.getItem('wobbleAiUrl') || ''; } catch (e) {}
+    if (!url) return Promise.resolve(null);
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, spec: spec || null }) })
+      .then((r) => r.ok ? r.json() : null).then((j) => (j && j.spec ? B.fix(j.spec) : null)).catch(() => null);
+  }
   function panel(host, ctx) {
     const save = ctx.save;
     if (!Array.isArray(save.custom)) save.custom = [];
@@ -42,7 +49,7 @@
     const row1 = el('div', 'bagrow');
     const gen = btn(draft ? '✨ New goose from this' : '✨ Generate', () => {
       const t = ta.value.trim() || EXAMPLES[(Math.random() * EXAMPLES.length) | 0];
-      const sp = B.generate(t); B.draft = { spec: sp, base: t, seed: sp.seed, editId: null }; B.setDraft(sp); ctx.snd.tick(); ctx.rerender();
+      remote(t).then((ai) => { const sp = ai || B.generate(t); if (ai) { sp.seed = sp.seed || 1; sp.prompt = t; } B.draft = { spec: sp, base: t, seed: sp.seed, editId: null }; B.setDraft(sp); ctx.snd.tick(); ctx.rerender(); });
     }, 'main');
     row1.appendChild(gen); wrap.appendChild(row1);
     if (!draft) {
@@ -64,7 +71,7 @@
       wrap.appendChild(row);
       const mrow = el('div', 'bagrow');
       const mi = el('input'); mi.type = 'text'; mi.maxLength = 100; mi.placeholder = 'Change it: "make the neck longer", "add a crown", "blue legs"…';
-      const apply = () => { const t = mi.value.trim(); if (!t) return; const n = B.modify(draft.spec, t); n.name = sp.name; n.id = sp.id; draft.spec = n; B.setDraft(n); ctx.snd.tick(); ctx.rerender(); };
+      const apply = () => { const t = mi.value.trim(); if (!t) return; remote(t, draft.spec).then((ai) => { const n = ai || B.modify(draft.spec, t); n.name = sp.name; n.id = sp.id; draft.spec = n; B.setDraft(n); ctx.snd.tick(); ctx.rerender(); }); };
       mi.addEventListener('keydown', (e) => { if (e.key === 'Enter') apply(); });
       mrow.append(mi, btn('✏️ Modify', apply));
       wrap.appendChild(mrow);

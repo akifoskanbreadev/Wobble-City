@@ -138,7 +138,7 @@
         p.vx += ax * h; p.vy += ay * h;
 
         const sp = Math.hypot(p.vx, p.vy);
-        const k = 1 / (1 + (p.drag + p.cd * sp + wet * (4 + 0.02 * sp)) * h);
+        const k = 1 / (1 + (p.drag + p.cd * sp + wet * (this.sea ? 1.8 + 0.008 * sp : 4 + 0.02 * sp)) * h);
         p.vx *= k; p.vy *= k;
         if (sp > MAX_V) { p.vx *= MAX_V / sp; p.vy *= MAX_V / sp; }
 
@@ -415,10 +415,12 @@
       if (this.swimming) this.stamina = Math.min(5, this.stamina + 1.2 * dt);
       if (this.infFlaps) this.stamina = 5;
       if (inp.flap && this.stamina >= 1 && this.flapCd <= 0) {
-        this.stamina -= 1; this.flapCd = 0.26; this.flapT = 0.35;
-        const dvy = -(520 + Math.max(0, v.y) * 0.5);
+        const easy = W.sea && this.swimming;       // deep sea: strokes are free, quick and push you along
+        if (!easy) this.stamina -= 1;
+        this.flapCd = easy ? 0.16 : 0.26; this.flapT = 0.35;
+        const dvy = easy ? -(300 + Math.max(0, v.y) * 0.6) : -(520 + Math.max(0, v.y) * 0.5);
         const all = body.concat(this.hips, this.feet);
-        for (const p of all) this.impulse(p, this.move * 70 * this.speed, dvy);
+        for (const p of all) this.impulse(p, this.move * (easy ? 150 : 70) * this.speed, dvy);
         this.impulse(this.neck[0], 0, dvy * 0.8);
         this.flapped = true;
       }
@@ -480,10 +482,10 @@
 
       // locomotion: velocity governor limited by what the feet can grip (mu * m * g)
       const mass = 4.5;
-      const vmax = (this.swimming ? 130 : 300) * this.speed;
+      const vmax = (this.swimming ? (this.world.sea ? 260 : 130) : 300) * this.speed;
       let grip = 1;
       if (this.grounded) { grip = Math.min(this.feet[0].sf, this.feet[1].sf); if (this.feet[0].cs == null) grip = 1; }
-      const cap = (this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? 160 * mass : 230 * mass) * this.speed;
+      const cap = (this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? (this.world.sea ? 300 : 160) * mass : 230 * mass) * this.speed;
       const Fd = clamp(14 * mass * (move * vmax - v.x), -cap, cap);
       if (this.legless ? (move !== 0 && !this.grounded) : (move !== 0 || this.grounded)) for (const b of body) b.fx += (this.legless ? 0.35 : 1) * Fd / 4;
 
@@ -558,7 +560,7 @@
       }
     }
     for (const w of lv.water || []) world.waters.push({ x: w[0], y: w[1], w: w[2], h: w[3] });
-    world.buoy = lv.sea ? 0.7 : 1;      // deep sea: you sink slowly instead of bobbing to the top
+    world.buoy = lv.sea ? 0.7 : 1; world.sea = !!lv.sea;      // deep sea: you sink slowly instead of bobbing to the top
     const movers = [];
     for (const m of lv.movers || []) {
       const s = box(m.x, m.y, m.w, m.h, { mover: true, mu: 1.0 });

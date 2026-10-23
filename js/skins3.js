@@ -18,6 +18,14 @@
   const boxFoot = (col) => (c) => { rr(c, -6, -2, 20, 9, 3, col, 2.8); };
   const longHead = (col, len, th) => (c, open, sk) => { rr(c, -10, -th - 1, len, th * 2 + 2 + open * 0.5, 6, col, 3); };
 
+
+  // Original plumber geese (not any existing character): a cap, a work vest and a wrench-grey belt.
+  const plumber = (id, name, cap, vest) => add({ id, name, price: 450, neckW: 1.2, legC: '#e8a23a', body: '#f4f0e6', wing: vest, neckC: '#f4f0e6', headC: '#f4f0e6', eye: { x: 7, y: -2, r: 2.2 },
+    headDeco(c) { c.beginPath(); c.ellipse(1, -9, 10, 7, 0, Math.PI, 0); c.lineTo(15, -9); c.lineTo(-9, -9); c.closePath(); ol(c, cap, 3); c.beginPath(); c.arc(1, -9, 2, 0, 7); c.fillStyle = '#fff'; c.fill(); },
+    bodyDeco(c) { c.fillStyle = vest; c.fillRect(-14, -14, 28, 22); c.fillStyle = '#777'; c.fillRect(-14, 3, 28, 4); } });
+  plumber('plumber_red', 'Plumber Goose', '#d62828', '#8a5a2b');
+  plumber('plumber_green', 'Pipe Twin', '#2e9e4a', '#c9a96a');
+
   // ================================================================ layout skins
   // THE LOVELY DOG: the player's own drawing, brought to life: a long blocky body, two thick legs at each end, a long straight neck out of the front and a little snout with one ear.
   add({ id: 'lovelydog', name: 'Lovely Dog', price: 500, neckW: 1.5, legW: 2.3, legC: '#fff', body: '#ffffff', wing: '#ffffff', neckC: '#ffffff', headC: '#ffffff', eye: { x: 9, y: -2, r: 1.8 },

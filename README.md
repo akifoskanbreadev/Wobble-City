@@ -78,3 +78,5 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Skins:** layout shapes (Lovely Dog etc.), jelly soft-body skins, and Build-a-Goose (1000 each).
   Build-a-Goose uses a built-in text generator, not a real AI model.
 - **Code `sync`:** match a secret word (5+ letters) on two devices that are online at once; saves merge peer-to-peer (PeerJS).
+- **Plumber Goose / Pipe Twin:** original plumber geese (red and green caps).
+- **Real AI for Build-a-Goose (optional):** deploy `ai-proxy/worker.js` (Cloudflare Worker, key kept as a secret), then run `localStorage.wobbleAiUrl='https://YOUR-WORKER.workers.dev'` in the game's console. Without it the built-in generator is used.
