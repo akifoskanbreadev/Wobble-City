@@ -507,6 +507,7 @@
     c.save(); c.globalAlpha = 0.85; c.fillStyle = 'rgba(20,30,40,.7)'; c.fillRect(mx, my, ms, ms);
     c.fillStyle = 'rgba(190,200,215,.7)'; for (const r of g.map.rects) c.fillRect(cx(r[0]), cz(r[1]), (r[2] - r[0]) * sc, (r[3] - r[1]) * sc);
     if (me.role === 'seeker') for (const s of g.spots) { const done = g.clock - (g.searched[s.id] || -999) < 70; c.fillStyle = done ? '#4cd964' : '#ffcf40'; c.fillRect(cx(s.x) - 1, cz(s.z) - 1, 2.5, 2.5); }
+    if (api && api.isOwner && api.isOwner()) { for (const p of g.ps) if (p.role === 'hider' && p.id !== me.id) { const q = p.hidden >= 0 && !g.spots[p.hidden].cover ? g.spots[p.hidden] : p; c.fillStyle = '#58f08a'; c.beginPath(); c.arc(cx(q.x), cz(q.z), 2.8, 0, 7); c.fill(); } c.font = '700 9px system-ui'; c.fillStyle = '#ffd23f'; c.fillText('👑 owner x-ray', 14, 154); }
     for (const p of g.ps) if (p.role === 'seeker') { c.fillStyle = '#ff4d4d'; c.beginPath(); c.arc(cx(p.x), cz(p.z), 2.6, 0, 7); c.fill(); }
     const mp = me.hidden >= 0 ? g.spots[me.hidden] : me; c.fillStyle = '#fff'; c.beginPath(); c.arc(cx(mp.x), cz(mp.z), 3.4, 0, 7); c.fill();
     c.restore();

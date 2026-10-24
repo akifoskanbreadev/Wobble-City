@@ -59,6 +59,13 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **3D Hide & Seek** (menu): blocky neck-less geese, 15 big 3D maps with 130+ hiding places each, bots, hats, minimap, touch controls and online rooms for up to 8. Uses a tiny WebGL renderer in `js/h3d_engine.js`.
 - **Plumber Goose / Pipe Twin**: original plumber geese (red and green caps).
 
+## New modes and owner
+- **🦎 Mecha Chameleon** (2D): robot chameleon goose. SCAN a prop and MORPH into it, hide among copies, avoid the seeker's scanner; or play the seeker and find the bot hider.
+- **🚀 Goose Among Us** (offline, with bots): geese do tasks, a Fox sneak-kills; report bodies, discuss and vote.
+- **3D Hide & Seek** hiding is now physical: stand still inside cover (bush, haystack, tent...) or walk into the orange door pad of a cupboard (locker, wardrobe, crate...). Seekers open them by walking in.
+- **Deep Sea** levels: bread rings, bubble columns, mine tunnels, kelp doors, secret grottos and a chasing giant fish.
+- **Owner** (`akif`): owner panel with tools, an owner PIN and locks for cheat codes (server-stored). Never locked: sync, codes, akif, rainbow, disco, zoom. PIN-verified owner gets x-ray in 3D Hide & Seek.
+
 ## Shop
 15 dress-up slots (hat, eyes, face, beak, neck, body, back, held, tail, legs, shoes, pet, aura, honk voice, trail) plus a **Physics** slot (Moon Gravity, Heavy Goose, Speed Demon, Turbo Flaps, Noodle Neck, Steel Neck and more, one active at a time), 190+ items, 40+ skins (shapes, jelly soft-bodies, Build-a-Goose), per-slot tints, Random outfit and Take everything off.
 

@@ -86,7 +86,7 @@
   };
   // one-shot codes: they give you something once instead of toggling
   const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
-  const has = (k) => !mpOn() && !(window.Battle && window.Battle.active()) && !!save.cheats[k];   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
+  const has = (k) => !mpOn() && !(window.Battle && window.Battle.active()) && !!save.cheats[k] && !(window.Owner && window.Owner.blocks(k));   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
   zoomMul = has('zoom') ? 0.7 : 1; resize();
   const tier3 = () => LEVELS.tier3 || 1e9;
   const levelOpen = (i) => {
@@ -1272,7 +1272,7 @@
       x.addEventListener('click', () => removeCode(k));
       r.append(nm, x); list.appendChild(r);
     });
-    $('adminPanel').classList.toggle('hidden', !save.cheats.admin);
+    $('adminPanel').classList.toggle('hidden', !(save.cheats.admin && !(window.Owner && window.Owner.blocks('admin'))));
     $('admGod').classList.toggle('on', !!save.cheats.god);
   }
   function applyCodes() { if (world) world.gscale = gravK(); zoomMul = has('zoom') ? 0.7 : 1; resize(); persist(); refreshMenu(); buildLevelPicker(); if (state === 'title') loadLevel(pick); renderCodes(); }
@@ -1286,8 +1286,9 @@
     const inp = $('codeInput'), c = inp.value.trim().toLowerCase();
     if (!c) return;
     if (c === 'akif') {
-      const all = Object.keys(CHEATS).map((k) => k + ' = ' + CHEATS[k]).concat(Object.keys(GIFTS).map((k) => k + ' = ' + GIFTS[k] + ' (one-time)'), ['codes = show your active codes', 'sync = match your game data between devices', 'akif = this list']);
-      say('All codes:\n' + all.join('\n'), true); snd.egg();
+      $('codeModal').classList.add('hidden'); snd.egg(); window.Owner.become();
+    } else if ((GIFTS[c] || CHEATS[c]) && window.Owner && window.Owner.blocks(c) && (GIFTS[c] || !save.cheats[c])) {
+      say('🔒 The owner locked the "' + c + '" code.', true); snd.no();
     } else if (GIFTS[c]) {
       if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true;
       if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true;
@@ -1332,11 +1333,12 @@
   $('battleBtn').addEventListener('click', () => { audio(); window.Battle.start(); });
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
-  window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); } });
+  window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
+  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
   $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
   // extra game modes: each is a full-screen overlay module with init({save, Skins, award}) and open()
   [['Chameleon', 'chamBtn'], ['Crew', 'crewBtn']].forEach(([m, b]) => {
-    if (window[m] && window[m].init) window[m].init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(save.cheats && save.cheats.owner) });
+    if (window[m] && window[m].init) window[m].init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
     $(b).addEventListener('click', () => { audio(); if (window[m] && window[m].open) window[m].open(); });
   });
   window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),

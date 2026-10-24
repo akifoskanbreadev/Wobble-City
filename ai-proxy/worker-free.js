@@ -28,6 +28,21 @@ export default {
       return json({ ok: true });
     }
 
+    if (typeof body.op === 'string' && body.op.startsWith('cfg-')) {          // owner settings: which codes are locked, behind an owner PIN (hash)
+      if (!env.SYNC) return json({ error: 'no SYNC binding' }, 501);
+      const hex = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+      const cur = await env.SYNC.get('cfg:pin'), pin = hex(body.pin) ? body.pin : '';
+      if (body.op === 'cfg-get') return json({ locked: JSON.parse((await env.SYNC.get('cfg:locked')) || '[]'), pinSet: !!cur });
+      if (body.op === 'cfg-pin') { if (cur || !pin) return json({ error: 'pin' }, 403); await env.SYNC.put('cfg:pin', pin); return json({ ok: true }); }
+      if (!cur || cur !== pin) return json({ error: 'bad pin' }, 403);
+      if (body.op === 'cfg-auth') return json({ ok: true });
+      if (body.op === 'cfg-set') {
+        const list = (Array.isArray(body.locked) ? body.locked : []).filter((c) => typeof c === 'string' && /^[a-z]{2,10}$/.test(c) && !['sync', 'codes', 'akif', 'rainbow', 'disco', 'zoom'].includes(c)).slice(0, 30);
+        await env.SYNC.put('cfg:locked', JSON.stringify(list)); return json({ ok: true });
+      }
+      return json({ error: 'bad op' }, 400);
+    }
+
     const { system, user, model } = body;
     if (typeof system !== 'string' || typeof user !== 'string' || system.length > 30000 || user.length > 8000) return new Response('bad request', { status: 400, headers: cors });
     const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
