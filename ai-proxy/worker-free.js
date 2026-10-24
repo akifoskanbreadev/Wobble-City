@@ -29,12 +29,12 @@ export default {
     }
 
     const { system, user, model } = body;
-    if (typeof system !== 'string' || typeof user !== 'string' || system.length > 8000 || user.length > 4000) return new Response('bad request', { status: 400, headers: cors });
+    if (typeof system !== 'string' || typeof user !== 'string' || system.length > 30000 || user.length > 8000) return new Response('bad request', { status: 400, headers: cors });
     const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
     let text = null;
     for (const m of model === 'big' ? [BIG, SMALL] : [SMALL]) {
       try {
-        const r = await env.AI.run(m, { messages, max_tokens: 1400, temperature: 0.8 });
+        const r = await env.AI.run(m, { messages, max_tokens: 2200, temperature: 0.8 });
         text = typeof r.response === 'string' ? r.response : JSON.stringify(r.response);
         if (text) break;
       } catch (e) { text = null; }
