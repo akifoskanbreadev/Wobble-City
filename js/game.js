@@ -1303,6 +1303,11 @@
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); } });
   $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
+  // extra game modes: each is a full-screen overlay module with init({save, Skins, award}) and open()
+  [['Chameleon', 'chamBtn'], ['Crew', 'crewBtn']].forEach(([m, b]) => {
+    if (window[m] && window[m].init) window[m].init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(save.cheats && save.cheats.owner) });
+    $(b).addEventListener('click', () => { audio(); if (window[m] && window[m].open) window[m].open(); });
+  });
   window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
     setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },
     appendMgText: (t) => { $('mgDoneText').textContent += t; } });
