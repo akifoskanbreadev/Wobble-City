@@ -246,6 +246,7 @@
       this.tremor = opt.tremor || 0;                       // random neck twitching, 0 = none
       this.noiseT = Math.random() * 100;
       this.speed = opt.speed || 1;                         // walking speed multiplier (code: speed)
+      this.flapK = opt.flapK || 1;                         // skin flap strength multiplier
       this.neckMul = opt.neck || 1;                        // neck length multiplier (code: neck)
       this.seg = SEG * this.neckMul;
       this.infFlaps = !!opt.infFlaps;                      // never runs out of flaps (code: flaps)
@@ -418,7 +419,7 @@
         const easy = W.sea && this.swimming;       // deep sea: strokes are free, quick and push you along
         if (!easy) this.stamina -= 1;
         this.flapCd = easy ? 0.16 : 0.26; this.flapT = 0.35;
-        const dvy = easy ? -(300 + Math.max(0, v.y) * 0.6) : -(520 + Math.max(0, v.y) * 0.5);
+        const dvy = (easy ? -(300 + Math.max(0, v.y) * 0.6) : -(520 + Math.max(0, v.y) * 0.5)) * (this.flapK || 1);
         const all = body.concat(this.hips, this.feet);
         for (const p of all) this.impulse(p, this.move * (easy ? 150 : 70) * this.speed, dvy);
         this.impulse(this.neck[0], 0, dvy * 0.8);

@@ -22,13 +22,8 @@
     ['Tail length', (s) => s.tailLen || 1, (s, v) => { s.tailLen = v; }, null, [0.3, 2.5, 0.05]],
   ];
 
-  // Optional real AI: if localStorage.wobbleAiUrl points at the proxy in /ai-proxy, ask it first; fall back to the built-in generator.
-  function remote(prompt, spec) {
-    let url = ''; try { url = localStorage.getItem('wobbleAiUrl') || ''; } catch (e) {}
-    if (!url) return Promise.resolve(null);
-    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, spec: spec || null }) })
-      .then((r) => r.ok ? r.json() : null).then((j) => (j && j.spec ? B.fix(j.spec) : null)).catch(() => null);
-  }
+  // Optional real AI (see bagai.js): resolves to a spec, or null to use the built-in generator
+  function remote(prompt, spec) { return B.ai ? B.ai.ask(prompt, spec) : Promise.resolve(null); }
   function panel(host, ctx) {
     const save = ctx.save;
     if (!Array.isArray(save.custom)) save.custom = [];
@@ -41,14 +36,14 @@
     const canPay = () => ctx.rich() || save.bread >= price;
     const redraw = () => { if (B.draft) B.setDraft(B.draft.spec); };
 
-    // 0. optional real-AI link (paste the address of your own AI proxy; empty = built-in generator)
-    { const row = el('details', 'bagai'); const sm = el('summary', null, '🤖 Real AI link (optional)'); row.appendChild(sm);
-      const inp = el('input'); inp.type = 'url'; inp.placeholder = 'https://your-worker.workers.dev'; inp.style.cssText = 'width:100%;margin-top:6px;font-size:15px;padding:8px;border-radius:8px;border:2px solid #cfd5e8';
-      try { inp.value = localStorage.getItem('wobbleAiUrl') || ''; } catch (e) { /* ignore */ }
-      inp.addEventListener('keydown', (e) => e.stopPropagation()); inp.addEventListener('keyup', (e) => e.stopPropagation());
-      inp.addEventListener('change', () => { try { const v = inp.value.trim(); if (v) localStorage.setItem('wobbleAiUrl', v); else localStorage.removeItem('wobbleAiUrl'); } catch (e) { /* ignore */ } ctx.toast(inp.value.trim() ? 'Real AI link saved' : 'Using the built-in generator'); });
-      const note = el('div', null, 'Leave empty to use the built-in generator. See the README for the 5 easy steps.'); note.style.cssText = 'font-size:12px;opacity:.7;margin-top:4px';
-      row.appendChild(inp); row.appendChild(note); wrap.appendChild(row); }
+    // 0. real AI: one tick box (the link to the AI is built in; advanced users can change it)
+    { const row = el('div', 'bagai'); row.style.cssText = 'background:#f1f4ff;border:2px solid #cfd5e8;border-radius:12px;padding:8px 10px;margin-bottom:8px';
+      const lab = el('label'); lab.style.cssText = 'display:flex;gap:8px;align-items:center;font-weight:800;font-size:15px;cursor:pointer';
+      const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!(B.ai && B.ai.enabled()); cb.style.cssText = 'width:22px;height:22px';
+      cb.addEventListener('change', () => { if (B.ai) B.ai.setEnabled(cb.checked); ctx.toast(cb.checked ? '🤖 AI is on: it designs the shape, parts and physics' : 'AI is off: using the built-in generator'); });
+      lab.appendChild(cb); lab.appendChild(document.createTextNode('🤖 Use AI to design it')); row.appendChild(lab);
+      const note = el('div', null, 'Real AI: it picks the colours, body shape, neck and leg positions, extra body parts and even the physics. If it is busy, the built-in generator is used.'); note.style.cssText = 'font-size:12px;opacity:.7;margin-top:4px'; row.appendChild(note);
+      wrap.appendChild(row); }
     // 1. describe
     wrap.appendChild(el('div', 'bagh', '✨ Describe your goose'));
     const ta = el('textarea'); ta.rows = 2; ta.maxLength = 140; ta.placeholder = 'e.g. ' + EXAMPLES[0]; ta.value = draft ? draft.base : (B.lastPrompt || '');
@@ -57,7 +52,8 @@
     const row1 = el('div', 'bagrow');
     const gen = btn(draft ? '✨ New goose from this' : '✨ Generate', () => {
       const t = ta.value.trim() || EXAMPLES[(Math.random() * EXAMPLES.length) | 0];
-      remote(t).then((ai) => { const sp = ai || B.generate(t); if (ai) { sp.seed = sp.seed || 1; sp.prompt = t; } B.draft = { spec: sp, base: t, seed: sp.seed, editId: null }; B.setDraft(sp); ctx.snd.tick(); ctx.rerender(); });
+      ctx.toast(B.ai && B.ai.enabled() ? '🤖 Asking the AI… (up to 30 seconds)' : '✨ Generating…', 30);
+      remote(t).then((ai) => { ctx.toast(ai ? '🤖 The AI made it! Not happy? Try again or ask for changes.' : (B.ai && B.ai.enabled() ? 'AI is busy, used the built-in generator' : 'Done!'), 3); const sp = ai || B.generate(t); if (ai) { sp.seed = sp.seed || 1; sp.prompt = t; } B.draft = { spec: sp, base: t, seed: sp.seed, editId: null }; B.setDraft(sp); ctx.snd.tick(); ctx.rerender(); });
     }, 'main');
     row1.appendChild(gen); wrap.appendChild(row1);
     if (!draft) {
@@ -74,12 +70,14 @@
       const row = el('div', 'bagrow');
       row.appendChild(btn('🔄 Try again', () => {
         draft.seed = (draft.seed || 1) + 1 + ((Math.random() * 50) | 0);
-        const g = B.generate(draft.base, draft.seed); g.name = sp.name; g.id = sp.id; draft.spec = g; B.setDraft(g); ctx.snd.tick(); ctx.rerender();
+        const done = (g) => { g.name = sp.name; g.id = sp.id; draft.spec = g; B.setDraft(g); ctx.snd.tick(); ctx.rerender(); };
+        if (B.ai && B.ai.enabled()) { ctx.toast('🤖 Asking the AI for a new version…', 30); remote(draft.base + ' (give me a clearly different version, variation ' + draft.seed + ')', null).then((ai) => { ctx.toast(ai ? '🤖 New version!' : 'AI is busy, used the built-in generator', 2.5); done(ai || B.generate(draft.base, draft.seed)); }); }
+        else done(B.generate(draft.base, draft.seed));
       }));
       wrap.appendChild(row);
       const mrow = el('div', 'bagrow');
       const mi = el('input'); mi.type = 'text'; mi.maxLength = 100; mi.placeholder = 'Change it: "make the neck longer", "add a crown", "blue legs"…';
-      const apply = () => { const t = mi.value.trim(); if (!t) return; remote(t, draft.spec).then((ai) => { const n = ai || B.modify(draft.spec, t); n.name = sp.name; n.id = sp.id; draft.spec = n; B.setDraft(n); ctx.snd.tick(); ctx.rerender(); }); };
+      const apply = () => { const t = mi.value.trim(); if (!t) return; ctx.toast(B.ai && B.ai.enabled() ? '🤖 Asking the AI…' : '✨ Changing…', 30); remote(t, draft.spec).then((ai) => { ctx.toast(ai ? '🤖 Changed!' : (B.ai && B.ai.enabled() ? 'AI is busy, used the built-in changes' : 'Done!'), 2.5); const n = ai || B.modify(draft.spec, t); n.name = sp.name; n.id = sp.id; draft.spec = n; B.setDraft(n); ctx.snd.tick(); ctx.rerender(); }); };
       mi.addEventListener('keydown', (e) => { if (e.key === 'Enter') apply(); });
       mrow.append(mi, btn('✏️ Modify', apply));
       wrap.appendChild(mrow);

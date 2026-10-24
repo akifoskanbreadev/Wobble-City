@@ -124,7 +124,12 @@
     if (api.Skins && Math.random() < 0.55) { const l = api.Skins.LIST.filter((s) => s.body && typeof s.body === 'string' && !s.shape); if (l.length) return colsOf(pick(l).id); }
     const p = pick(PAL); return { body: p[0], head: p[1], wing: p[0], leg: '#ff9f1c', beak: '#ff9f1c' };
   }
-  function newPlayer(id, name, human, cols) { return { id, name, human, cols, x: 0, y: 0, z: 0, vy: 0, vx: 0, vz: 0, ry: 0, ground: true, role: 'hider', hidden: -1, anim: 0, mx: 0, mz: 0, tgt: -1, path: null, pi: 0, pkey: '', replan: 0, stuck: 0, stuckT: 0, lx: 0, lz: 0, wait: 0, cd: 0, skip: Math.random() * 0.3, found: 0, survived: 0, blind: false }; }
+  const HATS = ['top', 'cap', 'crown', 'party', 'prop', 'cone', 'flower'];
+  const HAT_COLS = ['#e63946', '#3a86ff', '#ffd23f', '#2fbf71', '#9b5de5', '#ff8c42', '#ff70a6', '#2b2b2e'];
+  function hatOf(id) { let h = 0; const t = String(id); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return { k: HATS[h % HATS.length], c: HAT_COLS[(h >> 3) % HAT_COLS.length] }; }
+  const myHat = () => { const e = api.save().equip || {}; return e.hat ? hatOf(e.hat) : null; };
+  const randHat = () => (Math.random() < 0.45 ? { k: pick(HATS), c: pick(HAT_COLS) } : null);
+  function newPlayer(id, name, human, cols, hat) { return { hat: hat || null, id, name, human, cols, x: 0, y: 0, z: 0, vy: 0, vx: 0, vz: 0, ry: 0, ground: true, role: 'hider', hidden: -1, anim: 0, mx: 0, mz: 0, tgt: -1, path: null, pi: 0, pkey: '', replan: 0, stuck: 0, stuckT: 0, lx: 0, lz: 0, wait: 0, cd: 0, skip: Math.random() * 0.3, found: 0, survived: 0, blind: false }; }
 
   function start(opts) {
     opts = opts || {};
@@ -139,13 +144,13 @@
     const sv = api.save();
     let ps = [], me, n, seekers;
     if (opts.setup) {                                   // an online game: everybody builds the same cast from the host's setup
-      ps = opts.setup.players.map((q, i) => { const p = newPlayer(i, q.name, !!q.human, q.cols); p.role = q.role; p.x = q.x; p.z = q.z; p.ry = q.ry; return p; });
+      ps = opts.setup.players.map((q, i) => { const p = newPlayer(i, q.name, !!q.human, q.cols, q.hat); p.role = q.role; p.x = q.x; p.z = q.z; p.ry = q.ry; return p; });
       me = ps[opts.myId]; n = ps.length;
     } else {
       n = opts.n || sel.n;
       const nm = NAMES.slice().sort(() => Math.random() - 0.5);
-      me = newPlayer(0, 'You', true, colsOf(sv.skin)); ps.push(me);
-      for (let i = 1; i < n; i++) ps.push(newPlayer(i, nm[i % nm.length], false, botCols()));
+      me = newPlayer(0, 'You', true, colsOf(sv.skin), myHat()); ps.push(me);
+      for (let i = 1; i < n; i++) ps.push(newPlayer(i, nm[i % nm.length], false, botCols(), randHat()));
       let role = opts.role || sel.role; if (role === 'random') role = Math.random() < 0.5 ? 'hider' : 'seeker';
       seekers = role === 'seeker' ? [me] : [pick(ps.slice(1))];
       if (n >= 8 && role === 'hider') seekers.push(pick(ps.slice(1).filter((p) => !seekers.includes(p))));
@@ -403,6 +408,16 @@
     put(0, 1.8, 0.1, 1.0, 0.95, 1.0, c.head);                                                 // head: no neck!
     put(0, 2.05, 0.75, 0.55, 0.28, 0.6, c.beak);                                              // beak
     put(0.28, 2.3, 0.52, 0.17, 0.2, 0.06, '#111111'); put(-0.28, 2.3, 0.52, 0.17, 0.2, 0.06, '#111111');   // eyes
+    if (p.hat && p.role !== 'seeker') {
+      const h = p.hat, hc = h.c;
+      if (h.k === 'top') { put(0, 2.75, 0.05, 1.3, 0.15, 1.3, hc); put(0, 2.9, 0.05, 0.8, 0.9, 0.8, hc); put(0, 2.95, 0.05, 0.84, 0.18, 0.84, '#ffffff'); }
+      else if (h.k === 'cap') { put(0, 2.75, 0.05, 1.05, 0.3, 1.05, hc); put(0, 2.75, 0.7, 0.9, 0.08, 0.45, hc); }
+      else if (h.k === 'crown') { put(0, 2.75, 0.05, 1.0, 0.25, 1.0, '#ffd23f'); for (const dx of [-0.35, 0, 0.35]) put(dx, 3.0, 0.05, 0.22, 0.28, 0.22, '#ffd23f'); }
+      else if (h.k === 'party') { put(0, 2.75, 0.05, 0.8, 0.3, 0.8, hc); put(0, 3.05, 0.05, 0.55, 0.3, 0.55, '#ffffff'); put(0, 3.35, 0.05, 0.3, 0.3, 0.3, hc); }
+      else if (h.k === 'prop') { put(0, 2.75, 0.05, 0.95, 0.25, 0.95, hc); put(0, 3.0, 0.05, 0.12, 0.3, 0.12, '#444'); put(Math.sin(p.anim * 3) * 0.5, 3.3, Math.cos(p.anim * 3) * 0.5, 1.1, 0.06, 0.2, '#ffffff'); }
+      else if (h.k === 'cone') { put(0, 2.75, 0.05, 0.9, 0.35, 0.9, '#ff8c42'); put(0, 3.1, 0.05, 0.55, 0.35, 0.55, '#ffffff'); put(0, 3.45, 0.05, 0.25, 0.3, 0.25, '#ff8c42'); }
+      else { put(0, 2.75, 0.05, 0.3, 0.45, 0.3, '#2fbf71'); for (let i = 0; i < 5; i++) put(Math.cos(i * 1.256) * 0.4, 3.1, Math.sin(i * 1.256) * 0.4, 0.3, 0.3, 0.3, hc); }
+    }
     if (p.role === 'seeker') { put(0, 2.75, 0.05, 1.12, 0.22, 1.12, '#e63946'); put(0, 2.95, 0.05, 0.7, 0.2, 0.7, '#e63946'); put(0, 2.75, 0.7, 0.9, 0.1, 0.4, '#b3202c'); }   // red cap
     m.box(x, y + 0.01, z, 1.5, 0.02, 1.5, [0.2, 0.28, 0.16]);                                 // blob shadow
   }
@@ -482,6 +497,6 @@
     setNet(n) { net = n; },
     _step(dt) { if (G) update(dt); },
     _stop() { stopGame(); },
-    _ctx: { get G() { return G; }, get api() { return api; }, MAPS, E, rnd, pick, dom: () => dom, newPlayer, botCols, colsOf, start, finish, becomeSeeker, hideIn, comeOut, searchSpot, modelBoxes, toast, $, cam },
+    _ctx: { get G() { return G; }, get api() { return api; }, MAPS, E, rnd, pick, myHat, randHat, dom: () => dom, newPlayer, botCols, colsOf, start, finish, becomeSeeker, hideIn, comeOut, searchSpot, modelBoxes, toast, $, cam },
   };
 })(window);

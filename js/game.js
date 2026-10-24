@@ -95,7 +95,7 @@
   const money = () => (rich() ? '∞' : save.bread);
   function gooseOpts() {
     const d = diff();
-    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: has('speed') ? 2.3 : 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
+    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: (has('speed') ? 2.3 : 1) * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: (SKINS.BY_ID[save.skin].phys || {}).flap || 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
       layout: SKINS.BY_ID[save.skin].shape || {}, jelly: SKINS.BY_ID[save.skin].jelly || null,
       shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: (SKINS.BY_ID[save.skin].shape || {}).leg || 1 };
   }
@@ -833,6 +833,7 @@
     cx.fillStyle = sk.wing || '#e4edf5'; cx.strokeStyle = INK; cx.lineWidth = 3;
     cx.beginPath(); cx.ellipse(-8, 0, 20 + Math.abs(fp) * 6, 10, 0, 0, 7); cx.fill(); cx.stroke();
     cx.restore();
+    if (sk.bodyFront) { cx.save(); sk.bodyFront(cx); cx.restore(); }
     const petItem = it('pet'), heldItem = it('held');
     if (petItem) { cx.save(); cx.translate(-8, -24); tint('pet', () => petItem.draw(cx)); cx.restore(); }
     if (heldItem) { cx.save(); cx.translate(16, 2); tint('held', () => heldItem.draw(cx)); cx.restore(); }

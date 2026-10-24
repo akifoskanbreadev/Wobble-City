@@ -82,12 +82,10 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Real AI for Build-a-Goose (optional):** deploy `ai-proxy/worker.js` (Cloudflare Worker, key kept as a secret), then run `localStorage.wobbleAiUrl='https://YOUR-WORKER.workers.dev'` in the game's console. Without it the built-in generator is used.
 - **3D Hide & Seek** (menu → 🫣 3D Hide & Seek): Roblox-style blocky geese with no neck, 15 big 3D maps (Sunny Suburb, Pine Camp, Goose School, Mega Mall, Old Farm, Haunted Mansion, Beach Resort, Snow Village, Candy Land, Space Station, Toy Factory, Castle Keep, Desert Ruins, Pirate Cove, Neon City), 130+ hiding places each in ~25 kinds, bots that hide and search, found hiders become seekers, minimap, touch controls, and online rooms for up to 8 (bots fill the rest). Own tiny WebGL renderer in `js/h3d_engine.js` (no libraries).
 
-## Real AI for Build-a-Goose: 5 easy steps (no coding tools needed)
-1. Get an API key at console.anthropic.com (API keys → Create key; add a few dollars of credit).
-2. Make a free account at cloudflare.com → Workers & Pages → Create → "Hello World" worker → Deploy → Edit code.
-3. Delete the sample code, paste in everything from `ai-proxy/worker.js`, press Deploy.
-4. In the worker's Settings → Variables and Secrets, add a Secret named `ANTHROPIC_API_KEY` with your key. Copy the worker's address (it ends in `.workers.dev`).
-5. In the game: Shop → Build-a-Goose → "Real AI link (optional)" → paste the address. Done.
-
-### Free version (no API key, no credit card)
-Use `ai-proxy/worker-free.js` instead of `worker.js` in step 3, skip steps 1 and 4's secret, and instead open the worker's Settings → Bindings → Add → Workers AI, variable name `AI`. It uses Cloudflare's free Workers AI (a Llama model, not Claude), so results are a bit rougher; if it returns nonsense the game quietly uses the built-in generator.
+## Real AI for Build-a-Goose
+In the shop, Build-a-Goose has a "🤖 Use AI to design it" tick box. The AI runs through your own free Cloudflare Worker:
+1. Go to workers.new (free Cloudflare account), tap Deploy, then Edit code.
+2. Delete everything in `index.js` and paste all of `ai-proxy/worker-free.js`. Deploy.
+3. In dash.cloudflare.com open your worker → Bindings → Add → Workers AI, name it `AI`.
+4. If your worker address is not the one in `js/bagai.js` (DEFAULT_URL), change it there.
+The AI designs colours, body shape, neck and leg positions, extra body parts and physics (speed, flap power). If it is unavailable the built-in generator is used.

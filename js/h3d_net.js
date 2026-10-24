@@ -42,7 +42,7 @@
   }
   function tryHost() {
     const p = new root.Peer(PREFIX + word, { debug: 0 }); peer = p;
-    p.on('open', () => { isHost = true; myNet = 0; connected = true; roster[0] = { skin: mySkin() }; p.on('connection', onGuest); refresh(); });
+    p.on('open', () => { isHost = true; myNet = 0; connected = true; roster[0] = { skin: mySkin(), hat: X.myHat() }; p.on('connection', onGuest); refresh(); });
     p.on('error', (e) => {
       if (e.type === 'unavailable-id') { try { p.destroy(); } catch (x) { /* ignore */ } becomeGuest(); }
       else if (!connected) fail('Connection problem: ' + (e.type || e));
@@ -52,7 +52,7 @@
     const p = new root.Peer(undefined, { debug: 0 }); peer = p;
     p.on('open', () => {
       const c = p.connect(PREFIX + word, { reliable: true, serialization: 'json' }); hostConn = c;
-      c.on('open', () => toHost({ t: 'hi', skin: mySkin() }));
+      c.on('open', () => toHost({ t: 'hi', skin: mySkin(), hat: X.myHat() }));
       c.on('data', (m) => onMsg(m, 0));
       c.on('close', lost); c.on('error', lost);
     });
@@ -96,7 +96,7 @@
       const hid = humans[i], human = hid != null;
       const cols = human ? X.colsOf(roster[hid].skin) : X.botCols(), sp = map.spawns[i % map.spawns.length];
       if (human) idxOf[hid] = i;
-      players.push({ name: human ? (hid === 0 ? 'Host' : 'P' + (hid + 1)) : names[i % names.length], human, cols, role: 'hider', x: sp[0], z: sp[1], ry: X.rnd(0, 6.28) });
+      players.push({ hat: human ? roster[hid].hat : X.randHat(), name: human ? (hid === 0 ? 'Host' : 'P' + (hid + 1)) : names[i % names.length], human, cols, role: 'hider', x: sp[0], z: sp[1], ry: X.rnd(0, 6.28) });
     }
     const pool = players.map((_, i) => i); const nSeek = 2; for (let k = 0; k < nSeek; k++) { const j = (Math.random() * pool.length) | 0; players[pool.splice(j, 1)[0]].role = 'seeker'; }
     const setup = { map: mi, seed, players };
@@ -110,7 +110,7 @@
     switch (m.t) {
       case 'welcome': myNet = m.id; isHost = false; connected = true; break;
       case 'busy': status(m.why, true); leave(); break;
-      case 'hi': if (isHost) { roster[from] = { skin: m.skin }; sendRoster(); } break;
+      case 'hi': if (isHost) { roster[from] = { skin: m.skin, hat: m.hat || null }; sendRoster(); } break;
       case 'roster': { for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin }; }); refresh(); break; }
       case 'start': if (!isHost) { X.dom().online.style.display = 'none'; X.start({ map: m.setup.map, seed: m.setup.seed, setup: m.setup, myId: m.my, online: { host: false, my: m.my } }); } break;
       case 'p': if (isHost && G) { const idx = G.online.map[from], p = G.ps[idx]; if (p && p.hidden < 0) { p.x = m.x; p.y = m.y; p.z = m.z; p.ry = m.ry; p.anim = m.a; p.mx = m.mx; p.mz = m.mz; p.ground = m.y < 0.05; } } break;

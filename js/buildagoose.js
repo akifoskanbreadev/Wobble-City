@@ -73,7 +73,7 @@
   const LAYOUT = { backwards: { nx: -24, ny: -17, ang: -98, bend: 4.2 }, reverse: { nx: -24, ny: -17, ang: -98, bend: 4.2 } };
   const FOOTS = ['claw', 'paw', 'box', 'hoof', 'none'];
   const defaultSpec = () => ({ v: 1, name: 'My Goose', prompt: '', seed: 1, col: { body: '#ffffff', wing: '#e4edf5', neck: '#ffffff', head: '#ffffff', leg: '#ff9b2f', beak: '#ff9b2f', belly: null, eye: null }, pattern: 'none', patCol: null, jelly: false,
-    shape: { w: 1, h: 1, leg: 1, neck: 1, nx: 24, ny: -17, ang: -98, bend: 4.2, hip: [-13 / 28, 13 / 28], rect: false }, headKind: 'goose', headSize: 1, ears: null, tail: 'default', foot: 'claw', extras: [], legW: 1, neckW: 1 });
+    shape: { w: 1, h: 1, leg: 1, neck: 1, nx: 24, ny: -17, ang: -98, bend: 4.2, hip: [-13 / 28, 13 / 28], rect: false }, headKind: 'goose', headSize: 1, ears: null, tail: 'default', foot: 'claw', extras: [], legW: 1, neckW: 1, parts: [], phys: { speed: 1, flap: 1 }, stiffMul: 1, jellyK: 1500 });
 
   // ------------------------------------------------------------------ reading a prompt
   const words = (t) => (t.toLowerCase().replace(/[^a-z' -]/g, ' ').replace(/-/g, ' ').match(/[a-z']+/g) || []);
@@ -217,9 +217,13 @@
     for (const k of Object.keys(LIM)) sh[k] = clamp(+sh[k] || 0, LIM[k][0], LIM[k][1]);
     sh.hip = [clamp(sh.hip[0], -1, -0.15), clamp(sh.hip[1], 0.15, 1)];
     if (sh.hip[1] - sh.hip[0] < 0.9) { const m = (sh.hip[0] + sh.hip[1]) / 2; sh.hip = [clamp(m - 0.45, -1, -0.15), clamp(m + 0.45, 0.15, 1)]; }
-    sh.stiff = autoStiff(Object.assign({}, sh, { stiff: 0 }));
+    sp.stiffMul = clamp(+sp.stiffMul || 1, 0.5, 1.8);
+    sh.stiff = clamp(autoStiff(Object.assign({}, sh, { stiff: 0 })) * sp.stiffMul, 0.5, 5);
     sp.headSize = clamp(sp.headSize || 1, 0.6, 2); sp.tailLen = clamp(sp.tailLen || 1, 0.3, 2.5);
-    sp.legW = clamp(sp.legW || 1, 0.5, 2.5);
+    sp.legW = clamp(sp.legW || 1, 0.5, 2.5); sp.neckW = clamp(sp.neckW || 1, 0.5, 2.5);
+    sp.jellyK = clamp(+sp.jellyK || 1500, 700, 3500);
+    const ph = sp.phys || {}; sp.phys = { speed: clamp(+ph.speed || 1, 0.7, 1.6), flap: clamp(+ph.flap || 1, 0.75, 1.5) };
+    sp.parts = Array.isArray(sp.parts) ? sp.parts.slice(0, 16) : [];
     return sp;
   }
 
@@ -227,6 +231,62 @@
   const rr = (c, x, y, w, h, r, fill, lw) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); ol(c, fill, lw); };
   const starPath = (c, x, y, r) => { c.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } c.closePath(); };
   const heartPath = (c, x, y, r) => { c.beginPath(); c.moveTo(x, y + r * 0.8); c.bezierCurveTo(x - r * 1.6, y - r * 0.3, x - r * 0.5, y - r * 1.2, x, y - r * 0.4); c.bezierCurveTo(x + r * 0.5, y - r * 1.2, x + r * 1.6, y - r * 0.3, x, y + r * 0.8); c.closePath(); };
+
+
+  // ------------------------------------------------------------------ AI output: accept only what is safe
+  const HEADS = ['goose', 'duck', 'snout', 'pig', 'cat', 'round', 'box'], EARS = ['bunny', 'cat', 'droop', 'big'], TAILS = ['default', 'long', 'fluff', 'point', 'none'];
+  const EXTRA_OK = Array.from(new Set(Object.values(EXTRAS).concat(['froggy']))), PATS = ['none', 'stripes', 'spots', 'checks', 'stars', 'hearts', 'rainbow', 'swirl'], KINDS = ['ellipse', 'rect', 'tri', 'circle', 'line', 'star'];
+  const hexOk = (v) => { if (typeof v !== 'string') return null; const m = v.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i); if (!m) return COLS[v.trim().toLowerCase()] || null; let h = m[1]; if (h.length === 3) h = h.split('').map((x) => x + x).join(''); return '#' + h.toLowerCase(); };
+  const num = (v, a, b, d) => { v = +v; return Number.isFinite(v) ? clamp(v, a, b) : d; };
+  function sanitize(raw, base) {
+    const sp = base ? JSON.parse(JSON.stringify(base)) : defaultSpec();
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.name === 'string' && raw.name.trim()) sp.name = raw.name.trim().slice(0, 22);
+    const rc = raw.col;
+    if (typeof rc === 'string') { const c = hexOk(rc); if (c) { sp.col.body = sp.col.neck = sp.col.head = c; sp.col.wing = shade(c, -0.12); } }
+    else if (rc && typeof rc === 'object') for (const k of Object.keys(sp.col)) { const c = hexOk(rc[k]); if (c) sp.col[k] = c; else if (rc[k] === null && (k === 'belly' || k === 'eye')) sp.col[k] = null; }
+    if (PATS.includes(raw.pattern)) sp.pattern = raw.pattern;
+    const pc = hexOk(raw.patCol); if (pc) sp.patCol = pc;
+    if (typeof raw.jelly === 'boolean') sp.jelly = raw.jelly;
+    if (raw.jellyK != null) sp.jellyK = num(raw.jellyK, 700, 3500, 1500);
+    const rs = raw.shape;
+    if (rs && typeof rs === 'object') {
+      const sh = sp.shape;
+      for (const k of ['w', 'h', 'leg', 'neck', 'nx', 'ny', 'ang', 'bend']) if (rs[k] != null) sh[k] = num(rs[k], LIM[k][0], LIM[k][1], sh[k]);
+      if (Array.isArray(rs.hip) && rs.hip.length === 2) sh.hip = [num(rs.hip[0], -1, -0.15, sh.hip[0]), num(rs.hip[1], 0.15, 1, sh.hip[1])];
+      if (typeof rs.rect === 'boolean') sh.rect = rs.rect;
+    }
+    if (raw.stiffMul != null) sp.stiffMul = num(raw.stiffMul, 0.5, 1.8, 1);
+    if (HEADS.includes(raw.headKind)) sp.headKind = raw.headKind;
+    if (raw.headSize != null) sp.headSize = num(raw.headSize, 0.6, 2, 1);
+    if (raw.ears === null || raw.ears === 'none') sp.ears = null; else if (EARS.includes(raw.ears)) sp.ears = raw.ears;
+    if (TAILS.includes(raw.tail)) sp.tail = raw.tail;
+    if (raw.tailLen != null) sp.tailLen = num(raw.tailLen, 0.3, 2.5, 1);
+    if (FOOTS.includes(raw.foot)) sp.foot = raw.foot;
+    if (Array.isArray(raw.extras)) sp.extras = Array.from(new Set(raw.extras.map((e) => String(e).toLowerCase()).filter((e) => EXTRA_OK.includes(e)))).slice(0, 8);
+    if (raw.legW != null) sp.legW = num(raw.legW, 0.5, 2.5, 1);
+    if (raw.neckW != null) sp.neckW = num(raw.neckW, 0.5, 2.5, 1);
+    if (raw.phys && typeof raw.phys === 'object') sp.phys = { speed: num(raw.phys.speed, 0.7, 1.6, 1), flap: num(raw.phys.flap, 0.75, 1.5, 1) };
+    if (Array.isArray(raw.parts)) {
+      sp.parts = raw.parts.slice(0, 16).map((q) => {
+        if (!q || typeof q !== 'object' || !KINDS.includes(q.k)) return null;
+        const head = q.a === 'head';
+        return { a: head ? 'head' : 'body', z: q.z === 'front' ? 'front' : 'back', k: q.k, x: num(q.x, head ? -30 : -75, head ? 40 : 75, 0), y: num(q.y, head ? -35 : -65, head ? 35 : 75, 0), w: num(q.w, 2, head ? 34 : 90, 10), h: num(q.h, 2, head ? 34 : 90, 10), r: num(q.r, -360, 360, 0), c: hexOk(q.c) || '#888888' };
+      }).filter(Boolean);
+    }
+    return fix(sp);
+  }
+  // one extra body part, drawn in whatever frame the caller set up
+  function drawPart(c, q) {
+    c.save(); c.translate(q.x, q.y); c.rotate(q.r * Math.PI / 180);
+    if (q.k === 'ellipse') ell(c, 0, 0, q.w / 2, q.h / 2, q.c, 2.4);
+    else if (q.k === 'circle') circ(c, 0, 0, q.w / 2, q.c, 2.4);
+    else if (q.k === 'rect') rr(c, -q.w / 2, -q.h / 2, q.w, q.h, Math.min(4, q.w / 3, q.h / 3), q.c, 2.4);
+    else if (q.k === 'tri') poly(c, [[-q.w / 2, q.h / 2], [q.w / 2, q.h / 2], [0, -q.h / 2]], q.c, 2.4);
+    else if (q.k === 'star') { starPath(c, 0, 0, Math.max(q.w, q.h) / 2); ol(c, q.c, 2.4); }
+    else if (q.k === 'line') { c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = Math.max(3, q.h) + 3; c.beginPath(); c.moveTo(-q.w / 2, 0); c.lineTo(q.w / 2, 0); c.stroke(); c.strokeStyle = q.c; c.lineWidth = Math.max(3, q.h); c.stroke(); }
+    c.restore();
+  }
 
   function makeSkin(sp) {
     sp = fix(JSON.parse(JSON.stringify(sp)));
@@ -238,7 +298,8 @@
       neck: 1, shape: Object.assign({}, sh, { hip: sh.hip.slice() }),
       eye: { x: 3 * hs + (sp.headKind === 'snout' ? 4 : 0), y: -3 * hs, r: 2.8 * hs * (has('froggy') ? 1.5 : 1) },
     };
-    if (sp.jelly) { sk.jelly = { c: 0.02, k: 1500 }; sk.jellyC = [C.body, shade(C.body, 0.5)]; sk.shape.leg = Math.min(sk.shape.leg, 0.7); }
+    sk.phys = sp.phys;
+    if (sp.jelly) { sk.jelly = { c: 0.02, k: sp.jellyK || 1500 }; sk.jellyC = [C.body, shade(C.body, 0.5)]; sk.shape.leg = Math.min(sk.shape.leg, 0.7); }
     // pattern + belly on the body (clipped to the body shape by the game)
     sk.bodyDeco = function (c) {
       if (C.belly) { c.fillStyle = C.belly; c.beginPath(); c.ellipse(4, 8, 30, 15, 0, 0, 7); c.fill(); }
@@ -254,7 +315,12 @@
     };
     // tail
     const tl = sp.tailLen || 1;
-    if (sp.tail !== 'none') sk.tail = function (c) {
+    const bodyParts = (z) => sp.parts.filter((q) => q.a === 'body' && q.z === z), headParts = (z) => sp.parts.filter((q) => q.a === 'head' && q.z === z);
+    const backP = bodyParts('back'), frontP = bodyParts('front'), hBack = headParts('back'), hFront = headParts('front');
+    if (frontP.length) sk.bodyFront = (c) => { for (const q of frontP) drawPart(c, q); };
+    if (sp.tail !== 'none' || backP.length) sk.tail = function (c) {
+      for (const q of backP) drawPart(c, q);
+      if (sp.tail === 'none') return;
       const col = C.wing;
       if (has('spikes')) { c.fillStyle = shade(C.body, -0.3); for (let x = -26; x < 24; x += 12) { poly(c, [[x, -22], [x + 5, -34], [x + 10, -22]], shade(C.body, -0.3), 2.5); } }
       if (has('bigwings')) { poly(c, [[-6, -18], [-30, -58], [-2, -46], [14, -60], [18, -18]], shade(C.wing, 0.05), 3); }
@@ -286,6 +352,7 @@
     };
     sk.headBack = function (c) {
       c.save(); c.scale(hs, hs);
+      for (const q of hBack) drawPart(c, q);
       if (sp.ears === 'bunny') { for (const dx of [-4, 3]) { c.save(); c.translate(dx, -8); c.rotate(-0.25); ell(c, 0, -13, 4.5, 15, C.head, 2.6); ell(c, 0, -13, 2, 10, '#ffb3c6', 0); c.restore(); } }
       if (sp.ears === 'cat') { for (const dx of [-6, 3]) poly(c, [[dx, -6], [dx + 2, -17], [dx + 8, -7]], C.head, 2.6); }
       if (sp.ears === 'droop') { ell(c, -4, 6, 4.4, 10, shade(C.head, -0.22), 2.6, 0.25); }
@@ -296,6 +363,7 @@
     };
     sk.headDeco = function (c) {
       c.save(); c.scale(hs, hs);
+      for (const q of hFront) drawPart(c, q);
       if (has('mohawk')) { c.fillStyle = '#e63946'; for (let i = -6; i < 6; i += 3) poly(c, [[i, -9], [i + 1.5, -19 - (i % 2) * 2], [i + 3, -9]], '#e63946', 2); }
       if (has('crown')) poly(c, [[-8, -9], [-8, -19], [-4, -14], [0, -21], [4, -14], [8, -19], [8, -9]], '#ffd23f', 2.6);
       if (has('halo')) { c.strokeStyle = '#ffe66a'; c.lineWidth = 3; c.beginPath(); c.ellipse(0, -18, 9, 3, 0, 0, 7); c.stroke(); }
@@ -322,6 +390,6 @@
   function registerAll(list) { for (const sp of list || []) { try { register(sp, sp.id); } catch (e) { /* skip a broken spec */ } } }
   function setDraft(sp) { const sk = makeSkin(sp); sk.id = 'custom_draft'; S.BY_ID.custom_draft = sk; return sk; }
 
-  const api = { PRICE, generate, modify, parse, makeSkin, register, registerAll, setDraft, defaultSpec, fix, LIM, ANIMALS, draft: null };
+  const api = { PRICE, sanitize, generate, modify, parse, makeSkin, register, registerAll, setDraft, defaultSpec, fix, LIM, ANIMALS, draft: null };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.BuildAGoose = api;
 })(typeof window !== 'undefined' ? window : globalThis);
