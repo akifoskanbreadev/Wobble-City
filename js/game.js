@@ -172,7 +172,7 @@
   }
 
   let decor = null;
-  let trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0, lastVy = 0;
+  let chasers = [], trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0, lastVy = 0;
   let bolt = null, nextBolt = 6, hailOn = false;
   let mech = null, boss = null, bossPhase = null, eggPos = null, wxInfo = { a: 0, warn: 0, dir: 0 };
   function loadLevel(i, custom) {
@@ -182,6 +182,7 @@
     trailP = [];
     decor = window.Decor.generate(level, custom ? 0 : i);
     enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? -1 : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
+    chasers = (level.life || []).filter((l) => l.kind === 'chaser').map((l) => ({ x: l.trig - 700, y: l.y, r: l.r, v: l.v0, acc: l.acc, vmax: l.vmax, trig: l.trig, xEnd: l.xEnd, on: false, gone: false, ph: 0 }));
     extras = buildLevel(world, level);
     const d = diff();
     goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
@@ -320,7 +321,37 @@
       ctx.restore();
     }
   }
+  function chaserTick() {          // the giant fish in the narrow Deep Sea tunnels
+    if (!chasers.length || state !== 'play') return;
+    const c = goose.center(), parts = goose.body.concat(goose.feet);
+    for (const f of chasers) {
+      if (f.gone) continue;
+      if (!f.on) { if (c.x > f.trig) { f.on = true; toast('🐟 A giant fish is chasing you! Swim, or tuck into a dip!', 2.6); } continue; }
+      f.ph += STEP; f.v = Math.min(f.vmax, f.v + f.acc * STEP); f.x += f.v * STEP;
+      if (f.x > f.xEnd + 200) { f.gone = true; continue; }
+      if (canDie() && c.x < f.xEnd + 120) for (const q of parts) {
+        const dx = (q.x - (f.x + f.r * 0.55)) / (f.r * 1.9), dy = (q.y - f.y) / f.r;
+        if (dx * dx + dy * dy < 1 + q.r * 0.01) { hitCd = 1.2; deaths++; snd.ouch(); toast('🐟 Gulp! Too slow. Use the dips to hide.', 2.2); respawn(); f.x = f.trig - 700; f.on = false; f.v = 150; return; }
+      }
+    }
+  }
+  function drawChasers(c) {
+    for (const f of chasers) {
+      if (!f.on || f.gone) continue;
+      const r = f.r, x = f.x, y = f.y + Math.sin(f.ph * 3) * 6;
+      c.save(); c.translate(x, y);
+      c.fillStyle = '#2f5d8a'; c.strokeStyle = '#142a40'; c.lineWidth = 5; c.lineJoin = 'round';
+      c.beginPath(); c.moveTo(-r * 2.3, 0); c.lineTo(-r * 3.1, -r * 0.7 + Math.sin(f.ph * 7) * 10); c.lineTo(-r * 2.9, 0); c.lineTo(-r * 3.1, r * 0.7 - Math.sin(f.ph * 7) * 10); c.closePath(); c.fill(); c.stroke();   // tail
+      c.beginPath(); c.ellipse(-r * 0.4, 0, r * 2.1, r, 0, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#9ec7ea'; c.beginPath(); c.ellipse(-r * 0.2, r * 0.45, r * 1.7, r * 0.5, 0, 0, Math.PI); c.fill();
+      c.fillStyle = '#2f5d8a'; c.beginPath(); c.moveTo(-r * 0.9, -r * 0.95); c.lineTo(-r * 0.2, -r * 1.6); c.lineTo(r * 0.4, -r * 0.9); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(r * 1.05, -r * 0.3, r * 0.26, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#c1121f'; c.beginPath(); c.arc(r * 1.12, -r * 0.3, r * 0.12, 0, 7); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.moveTo(r * 1.5, r * 0.05); for (let i = 0; i < 6; i++) { c.lineTo(r * (1.55 - i * 0.18), r * 0.05 + (i % 2 ? 0 : r * 0.22)); } c.lineTo(r * 0.5, r * 0.05); c.closePath(); c.fill(); c.stroke();
+      c.restore();
+    }
+  }
   function enemyTick() {
+    chaserTick();
     const c = goose.center(), vy = (c.y - prevCy) / STEP; prevCy = c.y; lastVy = vy;
     if (!enemies.length || state !== 'play') return;
     const parts = goose.body.concat(goose.feet);
@@ -636,7 +667,7 @@
     if (boss && bossPhase === 'fight') BOSS.drawCage(ctx, e[0], e[1], clock);
 
     drawTrail();
-    ENEMIES.draw(ctx, enemies, levelClock, enemyDead); ENEMIES.drawShots(ctx, enemies, levelClock); drawStormWorld(world.time);
+    drawChasers(ctx); ENEMIES.draw(ctx, enemies, levelClock, enemyDead); ENEMIES.drawShots(ctx, enemies, levelClock); drawStormWorld(world.time);
     if (boss && bossPhase !== 'door') BOSS.draw(ctx, boss, clock);
     drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
