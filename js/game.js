@@ -67,7 +67,11 @@
     }
   }
   save.unlocked = Math.max(1, Math.min(LEVELS.length, save.unlocked | 0));
-  function persist() { save.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
+  function persist() { save.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } if (window.Sync && window.Sync.touch) window.Sync.touch(); }
+  const syncCtx = { getSave: () => save,
+    apply: (r) => { const own = save.cheats; const base = defaults(); for (const k of Object.keys(save)) delete save[k]; Object.assign(save, base, r, { cheats: own || {} }); try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } },
+    done: () => location.reload() };
+  setTimeout(() => { if (window.Sync && window.Sync.auto) window.Sync.auto(syncCtx); }, 1500);
   if (save.mg) { save.cheats.lol = true; save.mg = false; }   // older saves: the minigame code is now a normal, removable code
   const mgUnlocked = () => !!(has('lol') || save.allDone);
   let diffOverride = null;                      // multiplayer: both players use the host's difficulty
@@ -93,9 +97,11 @@
   };
   const rich = () => has('money');
   const money = () => (rich() ? '∞' : save.bread);
+  const physItem = () => { const id = save.equip && save.equip.phys; const it = id && BY_ID[id]; return (it && it.phys) || {}; };
+  const gravK = () => (has('moon') ? 0.4 : 1) * (physItem().grav || 1);
   function gooseOpts() {
-    const d = diff();
-    return { wobble: d.wobble, tremor: d.tremor, chaos: !!d.chaos, speed: (has('speed') ? 2.3 : 1) * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: (SKINS.BY_ID[save.skin].phys || {}).flap || 1, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
+    const d = diff(), PH = physItem();
+    return { wobble: d.wobble * (PH.wobble || 1), tremor: d.tremor, chaos: !!d.chaos, speed: (has('speed') ? 2.3 : 1) * (PH.speed || 1) * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: ((SKINS.BY_ID[save.skin].phys || {}).flap || 1) * (PH.flap || 1), neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
       layout: SKINS.BY_ID[save.skin].shape || {}, jelly: SKINS.BY_ID[save.skin].jelly || null,
       shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: (SKINS.BY_ID[save.skin].shape || {}).leg || 1 };
   }
@@ -172,7 +178,7 @@
   function loadLevel(i, custom) {
     levelIdx = i; level = custom || LEVELS[i];
     world = new World();
-    world.gscale = has('moon') ? 0.4 : 1;
+    world.gscale = gravK();
     trailP = [];
     decor = window.Decor.generate(level, custom ? 0 : i);
     enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? -1 : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
@@ -1238,7 +1244,7 @@
     $('adminPanel').classList.toggle('hidden', !save.cheats.admin);
     $('admGod').classList.toggle('on', !!save.cheats.god);
   }
-  function applyCodes() { if (world) world.gscale = has('moon') ? 0.4 : 1; zoomMul = has('zoom') ? 0.7 : 1; resize(); persist(); refreshMenu(); buildLevelPicker(); if (state === 'title') loadLevel(pick); renderCodes(); }
+  function applyCodes() { if (world) world.gscale = gravK(); zoomMul = has('zoom') ? 0.7 : 1; resize(); persist(); refreshMenu(); buildLevelPicker(); if (state === 'title') loadLevel(pick); renderCodes(); }
   function removeCode(k) {
     delete save.cheats[k];
     if (k === 'admin') delete save.cheats.god;
@@ -1264,9 +1270,7 @@
       $('codeList').classList.remove('hidden');
     } else if (c === 'sync') {
       $('codeModal').classList.add('hidden');
-      window.Sync.open({ getSave: () => save,
-        apply: (r) => { const own = save.cheats; const base = defaults(); for (const k of Object.keys(save)) delete save[k]; Object.assign(save, base, r, { cheats: own || {} }); persist(); },
-        done: () => location.reload() });
+      window.Sync.open(syncCtx);
     } else if (c === 'codes') {
       renderCodes(); $('codeList').classList.remove('hidden'); say(activeCodes().length ? 'Your active codes:' : 'You have no active codes yet.');
     } else { say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
@@ -1399,7 +1403,7 @@
       c.strokeStyle = INK; c.lineWidth = 8.5; c.beginPath(); c.moveTo(0, -26); c.lineTo(0, 0); c.stroke();
       c.strokeStyle = '#ff9b2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(0, -26); c.lineTo(0, 0); c.stroke();
       c.rotate(-Math.PI / 2); item.draw(c);
-    } else if (item.cat === 'voice') {
+    } else if (item.cat === 'voice' || item.cat === 'phys') {
       c.font = '34px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(item.emoji || '🔊', 24, 26);
     } else {
       c.translate(20, 22); c.scale(1.7, 1.7);
@@ -1436,12 +1440,12 @@
     const tools = $('storeTools'); tools.innerHTML = '';
     const tb = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', () => { audio(); fn(); }); tools.appendChild(b); };
     tb('🎲 Random outfit', () => {
-      const slots = CATS.filter((c) => c.id !== 'voice');
+      const slots = CATS.filter((c) => c.id !== 'voice' && c.id !== 'phys');
       for (const c of slots) { const own = ITEMS.filter((i) => i.cat === c.id && save.owned[i.id]); if (own.length && Math.random() < 0.7) save.equip[c.id] = own[(Math.random() * own.length) | 0].id; else delete save.equip[c.id]; }
       tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore();
     });
     tb('🧹 Take everything off', () => { save.equip = {}; save.tint = {}; tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore(); });
-    const tintable = !isSkinTab && storeCat !== 'voice' && storeCat !== 'trail' && (save.equip[storeCat] || tryOn[storeCat]);
+    const tintable = !isSkinTab && storeCat !== 'voice' && storeCat !== 'phys' && storeCat !== 'trail' && (save.equip[storeCat] || tryOn[storeCat]);
     if (tintable) {
       const row = document.createElement('div'); row.className = 'tintRow';
       const lab = document.createElement('span'); lab.textContent = 'Colour:'; row.appendChild(lab);
@@ -1537,7 +1541,7 @@
     g = sec('Gravity');
     const sl = document.createElement('input'); sl.type = 'range'; sl.min = 0.1; sl.max = 2; sl.step = 0.05; sl.value = admG;
     const lb = document.createElement('label'); lb.textContent = 'x' + admG.toFixed(2); sl.addEventListener('input', () => { admG = +sl.value; lb.textContent = 'x' + admG.toFixed(2); if (world) world.gscale = admG; });
-    g.append(sl, lb); btn(g, 'Reset', () => { admG = 1; if (world) world.gscale = has('moon') ? 0.4 : 1; });
+    g.append(sl, lb); btn(g, 'Reset', () => { admG = 1; if (world) world.gscale = gravK(); });
     g = sec('Level');
     const sel = document.createElement('select');
     LEVELS.forEach((lv, i) => { const o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + '. ' + lv.name; if (i === levelIdx) o.selected = true; sel.appendChild(o); });

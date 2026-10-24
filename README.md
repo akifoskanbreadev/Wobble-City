@@ -11,7 +11,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - **Keyboard:** ← → / A D walk, Space flap (hold to glide), hold mouse to aim the neck, H honk, T slow motion, R respawn, Esc menu.
 
 ## Features
-- **103 levels**: the 33-level main campaign (finishing it unlocks the minigames) plus **70 bonus levels** in seven themed worlds that ramp up in difficulty. Completed levels turn green, perfect runs (no falls, all bread) turn gold, and your best time is kept. With hills, valleys hills, valleys, ponds, bounce pads, thorns, ice, moving platforms, walls, a tunnel and tall climbs, in seven themes (meadow, desert, snow, sunset, night, candy, lava).
+- **103 levels**: the 33-level main campaign (finishing it unlocks the minigames) plus **70 bonus levels** in seven themed worlds that ramp up in difficulty. Completed levels turn green, perfect runs (no falls, all bread) turn gold, and your best time is kept. With hills, valleys, ponds, bounce pads, thorns, ice, moving platforms, walls, a tunnel and tall climbs, in seven themes (meadow, desert, snow, sunset, night, candy, lava).
 - **5 difficulties** (Easy / Normal / Hard / Insane / **Spaghetti**): the harder it is, the harder the neck wobbles and twitches. Spaghetti is almost impossible: the neck whips about at random and the neck pad is haunted.
 - **Menu button** (☰) in every game brings you back to the main menu.
 - **Bread** is the currency. Collect it in levels and spend it in the **Goose Boutique** (about 90 hats, glasses, neckwear, body items, shoes and particle trails) and **18 skins** (goose, chicken, penguin, duck, black swan, flamingo, ostrich, parrot, owl, turkey, rubber duck, golden goose, giraffe, llama, dino, cat, bunny, frog).
@@ -51,41 +51,29 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 - `js/minigames.js`: the five minigames
 - `js/game.js`: rendering, input, saves, store, game flow
 
-
-## Latest additions
-- **Scenery**: every level theme has its own non-collidable props, far landmarks, sun/moon and textured terrain.
-- **Deadly enemies**: themed enemies now kill you unless you stomp them from above (toggle with *Enemies*).
-- **Battle Tower** (menu): pick up weapons and armor, defeat every monster on a floor, open the chest and take the door up. Boss every 5th floor. Attack with F / J or the on-screen button.
-- **Neck mode** (menu toggle): no legs. Hold left/right (or aim the neck) to throw your head out, plant it and drag yourself along.
-- Level picker now separates campaign and bonus levels.
-- **Multiplayer lobby**: after joining a room you land in a waiting lobby with four player slots. The host picks the mode and map, guests press Ready, and the host starts. "Copy invite link" shares a `?room=word` URL that joins automatically, and "Make a random room" picks a word for you.
-- **15 minigames** (all with themed backdrops, all usable in duels): Goose Tetris, Goose Up, Bread Rush, Flappy Goose, Honk Hero plus new Pond Dash, Whack-a-Fox, Goose Snake, Simon Honk, Space Goose, Egg Stack, Bread Breaker, Feather Storm, Goose Cannon and Quick Draw.
+## More features
+- **Scenery & weather**: every theme has its own props, landmarks and sky; 20 weather levels (wind, rain, snow, storms, lightning, hail, fog, waves).
+- **163 levels**: campaign, 70 bonus levels, 30 Mega levels (fans, crumbling platforms, belts, saws, portals, gates, anti-gravity) and 10 Deep Sea levels. Bosses at levels 10, 20 and 33.
+- **Enemies** (menu toggle): stomp them for bread; some are deadly, some live underwater.
+- **Battle Tower**, **15 minigames**, **Neck mode** (no legs) and an online multiplayer lobby (Race, Tag, Hide & Seek, Minigame duel).
+- **3D Hide & Seek** (menu): blocky neck-less geese, 15 big 3D maps with 130+ hiding places each, bots, hats, minimap, touch controls and online rooms for up to 8. Uses a tiny WebGL renderer in `js/h3d_engine.js`.
+- **Plumber Goose / Pipe Twin**: original plumber geese (red and green caps).
 
 ## Shop
-15 dress-up slots (hat, eyes, face, beak, neck, body, back, held, tail, legs, shoes, pet, aura, honk voice, trail), ~190 items, 40+ skins including shape skins that change your real body (chonk, stilts, longneck, blob...), per-slot colour tints, Random outfit and Take everything off buttons.
+15 dress-up slots (hat, eyes, face, beak, neck, body, back, held, tail, legs, shoes, pet, aura, honk voice, trail) plus a **Physics** slot (Moon Gravity, Heavy Goose, Speed Demon, Turbo Flaps, Noodle Neck, Steel Neck and more, one active at a time), 190+ items, 40+ skins (shapes, jelly soft-bodies, Build-a-Goose), per-slot tints, Random outfit and Take everything off.
 
-## Weather, bosses and Mega Worlds
-- **Bosses** at levels 10 (Angry Farmer), 20 (Giant Fox) and 33 (Lava Dragon): touch the egg to enter an arena, stomp or honk the boss to win, then grab the egg.
-- **Weather & waves** (levels 104-115, open after level 33): wind gusts that blow your neck, rain slipperiness, snow, storms, and choppy water with waves.
-- **Mega Worlds** (levels 116-130, long levels in 5 new environments: sky islands, jungle ruins, crystal caverns, clockwork factory, outer space) with fans, crumbling platforms, conveyor belts, saw blades, portals, switch gates, low gravity and anti-gravity lifts. Some also have weather.
-- Clouds are now soft procedurally-painted cumulus in three parallax layers, tinted per environment.
+## Build-a-Goose AI
+A tick box ("🤖 Use AI to design it") makes a Llama model (not Claude) design your goose: colours, shape, neck and legs, extra parts and physics. If the AI is unreachable the built-in generator is used.
 
-## Latest additions
-- **Levels:** 20 weather levels, 30 Mega levels, 10 completely underwater Deep Sea levels (163 total).
-- **Weather:** lightning (warning ring, then strike), hail, whiteout fog, stronger wind.
-- **Enemies:** charger, hopper, turret, diver, jellyfish, pufferfish, eel, shark.
-- **Bosses:** more HP, attack patterns, and they can only be hurt while tired or dazed.
-- **Skins:** layout shapes (Lovely Dog etc.), jelly soft-body skins, and Build-a-Goose (1000 each).
-  Build-a-Goose uses a built-in text generator, not a real AI model.
-- **Code `sync`:** match a secret word (5+ letters) on two devices that are online at once; saves merge peer-to-peer (PeerJS).
-- **Plumber Goose / Pipe Twin:** original plumber geese (red and green caps).
-- **Real AI for Build-a-Goose (optional):** deploy `ai-proxy/worker.js` (Cloudflare Worker, key kept as a secret), then run `localStorage.wobbleAiUrl='https://YOUR-WORKER.workers.dev'` in the game's console. Without it the built-in generator is used.
-- **3D Hide & Seek** (menu → 🫣 3D Hide & Seek): Roblox-style blocky geese with no neck, 15 big 3D maps (Sunny Suburb, Pine Camp, Goose School, Mega Mall, Old Farm, Haunted Mansion, Beach Resort, Snow Village, Candy Land, Space Station, Toy Factory, Castle Keep, Desert Ruins, Pirate Cove, Neon City), 130+ hiding places each in ~25 kinds, bots that hide and search, found hiders become seekers, minimap, touch controls, and online rooms for up to 8 (bots fill the rest). Own tiny WebGL renderer in `js/h3d_engine.js` (no libraries).
+## Sync
+Type `sync`, pick a secret word (6+ characters). The word is permanently linked to your saved game on the server (only its hash is stored as the key). Enter it on any device, at any time; the devices never need to be on together. After that the game pulls when it opens and pushes while you play. Anyone who knows the word can load or replace that save, so make it unusual.
 
-## Real AI for Build-a-Goose
-In the shop, Build-a-Goose has a "🤖 Use AI to design it" tick box. The AI runs through your own free Cloudflare Worker:
-1. Go to workers.new (free Cloudflare account), tap Deploy, then Edit code.
-2. Delete everything in `index.js` and paste all of `ai-proxy/worker-free.js`. Deploy.
-3. In dash.cloudflare.com open your worker → Bindings → Add → Workers AI, name it `AI`.
-4. If your worker address is not the one in `js/bagai.js` (DEFAULT_URL), change it there.
-The AI designs colours, body shape, neck and leg positions, extra body parts and physics (speed, flap power). If it is unavailable the built-in generator is used.
+## Files
+- `index.html`: page, menus, HUD, touch controls
+- `js/physics.js`: engine and goose; `js/game.js`: rendering, input, saves, store, game flow
+- `js/levels.js`, `js/mech.js`, `js/decor*.js`, `js/clouds.js`: levels, mechanics, scenery
+- `js/clothes*.js`, `js/skins*.js`, `js/buildagoose.js`, `js/bagui.js`, `js/bagai.js`: shop, skins, Build-a-Goose
+- `js/enemies.js`, `js/boss.js`, `js/battle.js`: enemies, bosses, Battle Tower
+- `js/mp.js`, `js/minigames*.js`: multiplayer and minigames
+- `js/h3d_*.js`, `js/hide3d.js`: 3D Hide & Seek
+- `js/sync.js`: save sync; `ai-proxy/worker-free.js`: the small Cloudflare Worker behind AI and sync

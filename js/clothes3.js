@@ -23,7 +23,7 @@
     { id: 'hat', name: 'Hats' }, { id: 'eyes', name: 'Eyewear' }, { id: 'face', name: 'Face' }, { id: 'beak', name: 'Beak' },
     { id: 'neck', name: 'Neck' }, { id: 'body', name: 'Body' }, { id: 'back', name: 'Back' }, { id: 'held', name: 'Held' },
     { id: 'tail', name: 'Tail' }, { id: 'legs', name: 'Legs' }, { id: 'shoes', name: 'Shoes' }, { id: 'pet', name: 'Pets' },
-    { id: 'aura', name: 'Auras' }, { id: 'trail', name: 'Trails' }, { id: 'voice', name: 'Voices' },
+    { id: 'aura', name: 'Auras' }, { id: 'trail', name: 'Trails' }, { id: 'voice', name: 'Voices' }, { id: 'phys', name: 'Physics' },
   ].forEach((c) => C.CATS.push(c));
 
   // ------------------------------------------------------------------ back
@@ -151,6 +151,20 @@
   V('v_cow', 'Moo', 70, '🐮', [['sawtooth', 150, 110, 0.6, 0.16]]);
   V('v_whale', 'Whale Song', 130, '🐋', [['sine', 200, 420, 0.5, 0.16], ['sine', 420, 180, 0.6, 0.14, 0.5]]);
   V('v_laser', 'Laser Honk', 110, '🔫', [['sawtooth', 1800, 200, 0.25, 0.12]]);
+
+  // ------------------------------------------------------------------ physics (how you move). One equipped at a time.
+  //   phys: { grav: gravity scale, speed: walk speed, flap: flap strength, wobble: neck stiffness (<1 floppier) }
+  const P = (id, name, price, emoji, phys, tip) => add({ id, cat: 'phys', name, price, emoji, phys, tip, draw() {} });
+  P('p_moon', 'Moon Gravity', 120, '🌙', { grav: 0.45 }, 'Floaty jumps, slow falls');
+  P('p_heavy', 'Heavy Goose', 60, '🏋️', { grav: 1.35, flap: 1.25 }, 'Falls fast, strong flaps');
+  P('p_feather', 'Feather Goose', 90, '🪶', { grav: 0.7, flap: 0.85 }, 'Light and drifty');
+  P('p_speedy', 'Speed Demon', 140, '💨', { speed: 1.7 }, 'Run much faster');
+  P('p_turbo', 'Turbo Flaps', 150, '🚀', { flap: 1.6 }, 'Every flap launches you higher');
+  P('p_snail', 'Slow Motion', 40, '🐌', { speed: 0.6, grav: 0.8 }, 'Calm and slow');
+  P('p_noodle', 'Noodle Neck', 80, '🍜', { wobble: 0.45 }, 'Extra floppy neck');
+  P('p_steel', 'Steel Neck', 100, '🔩', { wobble: 2.2 }, 'A rock-solid neck');
+  P('p_cloud', 'Cloud Hopper', 220, '☁️', { grav: 0.5, flap: 1.35, speed: 1.2 }, 'Floaty AND strong flaps');
+  P('p_zoom', 'Pinball', 260, '🎱', { grav: 1.1, speed: 1.5, flap: 1.4, wobble: 0.7 }, 'Fast, bouncy chaos');
 
   // ------------------------------------------------------------------ extra trails (kinds are drawn in game.js)
   const Tr = (id, name, price, kind, cols, draw) => add({ id, cat: 'trail', name, price, trail: { kind, cols }, draw });
