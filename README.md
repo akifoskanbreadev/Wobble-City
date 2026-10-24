@@ -66,7 +66,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 A tick box ("🤖 Use AI to design it") makes a Llama model (not Claude) design your goose: colours, shape, neck and legs, extra parts and physics. If the AI is unreachable the built-in generator is used.
 
 ## Sync
-Type `sync`, pick a secret word (6+ characters). The word is permanently linked to your saved game on the server (only its hash is stored as the key). Enter it on any device, at any time; the devices never need to be on together. After that the game pulls when it opens and pushes while you play. Anyone who knows the word can load or replace that save, so make it unusual.
+Type `sync`, pick a secret word (6+ characters). **Sync** merges, **Load** replaces this device with the saved game, **Lock** (with a PIN) stops anyone else loading or changing that word. The word is permanently linked to your saved game on the server (only its hash is stored as the key). Enter it on any device, at any time; the devices never need to be on together. After that the game pulls when it opens and pushes while you play. Anyone who knows the word can load or replace that save, so make it unusual.
 
 ## Files
 - `index.html`: page, menus, HUD, touch controls

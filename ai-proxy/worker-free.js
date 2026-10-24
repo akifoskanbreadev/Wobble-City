@@ -1,6 +1,6 @@
 // Wobble City helper worker (free Cloudflare plan). Does two jobs:
 //  1) Build-a-Goose AI: Workers AI binding named  AI   (Settings -> Bindings -> Add -> Workers AI)
-//  2) Game sync:        KV namespace binding named SYNC (Settings -> Bindings -> Add -> KV namespace)
+//  2) Game sync + lock:  KV namespace binding named SYNC (Settings -> Bindings -> Add -> KV namespace)
 // The game sends everything it needs, so improving the game never needs a new copy of this file.
 const ALLOW_ORIGIN = 'https://akifoskanbreadev.github.io';
 const BIG = '@cf/meta/llama-3.3-70b-instruct-fp8-fast', SMALL = '@cf/meta/llama-3.1-8b-instruct';
@@ -12,12 +12,18 @@ export default {
     if (req.method !== 'POST') return new Response('POST only', { status: 405, headers: cors });
     const body = await req.json().catch(() => ({}));
 
-    if (body.op === 'sync-get' || body.op === 'sync-put') {
+    if (typeof body.op === 'string' && body.op.startsWith('sync-')) {
       if (!env.SYNC) return json({ error: 'no SYNC binding' }, 501);
-      if (typeof body.key !== 'string' || !/^[0-9a-f]{64}$/.test(body.key)) return json({ error: 'bad key' }, 400);
-      if (body.op === 'sync-get') return json({ save: await env.SYNC.get('s:' + body.key, 'json') });
+      const hex = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+      if (!hex(body.key)) return json({ error: 'bad key' }, 400);
+      const lock = await env.SYNC.get('l:' + body.key), pin = hex(body.pin) ? body.pin : '';
+      const ok = !lock || lock === pin;             // a locked word needs its PIN hash
+      if (body.op === 'sync-get') return json(ok ? { save: await env.SYNC.get('s:' + body.key, 'json'), locked: !!lock } : { save: null, locked: true, denied: true });
+      if (!ok) return json({ error: 'locked' }, 403);
+      if (body.op === 'sync-lock') { if (!hex(body.pin)) return json({ error: 'bad pin' }, 400); await env.SYNC.put('l:' + body.key, body.pin); return json({ ok: true }); }
+      if (body.op === 'sync-unlock') { await env.SYNC.delete('l:' + body.key); return json({ ok: true }); }
       const text = JSON.stringify(body.save || null);
-      if (!body.save || typeof body.save !== 'object' || text.length > 400000) return json({ error: 'bad save' }, 400);
+      if (body.op !== 'sync-put' || !body.save || typeof body.save !== 'object' || text.length > 400000) return json({ error: 'bad save' }, 400);
       await env.SYNC.put('s:' + body.key, text);
       return json({ ok: true });
     }

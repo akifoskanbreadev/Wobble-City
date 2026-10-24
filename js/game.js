@@ -1472,7 +1472,7 @@
       const el = document.createElement('div');
       el.className = 'item' + (wearing ? ' on' : '') + (selectedItem === item.id ? ' sel' : '');
       const ic = document.createElement('div'); ic.className = 'ic'; ic.appendChild(iconFor(item));
-      const nm = document.createElement('b'); nm.textContent = item.name;
+      const nm = document.createElement('b'); nm.textContent = item.name; if (item.tip) el.title = item.tip;
       const st = document.createElement('span');
       st.textContent = wearing ? 'Wearing' : owned ? 'Owned' : '🍞 ' + item.price;
       el.append(ic, nm, st);
@@ -1493,7 +1493,7 @@
     const it = selectedItem ? storeItem(selectedItem) : null;
     if (it && !isOwned(it)) {
       bar.classList.remove('hidden');
-      $('buyText').textContent = 'Try on: ' + it.name + ' · 🍞 ' + it.price;
+      $('buyText').textContent = 'Try on: ' + it.name + (it.tip ? ' (' + it.tip + ')' : '') + ' · 🍞 ' + it.price;
       const can = rich() || save.bread >= it.price;
       $('buyBtn').disabled = !can;
       $('buyBtn').textContent = can ? 'Buy' : 'Need ' + (it.price - save.bread) + ' more';
