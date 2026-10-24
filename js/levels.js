@@ -472,9 +472,86 @@
     br(c, x0 + 220, y - 300); br(c, x0 + 220, y - 520); br(c, x0 + 420, y - 630); br(c, x0 + 620, y - 630); br(c, x0 + 800, y - 400); br(c, x0 + 800, y - 160);
     quiet(c, x0 + 100, x0 + 920);
   };
+  // ---- New Super-Mario-Wii-style underwater sections: bread arcs and rings, bubble columns, mine tunnels, kelp doors, secret grottos and the big chasing fish
+  const arcBread = (c, xa, xb, yBase, h, n) => { for (let i = 0; i < n; i++) { const u = n > 1 ? i / (n - 1) : 0.5; br(c, xa + (xb - xa) * u, yBase - h * 4 * u * (1 - u)); } };
+  const ringBread = (c, x, y, r, n) => { n = n || 8; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; br(c, x + Math.cos(a) * r, y + Math.sin(a) * r); } };
+  S.reef = (n) => (c) => {          // a lively coral reef: rolling mounds with a bread arc over each one. A rest area.
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(120);
+    for (let i = 0; i < n; i++) {
+      const hgt = 60 + (i % 3) * 38, bx = p.x; p.bump(400, hgt); p.flat(70);
+      arcBread(c, bx + 40, bx + 360, y - 55, hgt + 120, 7);
+    }
+    p.flat(80); sync(c, p);
+  };
+  S.rings = (n) => (c) => {         // bread rings hanging in open water: swim through the middle of each one
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(240 + n * 420); sync(c, p);
+    const hs = [210, 400, 290, 470];
+    for (let i = 0; i < n; i++) {
+      const cx = x0 + 300 + i * 420, cy = y - hs[i % 4];
+      ringBread(c, cx, cy, 78, 8);
+      if (i < n - 1) arcBread(c, cx + 110, cx + 310, Math.max(cy, y - hs[(i + 1) % 4]) , 90, 3);
+    }
+    quiet(c, x0 + 200, x0 + 300 + n * 420);
+  };
+  S.bubbles = (n) => (c) => {       // bubble columns: let the big bubbles carry you up, then drift down to the next one
+    const p = cont(c), x0 = c.x, y = c.y; p.flat(200 + n * 520); sync(c, p);
+    for (let i = 0; i < n; i++) {
+      const vx = x0 + 200 + i * 520;
+      c.lv.zones.push([vx, y - 900, 150, 920, 0, -330, 1, 'bubble']);
+      for (let k = 0; k < 4; k++) br(c, vx + 75, y - 200 - k * 190);
+      c.lv.solids.push([vx + 190, y - 660, 190, 26]);                 // a rest shelf at the top
+      br(c, vx + 285, y - 730);
+      if (i < n - 1) arcBread(c, vx + 330, vx + 560, y - 560, 80, 4);
+    }
+    quiet(c, x0 + 150, x0 + 250 + n * 520);
+  };
+  S.mines = (n) => (c) => {         // a rock tunnel with sea mines bobbing between the walls: slip past when they swing away
+    const p = cont(c), x0 = c.x, y = c.y, len = 300 + n * 320; p.flat(len + 160); sync(c, p);
+    c.lv.solids.push([x0 + 60, y - 1020, len + 40, 500]);              // the roof, bottom at y - 520
+    for (let i = 0; i < n; i++) {
+      const mx = x0 + 280 + i * 320, up = i % 2 === 0;
+      c.lv.saws.push({ x: mx, y: y - (up ? 400 : 120), r: 28, ax: 0, ay: 62, per: 3.4 + (i % 3) * 0.4, ph: (i * 0.29) % 1 });
+      br(c, mx + 160, y - (up ? 150 : 400));
+    }
+    arcBread(c, x0 + 120, x0 + len, y - 260, 40, 5);
+    quiet(c, x0 + 60, x0 + len + 100);
+  };
+  S.kelpgates = (n) => (c) => {     // swaying rock-and-kelp doors that slide shut and open: go through when the door lifts
+    const p = cont(c), x0 = c.x, y = c.y, len = 260 + n * 380; p.flat(len + 160); sync(c, p);
+    c.lv.solids.push([x0 + 60, y - 1020, len + 40, 500]);              // roof, bottom at y - 520
+    for (let i = 0; i < n; i++) {
+      const gx = x0 + 280 + i * 380, hang = i % 2 === 0;
+      if (hang) c.lv.movers.push({ x: gx, y: y - 780, w: 74, h: 520, ax: 0, ay: 190, per: 5.4, ph: (i * 0.27) % 1 });          // hangs from the roof, bottom swings y-460 .. y-80
+      else c.lv.movers.push({ x: gx, y: y - 240, w: 74, h: 330, ax: 0, ay: 190, per: 5.4, ph: (i * 0.27) % 1 });                // rises from the floor, top swings y-430 .. y-50
+      br(c, gx + 37, y - 300); br(c, gx + 37 - 120, y - 200); br(c, gx + 37 + 120, y - 200);
+    }
+    quiet(c, x0 + 60, x0 + len + 100);
+  };
+  S.secret = () => (c) => {          // a hidden grotto under a rock lip: sneak in through the gap for a pile of bread
+    const p = cont(c), x0 = c.x, y = c.y;
+    p.flat(160).step(70, 280).flat(300).step(70, -280).flat(160); sync(c, p);
+    c.lv.solids.push([x0 + 290, y - 8, 250, 34]);                       // the lip over the right side of the grotto
+    for (let i = 0; i < 6; i++) br(c, x0 + 300 + i * 50, y + 210 - (i % 2) * 26);
+    br(c, x0 + 220, y + 60);
+    quiet(c, x0 + 100, x0 + 800);
+  };
+  S.chase = (len, H) => (c) => {      // a tunnel too narrow to pass: a huge fish chases you. Outswim it, or tuck into a dip and let it pass
+    H = H || 320;
+    const p = cont(c), x0 = c.x, y = c.y, r = H / 2 - 20, cy = y - H / 2;
+    const dips = Math.max(2, Math.floor(len / 560));
+    p.flat(520);
+    const dx = [];
+    for (let i = 0; i < dips; i++) { p.flat(250); dx.push(p.x); p.step(70, 190).flat(190).step(70, -190); }
+    p.flat(Math.max(200, len - (520 + dips * 580)) + 120); sync(c, p);
+    c.lv.solids.push([x0 + 440, y - 1020, c.x - x0 - 440 + 40, 1020 - H]);   // the roof: bottom at y - H
+    for (let i = 0; i < dips; i++) { br(c, dx[i] + 160, y + 130); br(c, dx[i] + 160 + 40, y + 90); }
+    for (let x = x0 + 700; x < c.x - 100; x += 190) br(c, x, y - 80);
+    (c.lv.life = c.lv.life || []).push({ kind: 'chaser', trig: x0 + 520, xEnd: c.x - 40, y: cy, r, v0: 150, acc: 12, vmax: 255, id: 9000 + (c.lv.life.length) });
+    quiet(c, x0 + 300, c.x);
+  };
   function composeSea(name, hint, secs, o) {
     o = o || {};
-    const lv = { name, hint, theme: 'ocean', sea: true, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null, crumble: [], belts: [], zones: [], saws: [], portals: [], gates: [], dark: !!o.dark, seaDense: o.dense || 1 };
+    const lv = { name, hint, theme: 'ocean', sea: true, spawn: [60, G - 45], deathY: 0, terrain: [], solids: [], water: [], hazards: [], pads: [], movers: [], checkpoints: [], bread: [], egg: null, crumble: [], belts: [], zones: [], saws: [], portals: [], gates: [], life: [], dark: !!o.dark, seaDense: o.dense || 1 };
     const c = { x: -400, y: G, p: null, low: G, lv };
     S.flat(700)(c);
     secs.forEach((f, i) => { f(c); if (i < secs.length - 1) { S.flat(170)(c); lv.checkpoints.push([c.x - 70, c.y - 45]); } });
@@ -669,16 +746,16 @@
   // ------------------------------------------------------------------ bonus x4: DEEP SEA (completely underwater)
   LEVELS.sea = LEVELS.length;
   const D2 = (name, hint, secs, o) => { const lv = composeSea(name, hint, secs, o); LEVELS.push(lv); };
-  D2('Shallow Reef', 'The whole level is underwater! Tap FLAP to swim up; you sink slowly.', [S.slalom(3), S.vent(3), S.current(700, 1), S.slalom(3)]);
-  D2('Kelp Forest', 'Weave between the rocks. Jellyfish drift about: swim around them!', [S.slalom(4), S.vent(4), S.current(800, 1), S.whirl(), S.cave(700)]);
-  D2('Sandy Drift', 'Ride the current forwards, then fight it backwards.', [S.current(900, 1), S.whirl(), S.slalom(4), S.current(900, -1), S.vent(3)]);
-  D2('Jellyfish Fields', 'Dozens of jellyfish. They sting! Keep your distance.', [S.flat(1200), S.slalom(3), S.flat(1100), S.current(700, 1)], { dense: 1.5 });
-  D2('Sunken Ship', 'A low cave, a deep trench, then more rocks.', [S.wreck(900), S.trench(300), S.slalom(5), S.wreck(1100), S.cave(800)]);
-  D2('Whirl Run', 'Currents both ways, with spinning propellers.', [S.current(1000, -1), S.saws(3), S.current(1000, 1), S.slalom(5)]);
-  D2('Shark Alley', 'Sharks sweep the open water. Watch for their fins, then swim behind them.', [S.flat(1500), S.cave(900), S.slalom(5), S.flat(1100)], { dense: 1.4 });
-  D2('Midnight Zone', 'No light down here except your lantern.', [S.slalom(4), S.cave(800), S.current(900, 1), S.trench(350), S.vent(4), S.slalom(4)], { dark: true });
-  D2('Coral Gates', 'Find the button to open each gate, between the propellers.', [S.gates(), S.slalom(5), S.whirl(), S.saws(4), S.wreck(900), S.gates()]);
-  D2('The Abyss', 'The deepest, darkest level. Everything lives here.', [S.wreck(1000), S.slalom(6), S.whirl(), S.current(1000, -1), S.vent(5), S.saws(4), S.trench(400), S.cave(1000), S.slalom(5)], { dark: true, dense: 1.3 });
+  D2('Shallow Reef', 'Welcome to the sea! Tap FLAP to swim. Swim through the bread rings and ride the bubbles up.', [S.reef(3), S.rings(3), S.bubbles(2), S.reef(2), S.rings(4)], { dense: 0.6 });
+  D2('Kelp Forest', 'Swaying kelp doors open and shut. Swim through when the door lifts. Look for the secret grotto!', [S.reef(2), S.kelpgates(3), S.rings(3), S.secret(), S.kelpgates(4), S.bubbles(2)], { dense: 0.8 });
+  D2('Sandy Drift', 'Ride the current forwards, then fight it backwards.', [S.current(900, 1), S.rings(3), S.whirl(), S.current(900, -1), S.reef(2), S.bubbles(3)], { dense: 0.9 });
+  D2('Jellyfish Fields', 'Dozens of jellyfish. They sting! Keep your distance and use the bubble columns to float over them.', [S.flat(1200), S.bubbles(3), S.slalom(3), S.rings(3), S.flat(1000), S.secret(), S.bubbles(2)], { dense: 1.5 });
+  D2('Sunken Ship', 'A big fish chases you through the wreck! Swim fast or hide in a dip.', [S.wreck(900), S.reef(1), S.chase(1700, 330), S.trench(300), S.wreck(1100), S.mines(4)], { dense: 0.9 });
+  D2('Whirl Run', 'Currents both ways, then a tunnel full of sea mines.', [S.current(1000, -1), S.mines(5), S.reef(1), S.current(1000, 1), S.kelpgates(3), S.whirl()], { dense: 0.9 });
+  D2('Shark Alley', 'Sharks sweep the open water, and a giant fish hunts you in the dark tunnel.', [S.flat(1300), S.rings(3), S.chase(1900, 340), S.slalom(5), S.flat(900), S.secret(), S.cave(900)], { dense: 1.3 });
+  D2('Midnight Zone', 'No light down here except your lantern. Follow the bread.', [S.mines(4), S.reef(2), S.secret(), S.chase(1900, 340), S.bubbles(4), S.cave(800), S.trench(350)], { dark: true, dense: 1 });
+  D2('Coral Gates', 'Find the button to open each gate, then slip through the kelp doors.', [S.gates(), S.kelpgates(4), S.whirl(), S.mines(4), S.reef(1), S.wreck(900), S.gates()], { dense: 0.9 });
+  D2('The Abyss', 'The deepest, darkest level. A huge monster hunts you here. Everything lives in the dark.', [S.wreck(1000), S.kelpgates(4), S.whirl(), S.chase(2100, 380), S.current(1000, -1), S.bubbles(5), S.mines(6), S.secret(), S.reef(1), S.chase(2400, 420)], { dark: true, dense: 1.2 });
 
   // ------------------------------------------------------------------ dedicated multiplayer race tracks
   const RACE = [];
