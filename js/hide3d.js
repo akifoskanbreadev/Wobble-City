@@ -165,7 +165,7 @@
     cam.yaw = me.ry + Math.PI; cam.pitch = 0.55; cam.dist = 9;
     dom.lobby.style.display = 'none'; dom.end.style.display = 'none'; dom.online.style.display = 'none';
     layout();
-    toast(me.role === 'hider' ? 'Find a hiding place! Walk up to one and press the orange button.' : 'The hiders are hiding… then go find them!', 5);
+    toast(me.role === 'hider' ? 'Hide for real: stand still inside a bush or haystack, or walk into an orange cupboard door pad.' : 'The hiders are hiding… then go find them!', 5);
     if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
   }
   function stopGame(keepRaf) { G = null; if (!keepRaf) { cancelAnimationFrame(raf); raf = 0; } joy.id = null; joy.x = joy.z = 0; lookId = null; if (dom) { dom.stick.style.display = 'none'; layout(); } }
@@ -214,12 +214,34 @@
   function nearestSpot(p, r) { let best = null, bd = r; for (const s of G.spots) { const d = dist2(p.x, p.z, s.x, s.z); if (d < bd) { bd = d; best = s; } } return best; }
 
   // ------------------------------------------------------------------ hide / search / found
-  function hideIn(p, s) { if (s.occ >= 0 || p.role !== 'hider' || p.hidden >= 0) return false; p.hidden = s.id; s.occ = p.id; p.x = s.x; p.z = s.z; p.y = 0; G.puffs.push({ x: s.x, z: s.z, t: 0 }); return true; }
+  function hideIn(p, s) { if (s.occ >= 0 || p.role !== 'hider' || p.hidden >= 0) return false; p.hidden = s.id; s.occ = p.id; if (s.cover) { p.mx = p.mz = 0; } else { p.x = s.x; p.z = s.z; p.y = 0; } G.puffs.push({ x: s.x, z: s.z, t: 0 }); return true; }
   function comeOut(p) {
     if (p.hidden < 0) return;
-    const s = G.spots[p.hidden]; s.occ = -1; p.hidden = -1;
+    const s = G.spots[p.hidden]; s.occ = -1; p.hidden = -1; p.sit = 0; if (s.cover) return; p.noEnter = G.clock + 1.2;
     for (let k = 0; k < 16; k++) { const a = s.ry + k * Math.PI / 8, x = s.x + Math.sin(a) * 2.4, z = s.z + Math.cos(a) * 2.4; if (freeAt(x, z, 0.6)) { p.x = x; p.z = z; return; } }
     p.x = s.x + 2.4; p.z = s.z;
+  }
+  // proper hiding: no hide button. Cover (bush, haystack...) hides you while you stand still inside it; cupboards (lockers, crates...) open when you walk into their door pad.
+  // Seekers open cupboards and walk through cover the same way. Runs for every person on the host (or offline).
+  function autoHide(p, dt) {
+    if (G.over || p.blind) return;
+    if (p.role === 'hider' && p.hidden < 0) {
+      const v = Math.hypot(p.mx, p.mz); let enter = null, near = null;
+      for (const s of G.spots) {
+        if (s.occ >= 0) continue;
+        if (s.cover) { if (p.y < 0.7 && dist2(p.x, p.z, s.x, s.z) < 1.3) near = s; }
+        else if (p.y < 0.7 && v > 0.4 && G.clock > (p.noEnter || 0) && dist2(p.x, p.z, s.dx, s.dz) < 0.95) { enter = s; break; }
+      }
+      if (enter) { if (hideIn(p, enter) && p.human) toast('Inside the ' + enter.name.toLowerCase() + '. Stay quiet! Push the stick or tap the button to come out.', 3); }
+      else if (near && v < 0.5) { p.sit = (p.sit || 0) + dt; if (p.sit > 0.65) { if (hideIn(p, near) && p.human) toast('Hidden in the ' + near.name.toLowerCase() + '. Stay still! Moving gives you away.', 3); p.sit = 0; } }
+      else p.sit = 0;
+    } else if (p.hidden >= 0 && G.spots[p.hidden].cover && Math.hypot(p.mx, p.mz) > 0.9) comeOut(p);
+    if (p.role === 'seeker' && p.human && G.phase === 'seek' && G.clock - (p.lastOpen || 0) > 0.8) {
+      for (const s of G.spots) {
+        const tx = s.cover ? s.x : s.dx, tz = s.cover ? s.z : s.dz;
+        if (dist2(p.x, p.z, tx, tz) < (s.cover ? 0.95 : 0.9) && (G.clock - (G.searched[s.id] || -999)) > 1.2) { p.lastOpen = G.clock; if (!searchSpot(p, s)) toast('Nobody in the ' + s.name.toLowerCase() + '.', 1.1); break; }
+      }
+    }
   }
   function becomeSeeker(p, by) {
     comeOut(p); p.role = 'seeker'; p.tgt = -1; p.wait = 0.8; G.nFound++;
@@ -292,7 +314,7 @@
   }
   function botGo(p, tx, tz, key, spd, dt) {
     p.replan -= dt; if (p.pkey !== key) p.giveUp = 0;
-    if (!p.path || p.pkey !== key || p.replan <= 0) { p.path = findPath(p.x, p.z, tx, tz) || [[tx, tz]]; p.pi = 0; p.pkey = key; p.replan = key === 'chase' ? 0.45 : 3; }
+    if (!p.path || p.pkey !== key || p.replan <= 0) { const fp = findPath(p.x, p.z, tx, tz); p.path = fp && fp.length ? fp : [[tx, tz]]; p.pi = 0; p.pkey = key; p.replan = key === 'chase' ? 0.45 : 3; }
     while (p.pi < p.path.length - 1 && dist2(p.x, p.z, p.path[p.pi][0], p.path[p.pi][1]) < 1.0) p.pi++;
     const w = p.path[p.pi]; let dx = w[0] - p.x, dz = w[1] - p.z; const l = Math.hypot(dx, dz) || 1;
     stepMove(p, dx / l, dz / l, spd, dt);
@@ -309,9 +331,9 @@
     if (p.role === 'hider') {
       if (p.hidden >= 0) return;
       if (p.tgt < 0 || G.spots[p.tgt].occ >= 0) { botPickSpot(p); if (p.tgt < 0) return; }
-      const s = G.spots[p.tgt];
-      if (dist2(p.x, p.z, s.x, s.z) < 2.7) { if (!hideIn(p, s)) botPickSpot(p); return; }
-      if (botGo(p, s.x, s.z, 's' + s.id, SPEED * 0.92, dt)) botPickSpot(p);
+      const s = G.spots[p.tgt], tx = s.cover ? s.x : s.dx, tz = s.cover ? s.z : s.dz;
+      if (dist2(p.x, p.z, tx, tz) < (s.cover ? 0.7 : 0.8)) { if (s.cover) { p.mx = p.mz = 0; if (s.occ >= 0) botPickSpot(p); } else if (!hideIn(p, s)) botPickSpot(p); return; }
+      if (botGo(p, tx, tz, 's' + s.id, SPEED * 0.92, dt)) botPickSpot(p);
       return;
     }
     // seeker
@@ -330,9 +352,9 @@
       for (const s of G.spots) { const age = G.clock - (G.searched[s.id] || -999); if (age < 70) continue; const sc = dist2(p.x, p.z, s.x, s.z) * (0.55 + Math.random() * 0.9) + (s.indoor ? 6 : 0); if (sc < bs) { bs = sc; best = s; } }
       p.tgt = best ? best.id : -1; if (!best) { p.wait = 1; return; }
     }
-    const s = G.spots[p.tgt];
-    if (dist2(p.x, p.z, s.x, s.z) < 2.7) { p.wait = rnd(0.4, 0.9) + p.skip * 0.5; if (Math.random() > p.skip * 0.9) searchSpot(p, s); else G.searched[s.id] = G.clock; p.tgt = -1; return; }
-    if (botGo(p, s.x, s.z, 's' + s.id, SPEED_S * 1.04, dt)) { G.searched[s.id] = G.clock; p.tgt = -1; }
+    const s = G.spots[p.tgt], tx = s.cover ? s.x : s.dx, tz = s.cover ? s.z : s.dz;
+    if (dist2(p.x, p.z, tx, tz) < 0.85) { p.wait = rnd(0.4, 0.9) + p.skip * 0.5; if (Math.random() > p.skip * 0.9) searchSpot(p, s); else G.searched[s.id] = G.clock; p.tgt = -1; return; }
+    if (botGo(p, tx, tz, 's' + s.id, SPEED_S * 1.04, dt)) { G.searched[s.id] = G.clock; p.tgt = -1; }
   }
 
   // ------------------------------------------------------------------ the human player
@@ -342,7 +364,7 @@
     if (actQ && G.online && !G.online.host) {            // guests ask the host; the host decides
       actQ = false;
       if (hiddenNow) net.send({ t: 'out' });
-      else if (p.role === 'hider') { const s = nearestSpot(p, 3.4); if (s && s.occ < 0) net.send({ t: 'hide', s: s.id }); }
+      else if (p.role === 'hider') { toast('No button needed: stand still in a bush, or walk into a cupboard door.', 2.5); }
       else if (G.phase === 'seek' && p.cd <= 0) {
         p.cd = 0.45; let tag = null, td = 2.5; for (const q of G.ps) if (q.role === 'hider' && q.hidden < 0) { const d = dist2(p.x, p.z, q.x, q.z); if (d < td) { td = d; tag = q; } }
         if (tag) net.send({ t: 'tag', p: tag.id });
@@ -352,7 +374,7 @@
     if (actQ) {
       actQ = false;
       if (hiddenNow) { comeOut(p); }
-      else if (p.role === 'hider') { const s = nearestSpot(p, 3.4); if (s && hideIn(p, s)) toast('Hidden! Stay still, or press the button to come out.', 2.5); }
+      else if (p.role === 'hider') { toast('No button needed: stand still in a bush, or walk into a cupboard door (orange pad).', 2.5); }
       else if (G.phase === 'seek' && p.cd <= 0) {
         p.cd = 0.45;
         let tag = null, td = 2.5; for (const q of G.ps) if (q.role === 'hider' && q.hidden < 0) { const d = dist2(p.x, p.z, q.x, q.z); if (d < td) { td = d; tag = q; } }
@@ -360,8 +382,14 @@
         else { const s = nearestSpot(p, 3.4); if (s) { if (!searchSpot(p, s)) toast('Nobody in the ' + s.name.toLowerCase() + '.', 1.2); } else G.rings.push({ x: p.x + Math.sin(p.ry) * 1.5, z: p.z + Math.cos(p.ry) * 1.5, t: 0 }); }
       }
     }
-    if (hiddenNow) { p.mx = p.mz = 0; jumpQ = false; return; }
     let ix = joy.x, iz = joy.z;
+    if (hiddenNow && !G.spots[p.hidden].cover) {         // inside a cupboard: push the stick (or tap the button) to open the door and step out
+      p.mx = p.mz = 0; jumpQ = false;
+      const px = joy.x + ((keys.KeyD || keys.ArrowRight) ? 1 : 0) - ((keys.KeyA || keys.ArrowLeft) ? 1 : 0), pz = joy.z + ((keys.KeyW || keys.ArrowUp) ? 1 : 0) - ((keys.KeyS || keys.ArrowDown) ? 1 : 0);
+      p.push = Math.hypot(px, pz) > 0.5 ? (p.push || 0) + dt : 0;
+      if (p.push > 0.35) { p.push = 0; if (G.online && !G.online.host) net.send({ t: 'out' }); else comeOut(p); }
+      return;
+    }
     if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1; if (keys.KeyW || keys.ArrowUp) iz += 1; if (keys.KeyS || keys.ArrowDown) iz -= 1;
     const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), fx = -sy, fz = -cy, rx = cy, rz = -sy;
     let dx = rx * ix + fx * iz, dz = rz * ix + fz * iz; const l = Math.hypot(dx, dz); if (l > 1) { dx /= l; dz /= l; }
@@ -394,6 +422,7 @@
       if (p.human && p.id === me.id) humanThink(p, dt);
       else if (!p.human) botThink(p, dt);
     }
+    for (const p of g.ps) autoHide(p, dt);
     if (g.online) net.hostStep(dt);
   }
 
@@ -426,7 +455,7 @@
   function render(dt) {
     const g = G, me = g.me, m = dynm; m.clear();
     // camera
-    const hid = me.hidden >= 0 ? g.spots[me.hidden] : null, tx = hid ? hid.x : me.x, tz = hid ? hid.z : me.z, ty = (hid ? 0 : me.y) + 2.1;
+    const hid = me.hidden >= 0 ? g.spots[me.hidden] : null, tx = hid && !hid.cover ? hid.x : me.x, tz = hid && !hid.cover ? hid.z : me.z, ty = (hid ? 0 : me.y) + 2.1;
     const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
     let d = cam.dist;
     const sols = g.map.solids;
@@ -441,6 +470,7 @@
     const inB = bAt(me.x, me.z);
     g.map.roofs.forEach((r, i) => { if (inB === i && !hid) return; m.box(r.x, r.y, r.z, r.w, r.h, r.d, r.c); });
     for (const p of g.ps) if (p.hidden < 0 && !(p.id !== me.id && g.online && p.away)) modelBoxes(m, p);
+    if (me.role === 'hider' && me.hidden < 0) for (const s of g.spots) if (!s.cover && s.occ < 0 && dist2(me.x, me.z, s.dx, s.dz) < 18) { const k = 1 + Math.sin(g.clock * 4) * 0.08; m.box(s.dx, 0.02, s.dz, 1.5 * k, 0.06, 1.5 * k, '#ff9a2f'); m.box(s.dx, 0.08, s.dz, 0.9, 0.06, 0.9, '#ffd27a'); }
     // puffs (a leafy "rustle" where someone just hid) and search rings
     for (const f of g.puffs) { f.t += dt; for (let i = 0; i < 4; i++) { const a = i * 1.57 + f.t * 3; m.box(f.x + Math.cos(a) * (0.6 + f.t), 2.4 + f.t * 1.5 + i * 0.1, f.z + Math.sin(a) * (0.6 + f.t), 0.25, 0.25, 0.25, '#ffffff'); } }
     g.puffs = g.puffs.filter((f) => f.t < 0.8);
@@ -468,7 +498,7 @@
     const mm = Math.max(0, Math.floor(g.t / 60)), ss = Math.max(0, Math.floor(g.t % 60));
     const hidersLeft = g.ps.filter((p) => p.role === 'hider').length;
     label(g.phase === 'hide' ? '🫣 Hiding time: ' + Math.ceil(g.t) : '⏱ ' + mm + ':' + String(ss).padStart(2, '0') + '   ·   🫣 ' + hidersLeft + ' hiding', w / 2, 30, '#fff', 20);
-    label(me.hidden >= 0 ? 'You are hiding in the ' + g.spots[me.hidden].name.toLowerCase() : me.role === 'seeker' ? 'You are a SEEKER 🔍' : 'You are a HIDER 🫣', w / 2, 54, me.role === 'seeker' ? '#ff9a9a' : '#9aff9a', 15);
+    label(me.hidden >= 0 ? 'You are hiding in the ' + g.spots[me.hidden].name.toLowerCase() + (g.spots[me.hidden].cover ? ' · stay still!' : '') : me.role === 'seeker' ? 'You are a SEEKER 🔍' : 'You are a HIDER 🫣', w / 2, 54, me.role === 'seeker' ? '#ff9a9a' : '#9aff9a', 15);
     // toasts
     g.toasts.forEach((t, i) => { t.left -= dt; }); g.toasts = g.toasts.filter((t) => t.left > 0).slice(-4);
     g.toasts.forEach((t, i) => label(t.t, w / 2, h * 0.2 + i * 24, '#fff', 16));
@@ -483,7 +513,7 @@
     // the action button + prompt
     let t = 'HIDE', sub = '(E)', show = true;
     if (me.hidden >= 0) { t = 'COME OUT'; }
-    else if (me.role === 'hider') { const s = nearestSpot(me, 3.4); t = s && s.occ < 0 ? 'HIDE' : '—'; if (s && s.occ < 0) label('Press to hide in the ' + s.name.toLowerCase(), w / 2, h * 0.72, '#ffe27a', 15); }
+    else if (me.role === 'hider') { t = '—'; show = false; const s = nearestSpot(me, 4.5); if (s && s.occ < 0) label(s.cover ? 'Step into the ' + s.name.toLowerCase() + ' and stand still' : 'Walk into the orange pad to get in the ' + s.name.toLowerCase(), w / 2, h * 0.72, '#ffe27a', 15); }
     else { t = 'SEARCH'; show = g.phase === 'seek'; const s = nearestSpot(me, 3.4); if (s && show) label('Search the ' + s.name.toLowerCase(), w / 2, h * 0.72, '#ffe27a', 15); }
     dom.actt.textContent = t; dom.act.style.opacity = show ? 1 : 0.35;
     if (me.blind) { c.fillStyle = '#000'; c.fillRect(0, 0, w, h); c.font = '800 34px system-ui,sans-serif'; c.fillStyle = '#fff'; c.fillText('Eyes closed… counting', w / 2, h / 2 - 10); c.font = '800 60px system-ui,sans-serif'; c.fillText(String(Math.ceil(g.t)), w / 2, h / 2 + 60); }

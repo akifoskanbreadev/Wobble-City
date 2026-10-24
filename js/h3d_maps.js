@@ -97,11 +97,20 @@
     mk('coffin', (p) => { p(0, 0, 0, 1.5, 1.2, 3.2, '#3a2a22'); p(0, 1.2, 0, 1.2, 0.2, 2.9, '#2a1d17'); p(0, 1.4, 0.2, 0.2, 0.05, 1.2, '#c9a24a'); p(0, 1.4, 0.2, 0.7, 0.05, 0.2, '#c9a24a'); });
 
     // a spot: visual + solid + record
+    // COVER spots are not solid: walk in and stand still to hide. Everything else is a CUPBOARD-style container with a door on its front:
+    // walk into the door pad to get in. (Seekers open them the same way.)
+    const COVER = new Set(['bush', 'haystack', 'tent', 'umbrella', 'stall', 'igloo', 'log', 'pot', 'gumdrop', 'sandcastle', 'tree', 'sofa', 'bed', 'boat', 'snowman', 'shelf', 'car']);
     function addSpot(type, x, z, ry, via, indoor, bi) {
       if (!VIS[type]) type = 'crate';
-      VIS[type](P(x, z, ry || 0));
-      const r = 1.45; psol(x - r, z - r, x + r, z + r, 9);
-      spots.push({ id: spots.length, type, name: NAMES[type] || type, x, z, ry: ry || 0, via: via || null, indoor: !!indoor, b: indoor ? bi : null, occ: -1, shake: 0 });
+      const cover = COVER.has(type); ry = ry || 0; let dx = x, dz = z;
+      if (!cover) {                                   // pick a side whose door pad is in the open
+        let found = false;
+        for (let k = 0; k < 4 && !found; k++) { const a = ry + k * Math.PI / 2, tx = x + Math.sin(a) * 1.95, tz = z + Math.cos(a) * 1.95; if (free(tx, tz, 0.5)) { ry = a; dx = tx; dz = tz; found = true; } }
+        if (!found) { dx = x + Math.sin(ry) * 1.95; dz = z + Math.cos(ry) * 1.95; }
+      }
+      VIS[type](P(x, z, ry));
+      if (!cover) { const r = 1.45; psol(x - r, z - r, x + r, z + r, 9); }
+      spots.push({ id: spots.length, type, name: NAMES[type] || type, x, z, ry, cover, dx, dz, via: via || null, indoor: !!indoor, b: indoor ? bi : null, occ: -1, shake: 0 });
     }
     // simple decoration (not hiding places)
     function deco(kind, x, z) {
