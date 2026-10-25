@@ -255,6 +255,7 @@
       this.neckAng = L.ang != null ? L.ang : -98; this.neckBend = L.bend != null ? L.bend : 4.2; this.neckStiff = L.stiff || 1;
       this.hipFrac = L.hip || [-13 / 28, 13 / 28];
       this.jelly = opt.jelly ? Object.assign({ k: 5200, c: 0.0009, damp: 6 }, opt.jelly) : null;   // soft-body pressure model (JellyCar-style)
+      this.bounce = opt.bounce || 0; this.hop = opt.hop || 0; this.slip = opt.slip || 1; this.glide = opt.glide || 0; this.hopT = 0;   // shop body physics: landing boing, auto-hop, grip, parachute
       this.sw = opt.shapeW || 1; this.sh = opt.shapeH || 1; this.lm = opt.legM || 1;   // shape skins: body width/height and leg length multipliers
       this.legless = !!opt.legless;                        // Neck mode: no legs, drag yourself along with the neck
       this.chaos = !!opt.chaos;                            // Spaghetti mode: haunted neck steering + random whiplash
@@ -383,11 +384,13 @@
 
       const wasGrounded = this.grounded;
       this.grounded = this.feet.some((f) => W.time - f.groundT < 0.08) || body.some((b) => W.time - b.groundT < 0.08);
-      if (this.jelly && this.grounded && !wasGrounded && this.prevVy > 260 && !this.swimming) {   // jelly boing: soaks up the landing and gives some back
-        const up = -Math.min(620, this.prevVy * 0.62);
+      if ((this.jelly || this.bounce) && this.grounded && !wasGrounded && this.prevVy > (this.bounce ? 120 : 260) && !this.swimming) {   // boing: soaks up the landing and gives some back
+        const up = -Math.min(this.bounce ? 900 : 620, this.prevVy * (this.bounce || 0.62));
         for (const q of body.concat(this.hips, this.feet)) q.vy = Math.min(q.vy, up);
       }
       this.prevVy = v.y;
+      if (this.hop && this.grounded && this.move !== 0 && (this.hopT -= dt) <= 0) { this.hopT = 0.42; for (const q of body.concat(this.hips, this.feet)) q.vy = Math.min(q.vy, -this.hop); }
+      if (this.glide && !this.grounded && v.y > 90) for (const q of body) q.vy -= (q.vy - 90) * Math.min(1, dt * this.glide * 6) * 0.5;
       this.swimming = body.filter((b) => b.wet > 0.3).length >= 2;
       this.airT = this.grounded || this.swimming ? 0 : this.airT + dt;
 
@@ -486,7 +489,7 @@
       const vmax = (this.swimming ? (this.world.sea ? 260 : 130) : 300) * this.speed;
       let grip = 1;
       if (this.grounded) { grip = Math.min(this.feet[0].sf, this.feet[1].sf); if (this.feet[0].cs == null) grip = 1; }
-      const cap = (this.grounded ? 1.1 * GRAVITY * mass * grip + 40 * mass : this.swimming ? (this.world.sea ? 300 : 160) * mass : 230 * mass) * this.speed;
+      const cap = (this.grounded ? (1.1 * GRAVITY * mass * grip + 40 * mass) * this.slip : this.swimming ? (this.world.sea ? 300 : 160) * mass : 230 * mass) * this.speed;
       const Fd = clamp(14 * mass * (move * vmax - v.x), -cap, cap);
       if (this.legless ? (move !== 0 && !this.grounded) : (move !== 0 || this.grounded)) for (const b of body) b.fx += (this.legless ? 0.35 : 1) * Fd / 4;
 

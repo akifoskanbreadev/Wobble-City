@@ -102,10 +102,15 @@
   function gooseOpts() {
     const d = diff(), PH = physItem();
     return { wobble: d.wobble * (PH.wobble || 1), tremor: d.tremor, chaos: !!d.chaos, speed: (has('speed') ? 2.3 : 1) * (PH.speed || 1) * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: ((SKINS.BY_ID[save.skin].phys || {}).flap || 1) * (PH.flap || 1), neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
-      layout: SKINS.BY_ID[save.skin].shape || {}, jelly: SKINS.BY_ID[save.skin].jelly || null,
-      shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: (SKINS.BY_ID[save.skin].shape || {}).leg || 1 };
+      layout: SKINS.BY_ID[save.skin].shape || {}, jelly: physItem().jelly || SKINS.BY_ID[save.skin].jelly || null, bounce: physItem().bounce || 0, hop: physItem().hop || 0, slip: physItem().slip || 1, glide: physItem().glide || 0,
+      shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: ((SKINS.BY_ID[save.skin].shape || {}).leg || 1) * (physItem().jelly && !SKINS.BY_ID[save.skin].jelly ? 0.55 : 1) };
   }
 
+  function applyPhys() {   // equip changes take effect at once (the body itself is rebuilt when we are not mid-level)
+    if (world) world.gscale = gravK();
+    if (goose && state !== 'play') { try { loadLevel(state === 'title' ? pick : levelIdx); } catch (e) { /* ignore */ } }
+    else if (goose) { const o = gooseOpts(); goose.speed = o.speed; goose.flapK = o.flapK; goose.bounce = o.bounce; goose.hop = o.hop; goose.slip = o.slip; goose.glide = o.glide; }
+  }
   const lookEquip = () => (save.tint && Object.keys(save.tint).length ? Object.assign({}, save.equip, { _tint: save.tint }) : save.equip);
 
   // ---------------------------------------------------------------- audio
@@ -1482,7 +1487,7 @@
       for (const c of slots) { const own = ITEMS.filter((i) => i.cat === c.id && save.owned[i.id]); if (own.length && Math.random() < 0.7) save.equip[c.id] = own[(Math.random() * own.length) | 0].id; else delete save.equip[c.id]; }
       tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore();
     });
-    tb('🧹 Take everything off', () => { save.equip = {}; save.tint = {}; tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore(); });
+    tb('🧹 Take everything off', () => { save.equip = {}; save.tint = {}; tryOn = {}; selectedItem = null; persist(); applyPhys(); snd.tick(); renderStore(); });
     const tintable = !isSkinTab && storeCat !== 'voice' && storeCat !== 'phys' && storeCat !== 'trail' && (save.equip[storeCat] || tryOn[storeCat]);
     if (tintable) {
       const row = document.createElement('div'); row.className = 'tintRow';
@@ -1502,7 +1507,7 @@
     const none = document.createElement('div');
     none.className = 'item' + (!save.equip[storeCat] && !tryOn[storeCat] ? ' on' : '');
     none.innerHTML = '<div class="ic">∅</div><b>None</b><span>Go bare</span>';
-    none.addEventListener('click', () => { delete tryOn[storeCat]; delete save.equip[storeCat]; delete save.tint[storeCat]; persist(); selectedItem = null; renderStore(); });
+    none.addEventListener('click', () => { delete tryOn[storeCat]; delete save.equip[storeCat]; delete save.tint[storeCat]; persist(); if (storeCat === 'phys') applyPhys(); selectedItem = null; renderStore(); });
     if (!isSkinTab) grid.appendChild(none);
     itemsFor(storeCat).forEach((item) => {
       const owned = isOwned(item);
@@ -1520,7 +1525,7 @@
         if (owned) {
           if (item.cat === 'skin') save.skin = item.sid;
           else if (wearing) delete save.equip[item.cat]; else save.equip[item.cat] = item.id;
-          delete tryOn[item.cat]; selectedItem = null; persist(); snd.tick();
+          delete tryOn[item.cat]; selectedItem = null; persist(); snd.tick(); if (item.cat === 'phys') { applyPhys(); toast(wearing ? 'Physics: normal' : item.name + ' is on: ' + (item.tip || ''), 3); }
         } else { tryOn[item.cat] = item.id; selectedItem = item.id; snd.tick(); }
         renderStore();
       });
@@ -1544,7 +1549,7 @@
     if (!rich() && save.bread < it.price) { snd.no(); return; }
     if (!rich()) save.bread -= it.price;
     if (it.cat === 'skin') { save.skins[it.sid] = true; save.skin = it.sid; }
-    else { save.owned[it.id] = true; save.equip[it.cat] = it.id; }
+    else { save.owned[it.id] = true; save.equip[it.cat] = it.id; if (it.cat === 'phys') { applyPhys(); toast(it.name + ' is on: ' + (it.tip || ''), 3); } }
     delete tryOn[it.cat]; selectedItem = null; persist(); snd.buy(); refreshMenu(); renderStore();
     toast('Bought ' + it.name + '!', 1.5);
   });

@@ -166,6 +166,20 @@
   P('p_cloud', 'Cloud Hopper', 220, '☁️', { grav: 0.5, flap: 1.35, speed: 1.2 }, 'Floaty AND strong flaps');
   P('p_zoom', 'Pinball', 260, '🎱', { grav: 1.1, speed: 1.5, flap: 1.4, wobble: 0.7 }, 'Fast, bouncy chaos');
 
+  // body physics: jelly = soft body (c softness, k pressure), bounce = landing boing, hop = auto-hop, slip = grip (<1 icy), glide = parachute
+  P('b_jelly', 'Jelly Body', 200, '🍮', { jelly: { c: 0.02, k: 1500 } }, 'Your whole body turns squishy');
+  P('b_gummy', 'Gummy Bear', 260, '🧸', { jelly: { c: 0.008, k: 3000, damp: 10 }, bounce: 0.35 }, 'Chewy and a little bouncy');
+  P('b_bouncy', 'Bouncy Ball', 240, '🏀', { bounce: 0.95, grav: 0.9 }, 'Every landing sends you flying');
+  P('b_rubber', 'Rubber Goose', 180, '🦆', { bounce: 0.6, jelly: { c: 0.012, k: 2400, damp: 8 } }, 'Rubbery and springy');
+  P('b_pogo', 'Pogo Goose', 280, '🦘', { hop: 560, speed: 0.9 }, 'Hops by itself while you move');
+  P('b_slime', 'Slime Blob', 220, '🟢', { jelly: { c: 0.03, k: 900, damp: 3 }, slip: 0.7, wobble: 0.6 }, 'Wobbly and slippery');
+  P('b_ice', 'Ice Skater', 150, '⛸️', { slip: 0.28, speed: 1.2 }, 'Very slippery, slides everywhere');
+  P('b_glue', 'Sticky Feet', 90, '🍯', { slip: 2.5, speed: 0.9 }, 'Total grip');
+  P('b_chute', 'Parachute', 200, '🪂', { glide: 1, grav: 0.85 }, 'Falls slowly, floats down');
+  P('b_pudding', 'Pudding', 320, '🍰', { jelly: { c: 0.04, k: 700, damp: 2.5 }, bounce: 0.5, grav: 0.8, wobble: 0.5 }, 'Maximum wobble');
+  P('b_anvil', 'Anvil', 130, '⚓', { grav: 1.9, flap: 1.5, speed: 0.8, wobble: 2 }, 'Drops like a rock, flaps hard');
+  P('b_chaos', 'Chaos Goose', 400, '🌪️', { bounce: 0.8, hop: 380, speed: 1.4, slip: 0.5, wobble: 0.5, grav: 0.8 }, 'Hops, slides, bounces. Good luck');
+
   // ------------------------------------------------------------------ extra trails (kinds are drawn in game.js)
   const Tr = (id, name, price, kind, cols, draw) => add({ id, cat: 'trail', name, price, trail: { kind, cols }, draw });
   Tr('t_confetti', 'Confetti', 80, 'confetti', ['#ff4f8b', '#ffd23f', '#4aa3ff', '#7ad862', '#b57aff'], (c) => { [['#ff4f8b', -6, -4, 0.4], ['#ffd23f', 4, -7, 1.2], ['#4aa3ff', 7, 4, 2.2], ['#7ad862', -5, 6, 0.9]].forEach(([col, x, y, r]) => { c.save(); c.translate(x, y); c.rotate(r); c.fillStyle = col; c.fillRect(-3, -1.6, 6, 3.2); c.restore(); }); });
