@@ -247,12 +247,12 @@
   };
   S.movers = (n, fast) => (c) => {
     brk(c);
-    const x0 = c.x, y = c.y, W = 120 + n * 370 + 60;
+    const x0 = c.x, y = c.y, W = 120 + n * 340 + 120;
     pit(c, x0, W, y);
-    const pat = [[80, 0, 4.5, 0], [0, 55, 3.6, 0.25], [90, 0, 5, 0.5], [0, 60, 4.2, 0]];
+    const pat = [[60, 0, 4.5, 0], [0, 55, 3.6, 0.25], [65, 0, 5, 0.5], [0, 60, 4.2, 0]];
     for (let i = 0; i < n; i++) {
-      const q = pat[i % 4], mx = x0 + 120 + i * 370, my = y - 10 - (i % 2) * 60;
-      c.lv.movers.push({ x: mx, y: my, w: 160, h: 24, ax: q[0], ay: q[1], per: q[2] * (fast ? 0.8 : 1), ph: q[3] });
+      const q = pat[i % 4], mx = x0 + 100 + i * 340, my = y - 10 - (i % 2) * 60;
+      c.lv.movers.push({ x: mx, y: my, w: 210, h: 24, ax: q[0], ay: q[1], per: q[2] * (fast ? 0.85 : 1), ph: q[3] });
       br(c, mx + 80, my - 80);
     }
     c.x = x0 + W;
@@ -398,8 +398,7 @@
   };
   S.antigrav = (h) => (c) => {      // a column that floats you up to a high ledge
     const p = cont(c), x0 = c.x, y = c.y; p.flat(340); sync(c, p);
-    c.lv.solids.push([x0 + 100, y - h - 120, 24, h + 120]);
-    c.lv.solids.push([x0 + 330, y - h, 340, h + 400]);
+    c.lv.solids.push([x0 + 330, y - h, 340, h + 400]);   // (there used to be a 540px wall in front of the column that made it impossible to enter)
     c.lv.zones.push([x0 + 124, y - h - 60, 206, h + 60, 0, 0, -0.15, 'anti']);
     br(c, x0 + 226, y - h / 2); br(c, x0 + 500, y - h - 70);
     c.x = x0 + 670; c.y = y - h; brk(c); low(c, y + 400);
@@ -741,7 +740,7 @@
   M('Overclocked', 'A storm on the factory roof. Everything is faster and slipperier.', 'factory', { rain: true, wind: 560, per: 5.5, storm: true, lightning: 8 }, [s.belts(7), s.saws(6), s.fans(3), s.belts(6), s.gates(), s.crumble(8), s.saws(5), s.tower(8)]);
   M('Asteroid Alley', 'Low gravity, anti-gravity columns and blades in orbit.', 'space', null, [s.lowgrav(1200), s.antigrav(460), s.saws(5), s.lowgrav(1500), s.portals(3), s.antigrav(500), s.tower(7)]);
   M('Nebula Run', 'Gravity games with belts, gates and solar wind.', 'space', { wind: 520, per: 6 }, [s.lowgrav(1100), s.belts(5), s.antigrav(480), s.gates(), s.crumble(8), s.lowgrav(1400), s.portals(4), s.tower(8)]);
-  M('Big Bang', 'The very last Mega level. Everything, in space, in a cosmic storm.', 'space', { wind: 380, per: 7, storm: true, lightning: 14, hail: false }, [s.antigrav(420), s.lowgrav(1100), s.portals(3), s.crumble(7), s.saws(4), s.belts(5), s.fans(3), s.gates(), s.antigrav(420), s.movers(4, true), s.tower(6)]);
+  M('Big Bang', 'The very last Mega level. Everything, in space, in a cosmic storm.', 'space', { wind: 380, per: 7, storm: true, lightning: 14, hail: false }, [s.antigrav(420), s.lowgrav(1100), s.portals(3), s.crumble(7), s.saws(4), s.belts(5), s.fans(3), s.gates(), s.antigrav(420), s.movers(4), s.tower(6)]);
 
   // ------------------------------------------------------------------ bonus x4: DEEP SEA (completely underwater)
   LEVELS.sea = LEVELS.length;
