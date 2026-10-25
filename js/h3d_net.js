@@ -113,7 +113,9 @@
       case 'hi': if (isHost) { roster[from] = { skin: m.skin, hat: m.hat || null }; sendRoster(); } break;
       case 'roster': { for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin }; }); refresh(); break; }
       case 'start': if (!isHost) { X.dom().online.style.display = 'none'; X.start({ map: m.setup.map, seed: m.setup.seed, setup: m.setup, myId: m.my, online: { host: false, my: m.my } }); } break;
-      case 'p': if (isHost && G) { const idx = G.online.map[from], p = G.ps[idx]; if (p && (p.hidden < 0 || G.spots[p.hidden].cover)) { p.x = m.x; p.y = m.y; p.z = m.z; p.ry = m.ry; p.anim = m.a; p.mx = m.mx; p.mz = m.mz; p.ground = m.y < 0.05; } } break;
+      case 'p': if (isHost && G) { const idx = G.online.map[from], p = G.ps[idx]; if (p && (p.hidden < 0 || G.spots[p.hidden].cover)) { p.x = m.x; p.y = m.y; p.z = m.z; p.ry = m.ry; p.anim = m.a; p.mx = m.mx; p.mz = m.mz; p.invis = !!m.iv; p.ground = m.y < 0.05; } } break;
+      case 'whistle': if (isHost && G) { const idx = G.online.map[from], pp = G.ps[idx]; if (pp && G.phase !== 'over') { X.whistleAt(m.x, m.z, pp.role, pp.id); toAll({ t: 'wh', x: m.x, z: m.z, role: pp.role, by: pp.id }); } } break;
+      case 'wh': if (!isHost && G) X.whistleAt(m.x, m.z, m.role, m.by); break;
       case 'hide': case 'out': case 'search': case 'tag': if (isHost && G) action(from, m); break;
       case 's': if (!isHost && G) applySnap(m); break;
       case 'found': if (!isHost && G) { const a = G.ps[m.p], b = G.ps[m.by]; if (a) X.toast(a === G.me ? 'You were found by ' + (b ? b.name : 'a seeker') + '! You are a seeker now.' : a.name + ' was found by ' + (b ? b.name : 'a seeker') + '!', 3); } break;
@@ -136,7 +138,7 @@
     const G = X.G; if (!G) return;
     snapT += dt; if (snapT < 0.1) return; snapT = 0;
     const sr = []; for (const k in G.searched) if (G.clock - G.searched[k] < 70) sr.push(+k);
-    toAll({ t: 's', ph: G.phase, tt: r1(G.t), ps: G.ps.map((p) => [p.id, r1(p.x), r1(p.y), r1(p.z), r1(p.ry), r1(p.anim), p.role === 'seeker' ? 1 : 0, p.hidden, p.found, Math.round(p.survived), r1(p.mx), r1(p.mz)]), sr });
+    toAll({ t: 's', ph: G.phase, tt: r1(G.t), ps: G.ps.map((p) => [p.id, r1(p.x), r1(p.y), r1(p.z), r1(p.ry), r1(p.anim), p.role === 'seeker' ? 1 : 0, p.hidden, p.found, Math.round(p.survived), r1(p.mx), r1(p.mz), p.invis ? 1 : 0]), sr });
   }
   function applySnap(m) {
     const G = X.G, me = G.me;
@@ -149,7 +151,7 @@
       p.role = e[6] ? 'seeker' : 'hider'; p.hidden = e[7]; p.found = e[8]; p.survived = e[9];
       if (p.hidden >= 0) { G.spots[p.hidden].occ = p.id; if (wasHidden < 0) G.puffs.push({ x: G.spots[p.hidden].x, z: G.spots[p.hidden].z, t: 0 }); }
       if (p === me) { if (p.hidden >= 0) { if (!G.spots[p.hidden].cover) { p.x = G.spots[p.hidden].x; p.z = G.spots[p.hidden].z; p.y = 0; } } else if (wasHidden >= 0 || Math.hypot(p.x - e[1], p.z - e[3]) > 5) { p.x = e[1]; p.z = e[3]; p.y = e[2]; } }
-      else { p.tx = e[1]; p.ty = e[2]; p.tz = e[3]; p.try_ = e[4]; p.anim = e[5]; p.mx = e[10]; p.mz = e[11]; p.ground = e[2] < 0.05; if (p.hidden >= 0 && !G.spots[p.hidden].cover) { p.x = G.spots[p.hidden].x; p.z = G.spots[p.hidden].z; } }
+      else { p.tx = e[1]; p.ty = e[2]; p.tz = e[3]; p.try_ = e[4]; p.anim = e[5]; p.mx = e[10]; p.mz = e[11]; p.invis = !!e[12]; p.ground = e[2] < 0.05; if (p.hidden >= 0 && !G.spots[p.hidden].cover) { p.x = G.spots[p.hidden].x; p.z = G.spots[p.hidden].z; } }
     }
     G.searched = {}; for (const id of m.sr) G.searched[id] = G.clock;
   }
@@ -161,7 +163,7 @@
       let da = p.try_ - p.ry; while (da > Math.PI) da -= 6.283; while (da < -Math.PI) da += 6.283; p.ry += da * k;
     }
     G.t -= 0; sendT += dt;
-    if (sendT > 0.066 && (me.hidden < 0 || G.spots[me.hidden].cover)) { sendT = 0; toHost({ t: 'p', x: r1(me.x), y: r1(me.y), z: r1(me.z), ry: r1(me.ry), a: r1(me.anim), mx: r1(me.mx), mz: r1(me.mz) }); }
+    if (sendT > 0.066 && (me.hidden < 0 || G.spots[me.hidden].cover)) { sendT = 0; toHost({ t: 'p', x: r1(me.x), y: r1(me.y), z: r1(me.z), ry: r1(me.ry), a: r1(me.anim), mx: r1(me.mx), mz: r1(me.mz), iv: me.invis ? 1 : 0 }); }
   }
 
   H.setNet({

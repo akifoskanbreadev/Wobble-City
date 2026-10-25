@@ -11,7 +11,9 @@
   const keys = {};
   const cam = { yaw: 0, pitch: 0.55, dist: 9 };
   const joy = { x: 0, z: 0, id: null, ox: 0, oy: 0 };
-  let lookId = null, lookX = 0, lookY = 0, actQ = false, jumpQ = false, exitQ = false;
+  let lookId = null, lookX = 0, lookY = 0, actQ = false, jumpQ = false, exitQ = false, whQ = false;
+  const own = { xray: true, invis: false, speed: false, jump: false };
+  const isOwn = () => !!(api && api.isOwner && api.isOwner());
   const NAMES = ['Honky', 'Waddle', 'Biscuit', 'Quackers', 'Pebble', 'Noodle', 'Gus', 'Mabel', 'Pip', 'Dumpling', 'Toast', 'Sprout', 'Beans', 'Clover', 'Mochi', 'Ziggy'];
   const PAL = [['#ffffff', '#ffffff'], ['#ffd23f', '#ffe27a'], ['#8a5a32', '#b5733a'], ['#3a86ff', '#7ab0ff'], ['#e63946', '#ff7b86'], ['#2fbf71', '#7fe0a8'], ['#9b5de5', '#c8a2f5'], ['#ff8c42', '#ffb37a'], ['#2b2b2e', '#59595f'], ['#ff70a6', '#ffb3d1']];
   const SEEK_T = 240, HIDE_T = 25, SPEED = 7, SPEED_S = 6.7, RAD = 0.55;
@@ -26,6 +28,8 @@
   #h3 .b{position:absolute;border-radius:50%;border:3px solid rgba(255,255,255,.85);background:rgba(30,30,40,.45);color:#fff;font-weight:800;display:none;align-items:center;justify-content:center;text-align:center;font-size:15px;touch-action:none}
   #h3 #h3act{right:max(18px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom));width:104px;height:104px;background:rgba(255,155,47,.9);color:#1b1b1b;flex-direction:column;line-height:1.1}
   #h3 #h3jump{right:calc(max(18px,env(safe-area-inset-right)) + 118px);bottom:max(30px,env(safe-area-inset-bottom));width:70px;height:70px}
+  #h3 #h3whis{right:calc(max(18px,env(safe-area-inset-right)) + 118px);bottom:calc(max(30px,env(safe-area-inset-bottom)) + 84px);width:62px;height:62px;font-size:26px}
+  #h3 #h3own{position:absolute;left:10px;top:176px;display:none;flex-direction:column;gap:5px;z-index:3}#h3 #h3own button{font:700 12px system-ui;padding:5px 8px;border-radius:9px;border:2px solid rgba(255,255,255,.7);background:rgba(30,30,40,.6);color:#fff}#h3 #h3own button.on{background:#d6192b}
   #h3 #h3exit{right:12px;top:12px;width:46px;height:46px;font-size:20px;display:flex;border-radius:12px}
   #h3 #h3stick{left:max(24px,env(safe-area-inset-left));bottom:max(30px,env(safe-area-inset-bottom));width:128px;height:128px;display:none;background:rgba(30,30,40,.3)}
   #h3 #h3knob{position:absolute;left:36px;top:36px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.6)}
@@ -47,7 +51,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     const d = document.createElement('div'); d.id = 'h3';
     d.innerHTML = `<canvas id="h3gl"></canvas><canvas id="h3hud"></canvas>
-      <div class="b" id="h3stick"><div id="h3knob"></div></div><div class="b" id="h3jump">JUMP</div><div class="b" id="h3act"><span id="h3actt">HIDE</span><small id="h3acts">(E)</small></div><div class="b" id="h3exit">☰</div>
+      <div class="b" id="h3stick"><div id="h3knob"></div></div><div class="b" id="h3jump">JUMP</div><div class="b" id="h3act"><span id="h3actt">HIDE</span><small id="h3acts">(E)</small></div><div class="b" id="h3exit">☰</div><div class="b" id="h3whis">🎵</div><div id="h3own"></div>
       <div class="panel" id="h3lobby"><div class="card">
         <h2>🫣 3D Hide &amp; Seek</h2><div class="sub">Blocky geese, huge towns, 100+ places to hide. Hiders tuck into hiding places; seekers search them. Found hiders turn into seekers!</div>
         <div class="row"><b>Map</b></div><div class="grid" id="h3maps"></div>
@@ -62,7 +66,7 @@
         <div class="row"><input id="h3word" maxlength="24" placeholder="room word" autocomplete="off" autocapitalize="off"><button class="go" id="h3join">Join</button></div>
         <div class="tip" id="h3ostat"></div><div class="row" id="h3orow" style="display:none"><button class="go" id="h3ostart">Start game</button></div><div class="row"><button class="go alt" id="h3oback">Back</button></div></div></div>`;
     document.body.appendChild(d);
-    dom = { root: d, gl: $('h3gl'), hud: $('h3hud'), stick: $('h3stick'), knob: $('h3knob'), act: $('h3act'), actt: $('h3actt'), acts: $('h3acts'), jump: $('h3jump'), exit: $('h3exit'), lobby: $('h3lobby'), end: $('h3end'), online: $('h3online-p') };
+    dom = { root: d, gl: $('h3gl'), hud: $('h3hud'), stick: $('h3stick'), knob: $('h3knob'), act: $('h3act'), actt: $('h3actt'), acts: $('h3acts'), jump: $('h3jump'), exit: $('h3exit'), whis: $('h3whis'), own: $('h3own'), lobby: $('h3lobby'), end: $('h3end'), online: $('h3online-p') };
     hudCtx = dom.hud.getContext('2d');
     // map picker
     const g = $('h3maps'); g.innerHTML = '<div class="mp on" data-m="-1"><span>🎲</span>Random</div>' + MAPS.LIST.map((m) => `<div class="mp" data-m="${m.index}" title="${m.blurb}"><span>${m.emoji}</span>${m.name}</div>`).join('');
@@ -81,7 +85,7 @@
     $('h3word').addEventListener('keyup', (e) => e.stopPropagation());
     $('h3exit').addEventListener('click', () => { if (G) { net.leave(); stopGame(); dom.lobby.style.display = 'flex'; } });
     const hold = (el, on) => { el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); on(); }); };
-    hold(dom.act, () => { actQ = true; }); hold(dom.jump, () => { jumpQ = true; });
+    hold(dom.whis, () => { whQ = true; }); hold(dom.act, () => { actQ = true; }); hold(dom.jump, () => { jumpQ = true; });
     // touch: left stick, anywhere else drags the camera
     dom.root.addEventListener('pointerdown', (e) => {
       if (!G || e.target.closest('.b') || e.target.closest('.panel')) return;
@@ -103,6 +107,7 @@
       if (!G) return;
       const c = e.code; keys[c] = true;
       if (c === 'KeyE' || c === 'KeyF' || c === 'Enter') { if (!e.repeat) actQ = true; }
+      else if (c === 'KeyQ') { if (!e.repeat) whQ = true; }
       else if (c === 'Space') { if (!e.repeat) jumpQ = true; }
       else if (c === 'Escape') { exitQ = true; }
       if (/^(Key[WASDEFQ]|Arrow.*|Space|Escape|Enter)$/.test(c)) { e.preventDefault(); e.stopImmediatePropagation(); }
@@ -112,7 +117,7 @@
     window.addEventListener('resize', () => { if (open) layout(); });
   }
   const sel = { map: -1, role: 'hider', n: 8 };
-  function layout() { const touch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window; dom.jump.style.display = G && touch ? 'flex' : 'none'; dom.act.style.display = G ? 'flex' : 'none'; dom.exit.style.display = G ? 'flex' : 'none'; dom.acts.style.display = touch ? 'none' : ''; }
+  function layout() { const touch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window; dom.jump.style.display = G && touch ? 'flex' : 'none'; dom.act.style.display = G ? 'flex' : 'none'; dom.whis.style.display = G ? 'flex' : 'none'; buildOwn(); dom.exit.style.display = G ? 'flex' : 'none'; dom.acts.style.display = touch ? 'none' : ''; }
 
   // ------------------------------------------------------------------ game setup
   function colsOf(skinId) {
@@ -328,6 +333,7 @@
   }
   function botThink(p, dt) {
     if (p.blind) return;
+    if (p.frz > 0) { p.frz -= dt; p.mx = p.mz = 0; return; }
     if (p.role === 'hider') {
       if (p.hidden >= 0) return;
       if (p.tgt < 0 || G.spots[p.tgt].occ >= 0) { botPickSpot(p); if (p.tgt < 0) return; }
@@ -341,7 +347,7 @@
     p.cd -= dt; p.wait -= dt;
     // a hider in plain view: chase it
     let vis = null, vd = 20;
-    for (const q of G.ps) if (q.role === 'hider' && q.hidden < 0) { const d = dist2(p.x, p.z, q.x, q.z); if (d < vd && los(p.x, p.z, q.x, q.z)) { vd = d; vis = q; } }
+    for (const q of G.ps) if (q.role === 'hider' && q.hidden < 0 && !q.invis) { const d = dist2(p.x, p.z, q.x, q.z); if (d < vd && los(p.x, p.z, q.x, q.z)) { vd = d; vis = q; } }
     if (vis) {
       if (vd < 1.7 && p.cd <= 0) { p.cd = 0.6; becomeSeeker(vis, p); return; }
       botGo(p, vis.x, vis.z, 'chase', SPEED_S * 1.04, dt); return;
@@ -357,9 +363,60 @@
     if (botGo(p, tx, tz, 's' + s.id, SPEED_S * 1.04, dt)) { G.searched[s.id] = G.clock; p.tgt = -1; }
   }
 
+  // ------------------------------------------------------------------ whistling (hiders lure, seekers warn) and owner perks
+  let wac = null;
+  function whistleSound(vol) {
+    try {
+      wac = wac || new (root.AudioContext || root.webkitAudioContext)(); if (wac.state === 'suspended') wac.resume();
+      const t = wac.currentTime, o = wac.createOscillator(), g = wac.createGain(), o2 = wac.createOscillator();
+      o.type = 'sine'; o2.type = 'sine'; o.frequency.setValueAtTime(1500, t); o.frequency.linearRampToValueAtTime(2300, t + 0.28); o.frequency.linearRampToValueAtTime(1800, t + 0.55);
+      o2.frequency.setValueAtTime(1510, t); o2.frequency.linearRampToValueAtTime(2310, t + 0.28); o2.frequency.linearRampToValueAtTime(1810, t + 0.55);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25 * vol, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+      o.connect(g); o2.connect(g); g.connect(wac.destination); o.start(t); o2.start(t); o.stop(t + 0.65); o2.stop(t + 0.65);
+    } catch (e) { /* ignore */ }
+  }
+  // everybody in earshot hears it; seeker bots go and look where a hider whistled
+  function whistleAt(x, z, role, byId) {
+    const g = G; if (!g) return; (g.whistles || (g.whistles = [])).push({ x, z, t: g.clock, role, by: byId }); g.rings.push({ x, z, t: 0 });
+    const d = dist2(g.me.x, g.me.z, x, z); whistleSound(Math.max(0.08, 1 - d / 70));
+    if (byId !== g.me.id) { const dir = Math.abs(x - g.me.x) > Math.abs(z - g.me.z) ? (x > g.me.x ? 'east' : 'west') : (z > g.me.z ? 'north' : 'south'); if (d < 70) toast('🎵 You hear a whistle to the ' + dir + '…', 2.2); }
+    if (role === 'hider' && (!g.online || g.online.host)) for (const q of g.ps) if (!q.human && q.role === 'seeker' && g.phase === 'seek' && dist2(q.x, q.z, x, z) < 60 && Math.random() > q.skip * 0.5) {
+      let best = -1, bd = 1e9; for (const s of g.spots) { const dd = dist2(s.x, s.z, x, z); if (dd < bd && g.clock - (g.searched[s.id] || -999) > 20) { bd = dd; best = s.id; } }
+      if (best >= 0) { q.tgt = best; q.wait = 0; }
+    }
+  }
+  function tryWhistle(p, fakeAt) {
+    if (G.clock - (p.wcd || -99) < 5) { toast('Your whistle needs a moment…', 1); return; }
+    p.wcd = G.clock; const x = fakeAt ? fakeAt[0] : p.x, z = fakeAt ? fakeAt[1] : p.z;
+    if (G.online && !G.online.host) { whistleSound(0.5); net.send({ t: 'whistle', x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 }); }
+    else { whistleAt(x, z, p.role, p.id); if (G.online) net.event({ t: 'wh', x, z, role: p.role, by: p.id }); }
+  }
+  function randomPlace() { const s = pick(G.spots); return [s.x + rnd(-6, 6), s.z + rnd(-6, 6)]; }
+  function buildOwn() {
+    if (!dom || !dom.own) return;
+    const show = !!G && isOwn(); dom.own.style.display = show ? 'flex' : 'none'; if (!show) return;
+    const defs = [['xray', '👁 X-ray'], ['invis', '🫥 Invisible'], ['speed', '💨 Speed x2'], ['jump', '🦘 Super jump'], ['tp', '🎲 Random teleport', 1], ['decoy', '🎵 Whistle from elsewhere', 1], ['freeze', '🧊 Freeze seekers 5s', 1], ['reveal', '📍 Ping everyone', 1]];
+    dom.own.innerHTML = ''; dom.own.insertAdjacentHTML('beforeend', '<div style="font:800 11px system-ui;opacity:.85">OWNER</div>');
+    for (const [k, l, one] of defs) {
+      const b = document.createElement('button'); b.textContent = l; if (!one && own[k]) b.className = 'on';
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      b.addEventListener('click', (e) => {
+        e.stopPropagation(); if (!G) return; const me = G.me;
+        if (!one) { own[k] = !own[k]; b.className = own[k] ? 'on' : ''; return; }
+        if (k === 'tp') { const s = pick(G.spots); me.x = s.x + 2.5; me.z = s.z; me.y = 0; me.vy = 0; }
+        else if (k === 'decoy') { me.wcd = -99; tryWhistle(me, randomPlace()); }
+        else if (k === 'freeze') { for (const q of G.ps) if (q.role === 'seeker' && q !== me) q.frz = 5; toast('Seekers frozen for 5 seconds', 2); }
+        else if (k === 'reveal') { for (const q of G.ps) if (q !== me) G.rings.push({ x: q.x, z: q.z, t: 0 }); }
+      });
+      dom.own.appendChild(b);
+    }
+  }
+
   // ------------------------------------------------------------------ the human player
   function humanThink(p, dt) {
-    if (p.blind) { p.mx = p.mz = 0; actQ = false; jumpQ = false; return; }
+    if (p.blind) { p.mx = p.mz = 0; actQ = false; jumpQ = false; whQ = false; return; }
+    p.invis = isOwn() && own.invis;
+    if (whQ) { whQ = false; if (G.phase !== 'over') tryWhistle(p); }
     const hiddenNow = p.hidden >= 0;
     if (actQ && G.online && !G.online.host) {            // guests ask the host; the host decides
       actQ = false;
@@ -393,8 +450,8 @@
     if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1; if (keys.KeyW || keys.ArrowUp) iz += 1; if (keys.KeyS || keys.ArrowDown) iz -= 1;
     const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), fx = -sy, fz = -cy, rx = cy, rz = -sy;
     let dx = rx * ix + fx * iz, dz = rz * ix + fz * iz; const l = Math.hypot(dx, dz); if (l > 1) { dx /= l; dz /= l; }
-    if (jumpQ && p.ground) { p.vy = 10.5; p.ground = false; } jumpQ = false;
-    stepMove(p, dx, dz, p.role === 'seeker' ? SPEED_S : SPEED, dt);
+    if (jumpQ && p.ground) { p.vy = isOwn() && own.jump ? 19 : 10.5; p.ground = false; } jumpQ = false;
+    stepMove(p, dx, dz, (p.role === 'seeker' ? SPEED_S : SPEED) * (isOwn() && own.speed ? 2 : 1), dt);
     p.cd -= dt;
   }
 
@@ -469,7 +526,7 @@
     // roofs (the one you are under is lifted off)
     const inB = bAt(me.x, me.z);
     g.map.roofs.forEach((r, i) => { if (inB === i && !hid) return; m.box(r.x, r.y, r.z, r.w, r.h, r.d, r.c); });
-    for (const p of g.ps) if (p.hidden < 0 && !(p.id !== me.id && g.online && p.away)) modelBoxes(m, p);
+    for (const p of g.ps) if (p.hidden < 0 && !(p.id !== me.id && g.online && p.away) && !(p.invis && p.id !== me.id)) modelBoxes(m, p);
     if (me.role === 'hider' && me.hidden < 0) for (const s of g.spots) if (!s.cover && s.occ < 0 && dist2(me.x, me.z, s.dx, s.dz) < 18) { const k = 1 + Math.sin(g.clock * 4) * 0.08; m.box(s.dx, 0.02, s.dz, 1.5 * k, 0.06, 1.5 * k, '#ff9a2f'); m.box(s.dx, 0.08, s.dz, 0.9, 0.06, 0.9, '#ffd27a'); }
     // puffs (a leafy "rustle" where someone just hid) and search rings
     for (const f of g.puffs) { f.t += dt; for (let i = 0; i < 4; i++) { const a = i * 1.57 + f.t * 3; m.box(f.x + Math.cos(a) * (0.6 + f.t), 2.4 + f.t * 1.5 + i * 0.1, f.z + Math.sin(a) * (0.6 + f.t), 0.25, 0.25, 0.25, '#ffffff'); } }
@@ -490,7 +547,7 @@
     const label = (t, x, y, col, sz) => { c.font = '800 ' + (sz || 15) + 'px system-ui,sans-serif'; c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(t, x, y); c.fillStyle = col || '#fff'; c.fillText(t, x, y); };
     // name tags
     for (const p of g.ps) {
-      if (p.id === me.id || p.hidden >= 0) continue;
+      if (p.id === me.id || p.hidden >= 0 || p.invis) continue;
       const q = R.project([p.x, p.y + 3.5, p.z]); if (!q || q[2] > 40) continue;
       label((p.role === 'seeker' ? '🔍 ' : '') + p.name, q[0], q[1], p.role === 'seeker' ? '#ff8a8a' : '#fff', 14);
     }
@@ -507,8 +564,9 @@
     c.save(); c.globalAlpha = 0.85; c.fillStyle = 'rgba(20,30,40,.7)'; c.fillRect(mx, my, ms, ms);
     c.fillStyle = 'rgba(190,200,215,.7)'; for (const r of g.map.rects) c.fillRect(cx(r[0]), cz(r[1]), (r[2] - r[0]) * sc, (r[3] - r[1]) * sc);
     if (me.role === 'seeker') for (const s of g.spots) { const done = g.clock - (g.searched[s.id] || -999) < 70; c.fillStyle = done ? '#4cd964' : '#ffcf40'; c.fillRect(cx(s.x) - 1, cz(s.z) - 1, 2.5, 2.5); }
-    if (api && api.isOwner && api.isOwner()) { for (const p of g.ps) if (p.role === 'hider' && p.id !== me.id) { const q = p.hidden >= 0 && !g.spots[p.hidden].cover ? g.spots[p.hidden] : p; c.fillStyle = '#58f08a'; c.beginPath(); c.arc(cx(q.x), cz(q.z), 2.8, 0, 7); c.fill(); } c.font = '700 9px system-ui'; c.fillStyle = '#ffd23f'; c.fillText('👑 owner x-ray', 14, 154); }
+    if (isOwn() && own.xray) { for (const p of g.ps) if (p.role === 'hider' && p.id !== me.id) { const q = p.hidden >= 0 && !g.spots[p.hidden].cover ? g.spots[p.hidden] : p; c.fillStyle = '#58f08a'; c.beginPath(); c.arc(cx(q.x), cz(q.z), 2.8, 0, 7); c.fill(); } c.font = '700 9px system-ui'; c.fillStyle = '#ffd23f'; c.fillText('👑 owner x-ray', 14, 154); }
     for (const p of g.ps) if (p.role === 'seeker') { c.fillStyle = '#ff4d4d'; c.beginPath(); c.arc(cx(p.x), cz(p.z), 2.6, 0, 7); c.fill(); }
+    for (const w of g.whistles || []) { const age = g.clock - w.t; if (age > 6 || (w.role === me.role && w.by !== me.id)) continue; c.strokeStyle = w.role === 'hider' ? 'rgba(255,230,90,' + (1 - age / 6) + ')' : 'rgba(255,110,110,' + (1 - age / 6) + ')'; c.lineWidth = 2; c.beginPath(); c.arc(cx(w.x), cz(w.z), 3 + age * 5, 0, 7); c.stroke(); }
     const mp = me.hidden >= 0 ? g.spots[me.hidden] : me; c.fillStyle = '#fff'; c.beginPath(); c.arc(cx(mp.x), cz(mp.z), 3.4, 0, 7); c.fill();
     c.restore();
     // the action button + prompt
@@ -528,6 +586,6 @@
     setNet(n) { net = n; },
     _step(dt) { if (G) update(dt); },
     _stop() { stopGame(); },
-    _ctx: { get G() { return G; }, get api() { return api; }, MAPS, E, rnd, pick, myHat, randHat, dom: () => dom, newPlayer, botCols, colsOf, start, finish, becomeSeeker, hideIn, comeOut, searchSpot, modelBoxes, toast, $, cam },
+    _ctx: { whistleAt, whistleSound, get G() { return G; }, get api() { return api; }, MAPS, E, rnd, pick, myHat, randHat, dom: () => dom, newPlayer, botCols, colsOf, start, finish, becomeSeeker, hideIn, comeOut, searchSpot, modelBoxes, toast, $, cam },
   };
 })(window);
