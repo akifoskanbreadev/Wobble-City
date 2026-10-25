@@ -815,6 +815,7 @@
       cx.save(); cx.filter = d === 'gray' ? 'grayscale(1)' : d === 'dark' ? 'brightness(.55)' : d === 'bright' ? 'brightness(1.35) saturate(1.3)' : 'hue-rotate(' + d + 'deg) saturate(1.15)';
       fn(); cx.restore();
     };
+    const PL = window.PhysLook, plId = equip.phys && PL && PL.has(equip.phys) ? equip.phys : null, plT = performance.now() / 1000;
     const auraItem = it('aura');
     if (auraItem) { cx.save(); cx.translate(c.x, c.y); tint('aura', () => auraItem.draw(cx, g.head.x - c.x, g.head.y - c.y)); cx.restore(); }
     cx.lineCap = 'round'; cx.lineJoin = 'round';
@@ -833,6 +834,7 @@
       cx.beginPath(); cx.moveTo(hip.x, hip.y); cx.lineTo(ft.x, ft.y); cx.stroke();
       if (legItem) { cx.save(); cx.translate(ft.x, ft.y); cx.rotate(Math.atan2(hip.y - ft.y, hip.x - ft.x)); tint('legs', () => legItem.draw(cx)); cx.restore(); }
       cx.save(); cx.translate(ft.x, ft.y); cx.scale(f, 1);
+      if (plId) { PL.feet(cx, plId, plT); }
       if (shoes) tint('shoes', () => shoes.draw(cx));
       else if (sk.foot) sk.foot(cx);
       else { cx.fillStyle = sk.legC || '#ff9b2f'; cx.strokeStyle = INK; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(4, 2, 11, 4.5, 0, 0, 7); cx.fill(); cx.stroke(); }
@@ -859,6 +861,7 @@
     else { cx.beginPath(); cx.moveTo(-30, -8); cx.lineTo(-52, -20); cx.lineTo(-36, 6); cx.closePath(); cx.fill(); cx.stroke(); }
     const tailItem = it('tail');
     if (tailItem) { cx.save(); cx.translate(-34, -4); tint('tail', () => tailItem.draw(cx)); cx.restore(); }
+    if (plId) PL.behind(cx, plId, plT);
     const bodyPath = () => { cx.beginPath(); if (shp.rect) roundRect(cx, -38, -24, 76, 48, 9); else cx.ellipse(0, 0, 38, 24, 0, 0, 7); };
     const jb = sk.jelly && g.body && g.body.length === 4;
     if (jb) {
@@ -872,7 +875,9 @@
       bodyPath(); cx.stroke();
       if (sk.jelly) jellyShine(cx);
     }
+    if (plId && !jb) PL.over(cx, plId, plT, bodyPath);
     const backItem = it('back');
+    if (plId) PL.back(cx, plId, plT);
     if (backItem) tint('back', () => backItem.draw(cx));
     if (bodyItem && !bodyItem.back) tint('body', () => bodyItem.draw(cx));
     const fp = g.flapT > 0 ? Math.sin((0.35 - g.flapT) * 36) : 0;
@@ -919,6 +924,7 @@
     cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ex + 0.9, ey - 0.9, er * 0.32, 0, 7); cx.fill();
     const eyes = it('eyes'), hat = it('hat'), face = it('face'), beakItem = it('beak');
     if (face) { cx.save(); tint('face', () => face.draw(cx)); cx.restore(); }
+    if (plId) PL.head(cx, plId, plT);
     if (sk.headDeco) { cx.save(); sk.headDeco(cx); cx.restore(); }
     if (beakItem) { cx.save(); cx.translate(4, 0); tint('beak', () => beakItem.draw(cx)); cx.restore(); }
     if (eyes) { cx.save(); cx.translate(ex, ey); tint('eyes', () => eyes.draw(cx)); cx.restore(); }
