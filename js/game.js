@@ -98,18 +98,23 @@
   const rich = () => has('money');
   const money = () => (rich() ? '∞' : save.bread);
   const physItem = () => { const id = save.equip && save.equip.phys; const it = id && BY_ID[id]; return (it && it.phys) || {}; };
-  const gravK = () => (has('moon') ? 0.4 : 1) * (physItem().grav || 1);
+  const FX = () => (window.Owner && window.Owner.fx) || { time: 1, speed: 1, flap: 1, grav: 1, bounce: 0 };
+  const gravK = () => (has('moon') ? 0.4 : 1) * (physItem().grav || 1) * FX().grav;
   function gooseOpts() {
     const d = diff(), PH = physItem();
-    return { wobble: d.wobble * (PH.wobble || 1), tremor: d.tremor, chaos: !!d.chaos, speed: (has('speed') ? 2.3 : 1) * (PH.speed || 1) * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: ((SKINS.BY_ID[save.skin].phys || {}).flap || 1) * (PH.flap || 1), neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
-      layout: SKINS.BY_ID[save.skin].shape || {}, jelly: physItem().jelly || SKINS.BY_ID[save.skin].jelly || null, bounce: physItem().bounce || 0, hop: physItem().hop || 0, slip: physItem().slip || 1, glide: physItem().glide || 0,
+    return { wobble: d.wobble * (PH.wobble || 1), tremor: d.tremor, chaos: !!d.chaos, speed: (has('speed') ? 2.3 : 1) * (PH.speed || 1) * FX().speed * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: ((SKINS.BY_ID[save.skin].phys || {}).flap || 1) * (PH.flap || 1) * FX().flap, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
+      layout: SKINS.BY_ID[save.skin].shape || {}, jelly: physItem().jelly || SKINS.BY_ID[save.skin].jelly || null, bounce: Math.max(physItem().bounce || 0, FX().bounce || 0), hop: physItem().hop || 0, slip: physItem().slip || 1, glide: physItem().glide || 0,
       shapeW: (SKINS.BY_ID[save.skin].shape || {}).w || 1, shapeH: (SKINS.BY_ID[save.skin].shape || {}).h || 1, legM: ((SKINS.BY_ID[save.skin].shape || {}).leg || 1) * (physItem().jelly && !SKINS.BY_ID[save.skin].jelly ? 0.55 : 1) };
   }
 
   function applyPhys() {   // equip changes take effect at once (the body itself is rebuilt when we are not mid-level)
     if (world) world.gscale = gravK();
     if (goose && state !== 'play') { try { loadLevel(state === 'title' ? pick : levelIdx); } catch (e) { /* ignore */ } }
-    else if (goose) { const o = gooseOpts(); goose.speed = o.speed; goose.flapK = o.flapK; goose.bounce = o.bounce; goose.hop = o.hop; goose.slip = o.slip; goose.glide = o.glide; }
+    else if (goose) applyFxLive();
+  }
+  function applyFxLive() {
+    if (world) world.gscale = gravK();
+    if (goose) { const o = gooseOpts(); goose.speed = o.speed; goose.flapK = o.flapK; goose.bounce = o.bounce; goose.hop = o.hop; goose.slip = o.slip; goose.glide = o.glide; }
   }
   const lookEquip = () => (save.tint && Object.keys(save.tint).length ? Object.assign({}, save.equip, { _tint: save.tint }) : save.equip);
 
@@ -410,7 +415,7 @@
   function tick() {
     if (input.atkQueue) { input.atkQueue = false; if (window.Battle.active()) window.Battle.attack(); }
     const frz = window.MP && window.MP.frozen();
-    const move = frz ? 0 : (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0);
+    const move = (frz ? 0 : (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0)) * (FX().reverse ? -1 : 1);
     const aim = input.padAim || input.mouseAim || null;
     const flap = frz ? false : input.flapQueue;
     input.flapQueue = false;
@@ -418,6 +423,7 @@
     if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); honkText = 0.7; if (boss && bossPhase === 'fight' && state === 'play') { BOSS.honkClear(boss, goose.head); if (BOSS.honkHits(boss, goose.head, goose.facing)) bossHurt(BOSS.hit(boss)); } }
     const wasWet = goose.swimming;
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
+    if (FX().fly && input.flapHeld) for (const q of goose.body.concat(goose.feet, goose.neck || [])) { q.vy = Math.max(-420, q.vy - 55); }
     world.step(STEP);
     if (window.MP) window.MP.tick(goose, STEP);
     if (window.Battle.active()) window.Battle.tick(goose, STEP);
@@ -971,7 +977,7 @@
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       mgInst.draw();
     } else if (goose) {
-      acc += slow ? real * 0.25 : real;
+      acc += (slow ? real * 0.25 : real) * FX().time;
       let guard = 0;
       while (acc >= STEP && guard++ < 6) {
         if (state === 'play') tick(); else { goose.update(STEP, { move: 0 }); world.step(STEP); }
@@ -1291,7 +1297,7 @@
     const inp = $('codeInput'), c = inp.value.trim().toLowerCase();
     if (!c) return;
     if (c === 'akif') {
-      $('codeModal').classList.add('hidden'); snd.egg(); window.Owner.become();
+      $('codeModal').classList.add('hidden'); snd.egg(); window.Owner.open();
     } else if ((GIFTS[c] || CHEATS[c]) && window.Owner && window.Owner.blocks(c) && (GIFTS[c] || !save.cheats[c])) {
       say('🔒 The owner locked the "' + c + '" code.', true); snd.no();
     } else if (GIFTS[c]) {
@@ -1339,7 +1345,7 @@
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
-  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
+  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, ctl: { applyFx: () => applyFxLive(), honk: () => { input.honkQueue = true; }, win: () => { if (state === 'play') finishLevel(); else toast('Start a level first.', 2); }, respawn: () => { if (goose && state === 'play') respawn(); }, refill: () => { if (goose) goose.stamina = 99; }, killEnemies: () => { enemies = []; }, toEgg: () => { if (goose && level && state === 'play') { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } }, randTp: () => { if (goose && level && state === 'play') { const dx = (Math.random() - 0.5) * 900, dy = -Math.random() * 300; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } } }, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
   $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
   // extra game modes: each is a full-screen overlay module with init({save, Skins, award}) and open()
   [['Chameleon', 'chamBtn'], ['Crew', 'crewBtn']].forEach(([m, b]) => {
