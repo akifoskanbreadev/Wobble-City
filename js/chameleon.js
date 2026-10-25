@@ -96,7 +96,7 @@
     const d = document.createElement('div'); d.id = 'ch';
     d.innerHTML = `<canvas id="chcv"></canvas><div class="b" id="chL">◀</div><div class="b" id="chR">▶</div><div class="b" id="chCamo">CAMO<br>(C)</div><div class="b" id="chMorph">MORPH<br>(Space)</div><div class="b" id="chScan">SCAN<br>(E)</div><div class="b" id="chExit">☰</div>
       <div class="panel" id="chTitle"><div class="card"><h2>🦎 Mecha Chameleon</h2><div class="sub">You are a robot chameleon goose. Hide in plain sight in a room full of props!</div>
-        <div class="row"><b>Start in</b><span id="chRooms"></span></div>
+        <div class="row" style="flex-direction:column;gap:6px"><b>Start in</b><span id="chRooms" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center"></span></div>
         <div class="row"><button class="go" id="chHide">🫥 Play as Hider</button><button class="go" id="chSeek">🔦 Play as Seeker</button><button class="go alt" id="chBack">Back</button></div>
         <div class="tip"><b>Hider:</b> SCAN a prop (E) then MORPH (Space). The seeker pokes props: a fake is only safe if the room has several real copies of it (you get a ✅/⚠ when you scan). Stay still in the spotlight. Hold C on a wall patch to camouflage. Grab bread crumbs between passes. Survive the timer!</div>
         <div class="tip"><b>Seeker:</b> walk (A/D or arrows) and SCAN props (E or tap them). One prop is the hidden bot. Wrong guesses cost 8 seconds and a scan.</div></div></div>
