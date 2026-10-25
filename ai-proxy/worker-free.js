@@ -1,6 +1,7 @@
 // Wobble City helper worker (free Cloudflare plan). Does two jobs:
 //  1) Build-a-Goose AI: Workers AI binding named  AI   (Settings -> Bindings -> Add -> Workers AI)
 //  2) Game sync + lock:  KV namespace binding named SYNC (Settings -> Bindings -> Add -> KV namespace)
+//  3) Accounts: name + password (stored only as a hash), bans, per-player locks and owner pranks. Uses the same SYNC binding.
 // The game sends everything it needs, so improving the game never needs a new copy of this file.
 const ALLOW_ORIGIN = 'https://akifoskanbreadev.github.io';
 const BIG = '@cf/meta/llama-3.3-70b-instruct-fp8-fast', SMALL = '@cf/meta/llama-3.1-8b-instruct';
@@ -40,6 +41,66 @@ export default {
         const list = (Array.isArray(body.locked) ? body.locked : []).filter((c) => typeof c === 'string' && /^[a-z]{2,10}$/.test(c) && !['sync', 'codes', 'akif', 'rainbow', 'disco', 'zoom'].includes(c)).slice(0, 30);
         await env.SYNC.put('cfg:locked', JSON.stringify(list)); return json({ ok: true });
       }
+      return json({ error: 'bad op' }, 400);
+    }
+
+
+    if (typeof body.op === 'string' && body.op.startsWith('acct-')) {          // accounts: name + password hash, bans, pending owner effects
+      if (!env.SYNC) return json({ error: 'no SYNC binding' }, 501);
+      const hex = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+      const nm = (v) => (typeof v === 'string' && /^[A-Za-z0-9_ .-]{3,16}$/.test(v.trim()) ? v.trim() : '');
+      const name = nm(body.name), id = name.toLowerCase(), now = Date.now();
+      const get = async (n) => JSON.parse((await env.SYNC.get('u:' + n)) || 'null');
+      const put = (n, u) => env.SYNC.put('u:' + n, JSON.stringify(u));
+      const index = async () => JSON.parse((await env.SYNC.get('idx:users')) || '[]');
+      const small = (a) => { const t = JSON.stringify(a || null); return t && t.length < 6000 ? a : null; };
+      const view = (u) => ({ ban: u.ban && (!u.ban.until || u.ban.until > now) ? u.ban : null, locks: u.locks || [], note: u.note || '' });
+      // ---- owner operations (need the owner PIN hash)
+      const ownerOps = ['acct-list', 'acct-fx', 'acct-ban', 'acct-unban', 'acct-locks', 'acct-reset', 'acct-delete'];
+      if (ownerOps.includes(body.op)) {
+        const cur = await env.SYNC.get('cfg:pin');
+        if (!cur || !hex(body.pin) || cur !== body.pin) return json({ error: 'bad pin' }, 403);
+        const names = await index();
+        if (body.op === 'acct-list') {
+          const out = [];
+          for (const n of names.slice(0, 300)) { const u = await get(n); if (u) out.push({ name: u.name, avatar: u.avatar || null, seen: u.seen || 0, where: u.where || '', created: u.created || 0, ban: u.ban || null, locks: u.locks || [] }); }
+          return json({ users: out });
+        }
+        const targets = body.targets === '*' ? names : (Array.isArray(body.targets) ? body.targets : []).map((t) => String(t).toLowerCase()).filter((t) => names.includes(t));
+        if (body.op === 'acct-fx') {
+          const fx = small(body.fx); if (!fx || !fx.k) return json({ error: 'bad fx' }, 400);
+          for (const t of targets.slice(0, 120)) { const u = await get(t); if (!u) continue; u.fx = (u.fx || []).concat([{ ...fx, at: now }]).slice(-12); await put(t, u); }
+          return json({ ok: true, n: targets.length });
+        }
+        if (body.op === 'acct-ban') { const until = Number(body.until) || 0; for (const t of targets) { const u = await get(t); if (!u) continue; u.ban = { until, reason: String(body.reason || 'Banned').slice(0, 120), at: now }; await put(t, u); } return json({ ok: true }); }
+        if (body.op === 'acct-unban') { for (const t of targets) { const u = await get(t); if (!u) continue; u.ban = null; await put(t, u); } return json({ ok: true }); }
+        if (body.op === 'acct-locks') { const list = (Array.isArray(body.locked) ? body.locked : []).filter((c) => typeof c === 'string' && /^[a-z]{2,10}$/.test(c) && !['sync', 'codes', 'akif', 'rainbow', 'disco', 'zoom'].includes(c)).slice(0, 30); for (const t of targets) { const u = await get(t); if (!u) continue; u.locks = list; await put(t, u); } return json({ ok: true }); }
+        if (body.op === 'acct-reset') { if (!hex(body.ph)) return json({ error: 'bad hash' }, 400); for (const t of targets) { const u = await get(t); if (!u) continue; u.ph = body.ph; await put(t, u); } return json({ ok: true }); }
+        if (body.op === 'acct-delete') { const keep = names.filter((n) => !targets.includes(n)); for (const t of targets) await env.SYNC.delete('u:' + t); await env.SYNC.put('idx:users', JSON.stringify(keep)); return json({ ok: true }); }
+      }
+      // ---- player operations
+      if (!name || !hex(body.ph)) return json({ error: 'bad name or password' }, 400);
+      if (body.op === 'acct-register') {
+        if (await get(id)) return json({ error: 'taken' }, 409);
+        const names = await index(); if (names.length >= 1000) return json({ error: 'full' }, 507);
+        const u = { name, ph: body.ph, avatar: small(body.avatar), created: now, seen: now, where: '', ban: null, locks: [], fx: [] };
+        await put(id, u); names.push(id); await env.SYNC.put('idx:users', JSON.stringify(names));
+        return json({ ok: true, ...view(u) });
+      }
+      const u = await get(id);
+      if (!u || u.ph !== body.ph) return json({ error: 'wrong' }, 403);
+      if (body.op === 'acct-login' || body.op === 'acct-ping') {
+        const v = view(u); let dirty = false;
+        if (u.ban && !v.ban) { u.ban = null; dirty = true; }
+        const av = small(body.avatar);
+        if (body.op === 'acct-login' || (av && JSON.stringify(av) !== JSON.stringify(u.avatar))) { u.avatar = av || u.avatar; dirty = true; }
+        if (!u.seen || now - u.seen > 240000 || (typeof body.where === 'string' && body.where.slice(0, 20) !== u.where)) { u.seen = now; u.where = String(body.where || '').slice(0, 20); dirty = true; }
+        let fx = [];
+        if (!v.ban && u.fx && u.fx.length) { fx = u.fx; u.fx = []; dirty = true; }
+        if (dirty) await put(id, u);
+        return json({ ok: true, ...v, fx, name: u.name });
+      }
+      if (body.op === 'acct-pass') { if (!hex(body.nph)) return json({ error: 'bad hash' }, 400); u.ph = body.nph; await put(id, u); return json({ ok: true }); }
       return json({ error: 'bad op' }, 400);
     }
 

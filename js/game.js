@@ -1345,7 +1345,9 @@
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
-  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, ctl: { applyFx: () => applyFxLive(), honk: () => { input.honkQueue = true; }, win: () => { if (state === 'play') finishLevel(); else toast('Start a level first.', 2); }, respawn: () => { if (goose && state === 'play') respawn(); }, refill: () => { if (goose) goose.stamina = 99; }, killEnemies: () => { enemies = []; }, toEgg: () => { if (goose && level && state === 'play') { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } }, randTp: () => { if (goose && level && state === 'play') { const dx = (Math.random() - 0.5) * 900, dy = -Math.random() * 300; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } } }, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
+  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, thumb: avatarThumb, ctl: { toMenu: () => { try { showMenu(); } catch (e) { /* ignore */ } }, applyFx: () => applyFxLive(), honk: () => { input.honkQueue = true; }, win: () => { if (state === 'play') finishLevel(); else toast('Start a level first.', 2); }, respawn: () => { if (goose && state === 'play') respawn(); }, refill: () => { if (goose) goose.stamina = 99; }, killEnemies: () => { enemies = []; }, toEgg: () => { if (goose && level && state === 'play') { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } }, randTp: () => { if (goose && level && state === 'play') { const dx = (Math.random() - 0.5) * 900, dy = -Math.random() * 300; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } } }, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
+  window.Account.init({ look: () => ({ skin: save.skin, equip: save.equip, tint: save.tint }), thumb: avatarThumb, where: () => (document.getElementById('h3') && document.getElementById('h3').style.display !== 'none' ? '3D hide' : document.getElementById('crew') && document.getElementById('crew').style.display !== 'none' ? 'Among Us' : document.getElementById('ch') && document.getElementById('ch').style.display !== 'none' ? 'Chameleon' : state === 'play' ? 'level ' + (levelIdx + 1) : state === 'mg' ? 'minigame' : 'menu') });
+  $('accBtn').addEventListener('click', () => { audio(); window.Account.open(); });
   $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
   // extra game modes: each is a full-screen overlay module with init({save, Skins, award}) and open()
   [['Chameleon', 'chamBtn'], ['Crew', 'crewBtn']].forEach(([m, b]) => {
@@ -1399,6 +1401,15 @@
     sctx.restore();
   }
 
+  function avatarThumb(lk, px) {   // a small picture of someone's goose (their skin and what they wear)
+    lk = lk || {}; const sk = (lk.skin && SKINS.BY_ID[lk.skin]) ? lk.skin : 'goose';
+    const cv = document.createElement('canvas'); cv.width = cv.height = px * 2; cv.style.width = cv.style.height = px + 'px';
+    const c = cv.getContext('2d'), fg = fakeGoose(0, sk), ft = fitFor(fg, sk), k = Math.min(0.36, 0.36 * ft.s * 1.25) * (px * 2 / 96);
+    c.translate(px + ft.ox * k, px * 1.55); c.scale(k, k);
+    const eq = Object.assign({}, lk.equip || {}); delete eq.skin; if (lk.tint) eq._tint = lk.tint;
+    try { drawGoose(c, fg, eq, sk); } catch (e) { /* ignore */ }
+    return cv;
+  }
   function iconFor(item) {
     if (item.cat === 'skin') {
       const cv = document.createElement('canvas'); cv.width = cv.height = 96;

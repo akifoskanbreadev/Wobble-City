@@ -31,33 +31,41 @@
   }
   try { cfg.locked = JSON.parse(get(LS.locked) || '[]').filter((c) => LOCKABLE.includes(c)); } catch (e) { cfg.locked = []; }
 
+  let myLocks = [];
   const authed = () => !!get(LS.pin) && !!(A && A.save().cheats && A.save().cheats.owner);
   const isLocked = (c) => cfg.locked.includes(c);
-  const blocks = (c) => isLocked(c) && !authed();       // a locked code is dead for everybody except the PIN-verified owner
+  const blocks = (c) => (isLocked(c) || myLocks.includes(c)) && !authed();   // a locked code is dead for everybody except the PIN-verified owner
   const isOwner = () => authed();
+  const setMyLocks = (l) => { myLocks = (l || []).filter((c) => LOCKABLE.includes(c)); if (A) A.applyCodes(); };
 
-  // ------------------------------------------------------------------ troll / power effects (local to this device)
-  const fx = { time: 1, speed: 1, flap: 1, grav: 1, bounce: 0, reverse: false, fly: false, autohonk: false, breadrain: false, god: false, on: {} };
+  // ------------------------------------------------------------------ troll / power effects (on this device; the owner can aim them at other players)
+  const fx = { time: 1, speed: 1, flap: 1, grav: 1, bounce: 0, reverse: false, fly: false, autohonk: false, breadrain: false, on: {}, until: {} };
   const FXD = [   // id, label, group (radio inside a group)
     ['flip', '🙃 Upside-down screen'], ['mirror', '🪞 Mirror screen'], ['spin', '🌀 Spinning screen'], ['drunk', '🍺 Drunk screen'], ['invert', '🌗 Invert colours'],
-    ['gray', '⚫ Black & white'], ['hue', '🌈 Colour party'], ['blur', '😵 Blurry'], ['shake', '📳 Earthquake'], ['zoomin', '🔍 Zoomed way in'],
+    ['gray', '⚫ Black & white'], ['hue', '🌈 Colour party'], ['blur', '😵 Blurry'], ['shake', '📳 Earthquake'], ['zoomin', '🔍 Zoomed way in'], ['tiny', '🔬 Tiny screen'], ['dark', '🕶 Lights out'], ['pixel', '🟦 Pixelated'], ['sepia', '📜 Old photo'],
     ['reverse', '↔️ Reverse controls'], ['fly', '🕊 Jetpack (hold flap)'], ['autohonk', '📣 Auto-honk'], ['breadrain', '🍞 Bread rain'], ['bounce', '🏀 Super bouncy'],
     ['slow', '🐢 Slow motion', 'time'], ['fast', '⏩ Fast forward', 'time'],
-    ['superflap', '🚀 Mega flaps', 'power'], ['megaspeed', '💨 Mega speed', 'power'],
+    ['superflap', '🚀 Mega flaps', 'power'], ['megaspeed', '💨 Mega speed', 'power'], ['nospeed', '🧊 Frozen feet', 'power'],
     ['invgrav', '🙃 Gravity up!', 'grav'], ['lowgrav', '🌙 Tiny gravity', 'grav'], ['heavy', '⚓ Crushing gravity', 'grav']
   ];
   function recalc() {
     const o = fx.on;
-    fx.time = o.slow ? 0.35 : o.fast ? 2 : 1; fx.speed = o.megaspeed ? 3 : 1; fx.flap = o.superflap ? 3 : 1;
+    fx.time = o.slow ? 0.35 : o.fast ? 2 : 1; fx.speed = o.megaspeed ? 3 : o.nospeed ? 0.08 : 1; fx.flap = o.superflap ? 3 : 1;
     fx.grav = o.invgrav ? -0.5 : o.lowgrav ? 0.12 : o.heavy ? 3 : 1; fx.bounce = o.bounce ? 1.1 : 0;
     fx.reverse = !!o.reverse; fx.fly = !!o.fly; fx.autohonk = !!o.autohonk; fx.breadrain = !!o.breadrain;
-    const h = document.documentElement; for (const d of FXD) h.classList.toggle('ofx-' + d[0], !!o[d[0]] && authed());
+    const h = document.documentElement; for (const d of FXD) h.classList.toggle('ofx-' + d[0], !!o[d[0]]);
     if (A && A.ctl) A.ctl.applyFx();
   }
-  function clearFx() { fx.on = {}; recalc(); }
+  function setFx(id, on, dur) {
+    const d = FXD.find((x) => x[0] === id); if (!d) return;
+    if (on && d[2]) for (const o of FXD) if (o[2] === d[2] && o[0] !== id) { delete fx.on[o[0]]; delete fx.until[o[0]]; }
+    if (on) { fx.on[id] = true; if (dur > 0) fx.until[id] = Date.now() + dur * 1000; else delete fx.until[id]; } else { delete fx.on[id]; delete fx.until[id]; }
+    recalc();
+  }
+  function clearFx() { fx.on = {}; fx.until = {}; recalc(); }
   const css = document.createElement('style');
   css.textContent = `
-  #ownBtn{position:fixed;top:max(6px,env(safe-area-inset-top));right:6px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#d6192b;color:#fff;font:800 11px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
+  #ownBtn{position:fixed;top:max(6px,env(safe-area-inset-top));right:6px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#d6192b;color:#fff;font:800 9px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
   #ownBtn:active{transform:scale(.93)}
   #ownerModal{z-index:2147483001}
   .ofx-flip canvas,.ofx-flip #h3,.ofx-flip #ch,.ofx-flip #crew{transform:rotate(180deg)}
@@ -66,33 +74,46 @@
   .ofx-drunk canvas,.ofx-drunk #h3,.ofx-drunk #ch,.ofx-drunk #crew{animation:ofxdrunk 3.2s ease-in-out infinite}
   .ofx-shake canvas,.ofx-shake #h3,.ofx-shake #ch,.ofx-shake #crew{animation:ofxshake .12s linear infinite}
   .ofx-zoomin canvas,.ofx-zoomin #h3,.ofx-zoomin #ch,.ofx-zoomin #crew{transform:scale(1.8)}
+  .ofx-tiny canvas,.ofx-tiny #h3,.ofx-tiny #ch,.ofx-tiny #crew{transform:scale(.4)}
   .ofx-invert canvas,.ofx-invert #h3,.ofx-invert #ch,.ofx-invert #crew{filter:invert(1)}
   .ofx-gray canvas,.ofx-gray #h3,.ofx-gray #ch,.ofx-gray #crew{filter:grayscale(1) contrast(1.2)}
+  .ofx-sepia canvas,.ofx-sepia #h3,.ofx-sepia #ch,.ofx-sepia #crew{filter:sepia(1) contrast(1.1)}
+  .ofx-dark canvas,.ofx-dark #h3,.ofx-dark #ch,.ofx-dark #crew{filter:brightness(.18) contrast(1.4)}
+  .ofx-pixel canvas,.ofx-pixel #h3,.ofx-pixel #ch,.ofx-pixel #crew{image-rendering:pixelated;filter:contrast(1.6) saturate(1.8)}
   .ofx-hue canvas,.ofx-hue #h3,.ofx-hue #ch,.ofx-hue #crew{animation:ofxhue 2.5s linear infinite}
   .ofx-blur canvas,.ofx-blur #h3,.ofx-blur #ch,.ofx-blur #crew{filter:blur(3px)}
   @keyframes ofxspin{to{transform:rotate(360deg)}}
   @keyframes ofxdrunk{0%,100%{transform:rotate(-3deg) scale(1.06) translateX(-12px);filter:blur(1px)}50%{transform:rotate(3deg) scale(1.06) translateX(12px);filter:blur(2.5px)}}
   @keyframes ofxshake{0%{transform:translate(4px,3px)}25%{transform:translate(-5px,2px)}50%{transform:translate(3px,-4px)}75%{transform:translate(-3px,-3px)}100%{transform:translate(4px,3px)}}
   @keyframes ofxhue{to{filter:hue-rotate(360deg) saturate(2)}}
-  .oprank{position:fixed;inset:0;z-index:2147483002;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:system-ui,sans-serif;cursor:pointer}`;
+  .oplayer{display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid rgba(0,0,0,.1);font-size:14px}
+  .oplayer canvas{width:44px;height:44px;flex:none}`;
   document.head.appendChild(css);
   const ob = document.createElement('button'); ob.id = 'ownBtn'; ob.textContent = 'ADMIN'; ob.title = 'Owner panel'; ob.setAttribute('aria-label', 'Owner panel');
   ob.addEventListener('click', () => open()); document.body.appendChild(ob);
   const syncBtn = () => { ob.style.display = authed() ? 'block' : 'none'; };
-  setInterval(() => { if (fx.autohonk && authed() && A && A.ctl) A.ctl.honk(); if (fx.breadrain && authed() && A) { A.save().bread += 7; A.refreshMenu(); } }, 900);
-
-  function prank(kind) {
-    const d = document.createElement('div'); d.className = 'oprank'; let n = 0, need = 3;
-    const T = {
-      crash: ['#0a4fb3', '#fff', '<div style="font-size:90px">:(</div><h2 style="margin:8px">Your goose ran into a problem</h2><p>We are collecting some error info and then we will honk again.<br>0% complete</p><p style="opacity:.6;font-size:12px">Stop code: TOO_MUCH_WOBBLE</p>'],
-      banned: ['#1b0000', '#ff4d4d', '<div style="font-size:70px">🚫</div><h2 style="margin:8px">ACCOUNT SUSPENDED</h2><p>Your goose has been banned for<br>"excessive honking".</p><p style="opacity:.7;font-size:13px">Appeal in 99 years.</p>'],
-      update: ['#101a3a', '#cfe0ff', '<div style="font-size:60px">⚙️</div><h2 style="margin:8px">Installing goose update 1 of 4,096</h2><p>Please do not close this tab.<br>Working on it… 3%</p>'],
-      virus: ['#000', '#33ff66', '<pre style="text-align:left;font-size:13px;line-height:1.3">> GOOSE.EXE has detected 9,999 bread viruses\n> deleting all bread............\n> deleting neck..................\n> uploading honks to the cloud...\n> just kidding. Tap to continue.</pre>'],
-      tax: ['#fff7d6', '#6b4a00', '<div style="font-size:60px">🍞</div><h2 style="margin:8px">BREAD TAX</h2><p>You owe the Goose Revenue Service<br>4,000,000 bread. (Just joking!)</p>']
-    }[kind];
-    d.style.background = T[0]; d.style.color = T[1]; d.innerHTML = T[2] + '<p style="opacity:.55;font-size:12px;margin-top:22px">(tap 3 times to close)</p>';
-    d.addEventListener('click', () => { if (++n >= need) d.remove(); });
-    document.body.appendChild(d);
+  setInterval(() => {
+    const now = Date.now(); let ch = false; for (const k of Object.keys(fx.until)) if (fx.until[k] < now) { delete fx.on[k]; delete fx.until[k]; ch = true; } if (ch) recalc();
+    if (fx.autohonk && A && A.ctl) A.ctl.honk(); if (fx.breadrain && A) { A.save().bread += 7; A.refreshMenu(); }
+  }, 900);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function note(text) {   // a plain message from the owner
+    const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:2147483002;background:#fff;color:#222;border:3px solid #2a2f3a;border-radius:14px;padding:14px 18px;max-width:86vw;font:700 16px system-ui;text-align:center;box-shadow:0 6px 0 #2a2f3a';
+    d.textContent = text; d.addEventListener('click', () => d.remove()); document.body.appendChild(d); setTimeout(() => d.remove(), 9000);
+  }
+  // something the owner sent to this device (or applied to themselves)
+  function receive(f) {
+    if (!f || !f.k) return;
+    if (f.k === 'toggle') setFx(f.id, f.on !== false, f.dur || 0);
+    else if (f.k === 'prank' && root.Pranks) root.Pranks.show(f.id);
+    else if (f.k === 'honk' && A && A.ctl) { let i = 0; const t = setInterval(() => { A.ctl.honk(); if (++i > (f.n || 12)) clearInterval(t); }, 110); }
+    else if (f.k === 'bread' && A) { A.save().bread += Math.max(-1e9, Math.min(1e9, +f.n || 0)); if (A.save().bread < 0) A.save().bread = 0; A.persist(); A.refreshMenu(); }
+    else if (f.k === 'tp' && A && A.ctl) A.ctl.randTp();
+    else if (f.k === 'win' && A && A.ctl) A.ctl.win();
+    else if (f.k === 'respawn' && A && A.ctl) A.ctl.respawn();
+    else if (f.k === 'msg') note(String(f.text || '').slice(0, 200));
+    else if (f.k === 'resetfx') { clearFx(); if (root.Pranks) root.Pranks.close(); }
+    else if (f.k === 'menu' && A && A.ctl && A.ctl.toMenu) A.ctl.toMenu();
   }
 
   async function verifyStored() {
@@ -119,7 +140,7 @@
     A.applyCodes(); syncBtn();
   }
   function resign() { const s = A.save(); for (const k of ['owner', 'god', 'money', 'levels', 'lol', 'flaps', 'admin']) delete s.cheats[k]; set(LS.pin, ''); clearFx(); A.applyCodes(); syncBtn(); close(); }
-  const CARD = '<div class="card" style="max-width:460px;width:94%;text-align:left;max-height:92vh;overflow:auto">';
+  const CARD = '<div class="card" style="max-width:480px;width:94%;text-align:left;max-height:92vh;overflow:auto">';
   function gate() {
     box = document.createElement('div'); box.className = 'overlay'; box.id = 'ownerModal';
     box.innerHTML = CARD + '<h2 style="text-align:center;margin:0">🔒 Owner access</h2>' +
@@ -144,59 +165,127 @@
     setTimeout(() => { try { el('ownPin').focus(); } catch (e) { /* ignore */ } }, 50);
     if (cfg.pinSet == null) refresh().then((ok) => { if (ok && box && !authed() && cfg.pinSet === false) { close(); gate(); } });
   }
-  let tab = 'tools';
+
+  // ---- who the commands apply to
+  let tab = 'tools', who = 'me', sel = new Set(), users = null, dur = 60, usersErr = '';
+  const own = (op, extra) => call(Object.assign({ op, pin: get(LS.pin) }, extra || {}));
+  async function loadUsers() { try { const r = await own('acct-list'); users = r.users || []; usersErr = ''; } catch (e) { users = users || []; usersErr = e.message === 'nokv' ? 'Server storage not set up.' : e.message === 'http400' || e.message === 'http404' ? 'The worker has no accounts yet. Paste the new worker code.' : 'Could not load players.'; } }
+  async function send(f) {   // apply an effect to the chosen target
+    if (who === 'me') { receive(f); return 'Applied to you.'; }
+    if (who === 'sel' && !sel.size) throw new Error('Pick players on the Players tab first.');
+    const r = await own('acct-fx', { targets: who === 'all' ? '*' : [...sel], fx: f });
+    return 'Sent to ' + (who === 'all' ? 'everyone' : r.n + ' player' + (r.n === 1 ? '' : 's')) + '. They get it within ~20 seconds.';
+  }
+  const ago = (t) => { if (!t) return 'never'; const m = Math.round((Date.now() - t) / 60000); return m < 5 ? 'online' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
   function open() {
     if (box) box.remove();
     if (!authed()) return gate();
     const s = A.save();
     box = document.createElement('div'); box.className = 'overlay'; box.id = 'ownerModal';
+    const tgtTxt = who === 'me' ? 'just me' : who === 'all' ? 'EVERYONE' : sel.size + ' selected';
     box.innerHTML = CARD + '<h2 style="text-align:center;margin:0">👑 Owner panel</h2>' +
-      '<div style="text-align:center;font-size:12px;margin:2px 0 6px">PIN-verified owner: locks never apply to you.</div>' +
-      '<div class="row" style="justify-content:center;gap:4px;margin-bottom:6px" id="ownTabs"></div><div id="ownBody"></div>' +
+      '<div style="text-align:center;font-size:12px;margin:2px 0 6px">PIN-verified owner. Commands apply to: <b id="ownTgt">' + tgtTxt + '</b></div>' +
+      '<div class="row" style="justify-content:center;gap:4px;margin-bottom:4px" id="ownTabs"></div>' +
+      '<div id="ownWho" style="display:flex;gap:10px;justify-content:center;font-size:13px;margin:2px 0 6px"></div><div id="ownBody"></div>' +
       '<div id="ownMsg" style="text-align:center;font-weight:700;min-height:20px;margin-top:6px;white-space:pre-wrap"></div>' +
       '<div class="row" style="margin-top:6px;justify-content:center"><button class="big small-btn ghost" id="ownList">All codes</button><button class="big small-btn ghost" id="ownResign">Lock &amp; sign out</button><button class="big small-btn ghost" id="ownClose">Close</button></div></div>';
     document.body.appendChild(box);
-    const tabs = [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['locks', '🔒 Locks']];
+    const tabs = [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['players', '👥 Players'], ['ban', '⛔ Bans'], ['locks', '🔒 Locks']];
     for (const [id, l] of tabs) { const b = document.createElement('button'); b.className = tab === id ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = l; b.addEventListener('click', () => { tab = id; open(); }); el('ownTabs').appendChild(b); }
+    if (['tools', 'troll', 'pranks'].includes(tab)) {
+      for (const [v, l] of [['me', 'Just me'], ['sel', 'Selected players (' + sel.size + ')'], ['all', 'Everyone']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownwho'; r.checked = who === v; r.addEventListener('change', () => { who = v; el('ownTgt').textContent = v === 'me' ? 'just me' : v === 'all' ? 'EVERYONE' : sel.size + ' selected'; }); lb.append(r, document.createTextNode(l)); el('ownWho').appendChild(lb); }
+    }
     const body = el('ownBody'), grid = () => { const g = document.createElement('div'); g.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px'; body.appendChild(g); return g; };
-    const tb = (g, label, fn, on) => { const b = document.createElement('button'); b.className = on ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = label; b.addEventListener('click', () => { fn(); A.persist(); A.refreshMenu(); }); g.appendChild(b); return b; };
-    const need = (c) => { if (blocks(c)) { say('🔒 "' + c + '" is locked.', true); return false; } return true; };
+    const tb = (g, label, fn, on) => { const b = document.createElement('button'); b.className = on ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = label; b.addEventListener('click', async () => { try { await fn(); } catch (e) { say(e.message && !/^(http|bad|no)/.test(e.message) ? e.message : e.message === 'badpin' ? 'PIN no longer matches. Sign in again.' : e.message === 'http400' ? 'The worker needs updating (accounts).' : 'Could not reach the server.', true); } A.persist(); A.refreshMenu(); }); g.appendChild(b); return b; };
+    const sendSay = async (f) => say(await send(f));
     const ctl = A.ctl || {};
+    const h4 = (t) => { const h = document.createElement('h4'); h.style.margin = '8px 0 3px'; h.textContent = t; body.appendChild(h); };
+    const hint = (t) => { const n = document.createElement('div'); n.style.cssText = 'font-size:12px;opacity:.75;margin-top:8px'; n.textContent = t; body.appendChild(n); };
     if (tab === 'tools') {
-      const g = grid();
-      tb(g, '+1,000 🍞', () => { s.bread += 1000; say('+1,000 bread'); });
-      tb(g, '+1,000,000 🍞', () => { s.bread += 1000000; say('+1,000,000 bread'); });
+      let g = grid();
+      tb(g, '+1,000 🍞', () => sendSay({ k: 'bread', n: 1000 }));
+      tb(g, '+1,000,000 🍞', () => sendSay({ k: 'bread', n: 1000000 }));
+      tb(g, '−all their 🍞', () => sendSay({ k: 'bread', n: -1e9 }));
+      tb(g, '🏁 Win level', () => sendSay({ k: 'win' }));
+      tb(g, '🔁 Respawn', () => sendSay({ k: 'respawn' }));
+      tb(g, '🎲 Random teleport', () => sendSay({ k: 'tp' }));
+      tb(g, '📣 Honk storm', () => sendSay({ k: 'honk', n: 14 }));
+      tb(g, '🏠 Send to menu', () => sendSay({ k: 'menu' }));
+      tb(g, '🧹 Clear their effects', () => sendSay({ k: 'resetfx' }));
+      h4('Send a message'); g = document.createElement('div'); g.style.cssText = 'display:flex;gap:6px'; body.appendChild(g);
+      const mi = document.createElement('input'); mi.placeholder = 'message…'; mi.maxLength = 120; mi.style.cssText = 'flex:1;padding:6px;border-radius:8px;border:2px solid #2a2f3a;font-size:14px'; g.appendChild(mi); tb(g, 'Send', () => sendSay({ k: 'msg', text: mi.value }));
+      h4('Only for me'); g = grid();
       tb(g, 'Unlock all levels', () => { s.unlocked = A.levelCount(); s.allDone = true; say('All levels unlocked'); });
       tb(g, 'Own everything', () => { A.ownAll(); say('You own every item and skin'); });
       tb(g, '🛡 God mode: ' + (s.cheats.god ? 'ON' : 'off'), () => { s.cheats.admin = true; s.cheats.god = !s.cheats.god; A.applyCodes(); open(); }, s.cheats.god);
       tb(g, '⚙ Admin console', () => { s.cheats.admin = true; A.applyCodes(); say('Admin console is on: use the ⚙ button in the menu.'); });
-      tb(g, '🏁 Win this level', () => { ctl.win && ctl.win(); close(); });
       tb(g, '🥚 Teleport to egg', () => { ctl.toEgg && ctl.toEgg(); close(); });
       tb(g, '💥 Kill all enemies', () => { ctl.killEnemies && ctl.killEnemies(); say('Enemies gone'); });
       tb(g, '⚡ Refill flaps', () => { ctl.refill && ctl.refill(); say('Flaps refilled'); });
-      tb(g, '🔁 Respawn', () => { ctl.respawn && ctl.respawn(); close(); });
-      tb(g, '🎲 Random teleport', () => { ctl.randTp && ctl.randTp(); close(); });
-      tb(g, '📣 Honk storm', () => { let i = 0; const t = setInterval(() => { ctl.honk && ctl.honk(); if (++i > 14) clearInterval(t); }, 110); say('HONK'); });
-      const n = document.createElement('div'); n.style.cssText = 'font-size:12px;opacity:.75;margin-top:8px'; n.textContent = 'Inside Hide & Seek 3D, Mecha Chameleon and Goose Among Us the owner also gets x-ray vision.'; body.appendChild(n);
+      hint('Inside Hide & Seek 3D, Mecha Chameleon and Goose Among Us you also get an owner tray: x-ray, invisible, autopaint, whistle from a random place and more.');
     } else if (tab === 'troll') {
-      const g = grid();
-      for (const d of FXD) tb(g, d[1], () => { if (d[2]) { for (const o of FXD) if (o[2] === d[2] && o[0] !== d[0]) delete fx.on[o[0]]; } fx.on[d[0]] = !fx.on[d[0]]; recalc(); open(); }, fx.on[d[0]]);
-      tb(g, '🧹 Reset all effects', () => { clearFx(); open(); });
-      const n = document.createElement('div'); n.style.cssText = 'font-size:12px;opacity:.75;margin-top:8px'; n.textContent = 'These only change your own screen and goose on this device.'; body.appendChild(n);
+      h4('How long?'); let g = document.createElement('div'); g.style.cssText = 'display:flex;gap:10px;font-size:13px;flex-wrap:wrap'; body.appendChild(g);
+      for (const [v, l] of [[30, '30 s'], [120, '2 min'], [600, '10 min'], [0, 'until cleared']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownDur'; r.checked = dur === v; r.addEventListener('change', () => { dur = v; }); lb.append(r, document.createTextNode(l)); g.appendChild(lb); }
+      h4('Effects'); g = grid();
+      for (const d of FXD) tb(g, d[1], () => sendSay({ k: 'toggle', id: d[0], on: who !== 'me' || !fx.on[d[0]], dur }).then(() => { if (who === 'me') open(); }), who === 'me' && fx.on[d[0]]);
+      tb(g, '🧹 Reset all effects', () => sendSay({ k: 'resetfx' }).then(() => { if (who === 'me') open(); }));
     } else if (tab === 'pranks') {
-      const g = grid();
-      for (const [k, l] of [['crash', '💻 Fake crash'], ['banned', '🚫 Fake ban'], ['update', '⚙️ Fake update'], ['virus', '🦠 Fake virus'], ['tax', '🍞 Bread tax']]) tb(g, l, () => { close(); setTimeout(() => prank(k), 60); });
-      const n = document.createElement('div'); n.style.cssText = 'font-size:12px;opacity:.75;margin-top:8px'; n.textContent = 'Hand someone your phone, close this, and press one. Tap the screen 3 times to dismiss. (Showing a prank to a friend is the only way, nothing is sent over the internet.)'; body.appendChild(n);
+      const grp = {}; for (const p of root.Pranks.LIST) (grp[p.group] = grp[p.group] || []).push(p);
+      for (const gname of Object.keys(grp)) { h4(gname); const g = grid(); for (const p of grp[gname]) tb(g, p.label, async () => { if (who === 'me') close(); await sendSay({ k: 'prank', id: p.id }); }); }
+      hint('Pranks never ask for passwords or send anything. Each closes by itself after a while (bot checks close once solved). A tiny faint line at the bottom says it is a prank.');
+    } else if (tab === 'players') {
+      body.innerHTML = '<div id="ownUsers" style="font-size:14px">Loading players…</div><div style="font-size:11px;opacity:.7;margin-top:6px">Passwords are stored only as hashes, so nobody can read them (not even you). Use "Reset password" to give someone a new one.</div>';
+      const draw = () => {
+        const box2 = el('ownUsers'); if (!box2) return; box2.innerHTML = '';
+        if (usersErr) { const e = document.createElement('div'); e.style.color = '#c62835'; e.textContent = usersErr; box2.appendChild(e); }
+        if (users && !users.length && !usersErr) box2.textContent = 'Nobody has made an account yet.';
+        for (const u of users || []) {
+          const row = document.createElement('div'); row.className = 'oplayer';
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = sel.has(u.name.toLowerCase()); cb.addEventListener('change', () => { const k = u.name.toLowerCase(); if (cb.checked) sel.add(k); else sel.delete(k); who = sel.size ? 'sel' : who; el('ownTgt').textContent = sel.size + ' selected'; });
+          row.appendChild(cb);
+          let thumb = null; try { thumb = A.thumb(u.avatar, 44); } catch (e) { /* ignore */ } if (thumb) row.appendChild(thumb);
+          const t = document.createElement('div'); t.style.cssText = 'flex:1;min-width:0'; const online = Date.now() - u.seen < 300000;
+          t.innerHTML = '<b>' + esc(u.name) + '</b> <span style="color:' + (online ? '#1a9d3a' : '#888') + '">● ' + ago(u.seen) + (online && u.where ? ' · ' + esc(u.where) : '') + '</span>' + (u.ban && (!u.ban.until || u.ban.until > Date.now()) ? ' <span style="color:#c62835;font-weight:800">BANNED</span>' : '') + (u.locks && u.locks.length ? '<br><span style="font-size:11px;opacity:.7">locked: ' + esc(u.locks.join(', ')) + '</span>' : '');
+          row.appendChild(t);
+          const mb = (lab, fn) => { const b = document.createElement('button'); b.className = 'sec'; b.style.cssText = 'font-size:11px;padding:3px 6px'; b.textContent = lab; b.addEventListener('click', async () => { try { await fn(); } catch (e) { say('Failed: ' + e.message, true); } }); row.appendChild(b); };
+          mb('🔑 reset', async () => { const np = root.prompt('New password for ' + u.name + ' (4+ characters):'); if (!np || np.length < 4) return; await own('acct-reset', { targets: [u.name.toLowerCase()], ph: await sha('wobble-acct-v1:' + u.name.toLowerCase() + ':' + np) }); say('Password for ' + u.name + ' reset.'); });
+          mb('🗑', async () => { if (!root.confirm('Delete the account "' + u.name + '"?')) return; await own('acct-delete', { targets: [u.name.toLowerCase()] }); sel.delete(u.name.toLowerCase()); await loadUsers(); draw(); });
+          box2.appendChild(row);
+        }
+      };
+      loadUsers().then(draw);
+    } else if (tab === 'ban') {
+      const names = () => [...sel];
+      body.innerHTML = '<div style="font-size:13px;margin-bottom:6px">Ban the players you ticked on the Players tab (' + sel.size + ' selected).</div>' +
+        '<input id="banWhy" maxlength="100" placeholder="reason (they will see it)" style="width:100%;box-sizing:border-box;padding:7px;border-radius:8px;border:2px solid #2a2f3a;margin-bottom:6px"><div style="font-size:13px;margin-bottom:3px">The ban is removed automatically at:</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap"><select id="banPre" style="padding:6px"><option value="10">in 10 minutes</option><option value="60">in 1 hour</option><option value="1440">in 1 day</option><option value="10080">in 7 days</option><option value="43200">in 30 days</option><option value="0">never (permanent)</option><option value="custom">the date and time I choose…</option></select><input id="banAt" type="datetime-local" style="padding:5px;display:none"></div>' +
+        '<div class="row" style="margin-top:8px;gap:6px"><button class="big small-btn" id="banGo">⛔ Ban</button><button class="big small-btn ghost" id="banOff">✅ Unban selected</button></div>';
+      el('banPre').addEventListener('change', () => { el('banAt').style.display = el('banPre').value === 'custom' ? '' : 'none'; });
+      el('banGo').addEventListener('click', async () => {
+        if (!names().length) return say('Tick players on the Players tab first.', true);
+        const v = el('banPre').value; let until = 0;
+        if (v === 'custom') { until = new Date(el('banAt').value).getTime(); if (!until || until < Date.now()) return say('Pick a date and time in the future.', true); } else if (v !== '0') until = Date.now() + (+v) * 60000;
+        try { await own('acct-ban', { targets: names(), until, reason: el('banWhy').value || 'Banned by the owner' }); say('⛔ Banned ' + names().join(', ') + (until ? ' until ' + new Date(until).toLocaleString() : ' permanently') + '.'); } catch (e) { say(e.message === 'http400' ? 'The worker needs updating (accounts).' : 'Could not reach the server.', true); }
+      });
+      el('banOff').addEventListener('click', async () => { if (!names().length) return say('Tick players on the Players tab first.', true); try { await own('acct-unban', { targets: names() }); say('✅ Unbanned ' + names().join(', ')); } catch (e) { say('Could not reach the server.', true); } });
     } else {
-      body.innerHTML = '<div style="font-size:13px;margin:4px 0">🔒 Lock codes for everybody. A locked code is dead for all other players until you unlock it.</div><div id="ownLocks" style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font-size:14px"></div>' +
+      const one = who === 'sel' && sel.size ? users && users.find((u) => sel.has(u.name.toLowerCase())) : null;
+      body.innerHTML = '<div style="font-size:13px;margin:4px 0">🔒 A locked code is dead for the players it is locked for.</div>' +
+        '<div style="display:flex;gap:10px;font-size:13px;margin:4px 0"><label><input type="radio" name="lkw" value="all" ' + (who !== 'sel' ? 'checked' : '') + '> Everyone</label><label><input type="radio" name="lkw" value="sel" ' + (who === 'sel' ? 'checked' : '') + '> Selected players (' + sel.size + ')</label></div>' +
+        '<div id="ownLocks" style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font-size:14px"></div>' +
         '<div class="row" style="margin-top:6px;justify-content:center"><button class="big small-btn" id="ownSave">Save locks</button></div><div style="font-size:11px;opacity:.7;margin:4px 0">Never lockable: sync, codes, akif, rainbow, disco, zoom.</div>';
+      body.querySelectorAll('input[name=lkw]').forEach((r) => r.addEventListener('change', () => { who = r.value; open(); }));
+      if (who === 'sel' && !users) loadUsers().then(open);
+      const base = who === 'sel' ? (one ? one.locks || [] : []) : cfg.locked;
       const locks = el('ownLocks');
-      for (const c of LOCKABLE) { const l = document.createElement('label'); l.style.cssText = 'display:flex;gap:6px;align-items:center'; const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = isLocked(c); cb.dataset.c = c; l.append(cb, document.createTextNode(c)); locks.appendChild(l); }
+      for (const c of LOCKABLE) { const l = document.createElement('label'); l.style.cssText = 'display:flex;gap:6px;align-items:center'; const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = base.includes(c); cb.dataset.c = c; l.append(cb, document.createTextNode(c)); locks.appendChild(l); }
       el('ownSave').addEventListener('click', async () => {
         const list = Array.from(box.querySelectorAll('#ownLocks input')).filter((i) => i.checked).map((i) => i.dataset.c);
         say('Saving…');
-        try { await call({ op: 'cfg-set', pin: get(LS.pin), locked: list }); cfg.locked = list; set(LS.locked, JSON.stringify(list)); A.applyCodes(); say('🔒 Saved. ' + (list.length ? 'Locked for everybody: ' + list.join(', ') : 'Nothing is locked.')); }
-        catch (e) { say(e.message === 'badpin' ? 'PIN no longer matches. Sign in again.' : 'Could not save. Is the worker updated?', true); }
+        try {
+          if (who === 'sel') { if (!sel.size) return say('Tick players on the Players tab first.', true); await own('acct-locks', { targets: [...sel], locked: list }); say('🔒 Saved for ' + [...sel].join(', ') + ': ' + (list.length ? list.join(', ') : 'nothing locked.')); await loadUsers(); }
+          else { await call({ op: 'cfg-set', pin: get(LS.pin), locked: list }); cfg.locked = list; set(LS.locked, JSON.stringify(list)); A.applyCodes(); say('🔒 Saved. ' + (list.length ? 'Locked for everybody: ' + list.join(', ') : 'Nothing is locked.')); }
+        } catch (e) { say(e.message === 'badpin' ? 'PIN no longer matches. Sign in again.' : 'Could not save. Is the worker updated?', true); }
       });
     }
     el('ownClose').addEventListener('click', close);
@@ -204,5 +293,5 @@
     el('ownList').addEventListener('click', () => say('All codes:\n' + Object.keys(A.CHEATS).map((k) => k + ' = ' + A.CHEATS[k]).concat(Object.keys(A.GIFTS).map((k) => k + ' = ' + A.GIFTS[k] + ' (one-time)'), ['codes = your active codes', 'sync = save sync + lock', 'akif = this panel']).join('\n')));
   }
   function init(a) { A = a; refresh(); verifyStored(); setInterval(refresh, 600000); syncBtn(); recalc(); }
-  root.Owner = { init, open, become, isLocked, blocks, isOwner, authed, refresh, LOCKABLE, fx };
+  root.Owner = { init, open, become, isLocked, blocks, isOwner, authed, refresh, LOCKABLE, fx, call, setMyLocks, receive, hashPin };
 })(window);
