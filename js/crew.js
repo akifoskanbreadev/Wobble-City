@@ -121,7 +121,11 @@
   }
   const alive = (p) => p.alive, living = () => G.players.filter(alive), imps = () => living().filter((p) => p.role === 'imp'), crewAlive = () => living().filter((p) => p.role === 'crew');
   const visR = (p) => (!p.alive ? 9999 : G.lights > 0 && p.role === 'crew' ? VIS_DARK : VIS);
-  const canSee = (p, x, y) => Math.hypot(p.x - x, p.y - y) < visR(p) && segFree(p.x, p.y, x, y, 0);
+  const canSee = (p, x, y) => {
+    let r = visR(p); const dx = x - p.x, dy = y - p.y;
+    if (p.alive && p.role === 'crew' && G.lights > 0 && p.aim != null) { const d = Math.abs(Math.atan2(Math.sin(Math.atan2(dy, dx) - p.aim), Math.cos(Math.atan2(dy, dx) - p.aim))); if (d < 0.55) r += (235 - VIS_DARK) * (0.5 + 0.5 * Math.cos(d / 0.55 * Math.PI)); }
+    return Math.hypot(dx, dy) < r && segFree(p.x, p.y, x, y, 0);
+  };
   const toast = (t, s) => { G.toasts.push({ t, left: s || 2.5 }); };
   const toGuests = (m, only) => { if (room && G && G.online && G.host) { if (only) room.toOne(only.net, m); else room.toAll(m); } };
   const announce = (role, t, secs) => { if (G.me.role === role) toast(t, secs); if (G.online) for (const q of G.players) if (q.remote && q.role === role) toGuests({ k: 'toast', t, s: secs }, q); };
@@ -366,6 +370,7 @@
     const p = G.me; p.cd -= dt; p.anim += dt;
     let ax = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0) + joy.x, ay = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0) + joy.y;
     const m = Math.hypot(ax, ay); if (m > 1) { ax /= m; ay /= m; }
+    if (m > 0.1) p.aim = Math.atan2(ay, ax);
     p.moving = false;
     if (G.phase === 'play' && !G.task && p.vent == null && m > 0.05) { const sp = SPEED * (owner() && ownS.speed ? 2 : 1); if (owner() && ownS.noclip) { p.x += ax * sp * dt; p.y += ay * sp * dt; if (ax) p.face = ax > 0 ? 1 : -1; } else moveEnt(p, ax * sp * dt, ay * sp * dt); p.moving = true; }
     p.invis = owner() && ownS.invis; if (owner() && ownS.nocd && p.cd > 0) p.cd = 0;
@@ -460,6 +465,25 @@
     if (fox) { c.fillStyle = '#e8541f'; c.strokeStyle = '#222'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(6, -24); c.lineTo(8, -33); c.lineTo(12, -26); c.fill(); c.stroke(); c.beginPath(); c.moveTo(13, -26); c.lineTo(17, -33); c.lineTo(17, -24); c.fill(); c.stroke(); }
     c.restore();
   }
+  // line-of-sight vision: walls really block it; in the dark, geese only get a small glow plus a flashlight beam where they face
+  function fog(c, cw, ch, sc, me) {
+    const dark = G.lights > 0 && me.role === 'crew', base = dark ? VIS_DARK : VIS, beam = dark ? 235 : 0, aim = me.aim || 0, N = 110, pts = [];
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2; let d = Math.abs(Math.atan2(Math.sin(a - aim), Math.cos(a - aim)));
+      const L = base + (beam && d < 0.55 ? (beam - base) * (0.5 + 0.5 * Math.cos(d / 0.55 * Math.PI)) : 0), cx = Math.cos(a), cy = Math.sin(a);
+      let t = 0; while (t < L && pointOK(me.x + cx * (t + 9), me.y + cy * (t + 9))) t += 9;
+      let lo = t, hi = Math.min(L, t + 9); for (let k = 0; k < 3; k++) { const mid = (lo + hi) / 2; if (pointOK(me.x + cx * mid, me.y + cy * mid)) lo = mid; else hi = mid; }
+      pts.push([cw / 2 + cx * Math.min(L, lo + 5) * sc, ch / 2 + cy * Math.min(L, lo + 5) * sc]);
+    }
+    const R = (dark ? beam : base) * sc;
+    c.save(); c.fillStyle = 'rgba(3,5,12,.985)'; c.beginPath(); c.rect(0, 0, cw, ch); c.moveTo(pts[0][0], pts[0][1]); for (let i = N - 1; i >= 0; i--) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); c.fill('evenodd');
+    c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < N; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); c.clip();
+    const g = c.createRadialGradient(cw / 2, ch / 2, base * sc * (dark ? 0.2 : 0.45), cw / 2, ch / 2, R); g.addColorStop(0, 'rgba(3,5,12,0)'); g.addColorStop(1, dark ? 'rgba(3,5,12,.8)' : 'rgba(3,5,12,.88)');
+    c.fillStyle = g; c.fillRect(0, 0, cw, ch);
+    if (dark) { const w = c.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, base * sc); w.addColorStop(0, 'rgba(255,214,120,.16)'); w.addColorStop(1, 'rgba(255,214,120,0)'); c.fillStyle = w; c.fillRect(0, 0, cw, ch); }
+    c.restore();
+    if (dark) { c.fillStyle = 'rgba(120,0,0,.12)'; c.fillRect(0, 0, cw, ch); }
+  }
   function drawWorld(c, cw, ch, sc) {
     const me = G.me, cam = { x: me.x, y: me.y };
     c.save(); c.translate(cw / 2 - cam.x * sc, ch / 2 - cam.y * sc); c.scale(sc, sc);
@@ -484,13 +508,8 @@
     }
     if (meGhost) for (const p of G.players) if (!p.alive && !p.ejected && p !== me) { /* other ghosts stay hidden */ }
     c.restore();
-    if (me.alive && me.vent == null || !me.alive) {
-      const rad = (me.alive ? visR(me) : 9999) * sc;
-      if (rad < 3000) {                                                    // fog of war
-        c.save(); const g = c.createRadialGradient(cw / 2, ch / 2, rad * 0.55, cw / 2, ch / 2, rad); g.addColorStop(0, 'rgba(3,5,12,0)'); g.addColorStop(1, 'rgba(3,5,12,.97)');
-        c.fillStyle = g; c.beginPath(); c.arc(cw / 2, ch / 2, rad, 0, 7); c.fill(); c.fillStyle = 'rgba(3,5,12,.97)'; c.beginPath(); c.rect(0, 0, cw, ch); c.arc(cw / 2, ch / 2, rad, 0, 7, true); c.fill('evenodd'); c.restore();
-      }
-    } else { c.fillStyle = 'rgba(0,0,0,.65)'; c.fillRect(0, 0, cw, ch); }
+    if (me.alive && me.vent == null) fog(c, cw, ch, sc, me);
+    else if (me.alive) { c.fillStyle = 'rgba(0,0,0,.65)'; c.fillRect(0, 0, cw, ch); }
   }
   function drawHud(c, cw, ch) {
     const me = G.me, f = Math.max(0.8, Math.min(1.3, cw / 900));
@@ -580,7 +599,7 @@
       <div id="crsabm"><button class="go" id="crlights">💡 Lights out</button><button class="go" id="crover">☢ Overload</button></div>
       <div id="crown"></div><div class="b" id="crexitv"><span>EXIT</span></div><div class="b" id="crquit">☰</div>
       <div class="panel" id="crlobby"><div class="card"><h2>🚀 Goose Among Us</h2><div class="sub">A Fox sneaked aboard the flying barn-ship! Geese do tasks and vote the Fox out; Foxes sneak-kill. Offline, with bots.</div>
-        <div class="row"><b>You are</b><span class="chip on" data-role="crew">🪿 Goose</span><span class="chip" data-role="imp">🦊 Fox</span><span class="chip" data-role="random">🎲 Random</span></div>
+        <div class="row"><b>Your role</b><span class="chip on">🎲 Secret: the game picks it</span></div>
         <div class="row"><b>Players</b><span class="chip" data-n="5">5</span><span class="chip on" data-n="7">7</span><span class="chip" data-n="9">9</span><span style="font-size:12px;opacity:.7">(7+ players: two Foxes)</span></div>
         <div class="row"><button class="go" id="crstart">Play</button><button class="go alt" id="crback">Back</button></div>
         <h4 style="margin:10px 0 2px">👥 Online with friends</h4>
@@ -595,8 +614,7 @@
       <div class="panel" id="crend"><div class="card"><h2 id="crendt"></h2><pre id="crendx" style="white-space:pre-wrap;font-family:inherit;font-size:15px"></pre><div class="row"><button class="go" id="cragain">Play again</button><button class="go alt" id="crmenu">Menu</button></div></div></div>`;
     document.body.appendChild(d);
     dom = { root: d, cv: $('crcv'), stick: $('crstick'), knob: $('crknob'), use: $('cruse'), rep: $('crrep'), kill: $('crkill'), vent: $('crvent'), sab: $('crsab'), sabm: $('crsabm'), exitv: $('crexitv'), lobby: $('crlobby'), task: $('crtask'), tcv: $('crtcv'), ttl: $('crttl'), meet: $('crmeet'), end: $('crend') };
-    const sel = { role: 'crew', n: 7 }; dom.sel = sel;
-    d.querySelectorAll('[data-role]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-role]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); sel.role = c.dataset.role; }));
+    const sel = { role: 'random', n: 7 }; dom.sel = sel;
     d.querySelectorAll('[data-n]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-n]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); sel.n = +c.dataset.n; }));
     const cyc = (id, key, vals, fmt) => $(id).addEventListener('click', () => { osel[key] = vals[(vals.indexOf(osel[key]) + 1) % vals.length]; $(id).textContent = fmt(osel[key]); });
     cyc('crOn', 'n', [6, 8, 10], (v) => 'Players: ' + v); cyc('crOi', 'imp', [1, 2], (v) => 'Foxes: ' + v);
@@ -804,6 +822,7 @@
     if (g.phase === 'meeting' && g.m) g.m.t += dt;
     let ax = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0) + joy.x, ay = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0) + joy.y;
     const mm = Math.hypot(ax, ay); if (mm > 1) { ax /= mm; ay /= mm; }
+    if (mm > 0.1) me0.aim = Math.atan2(ay, ax);
     if (g.phase === 'play' && !g.task && me0.vent == null && mm > 0.05) {
       const sp = SPEED * (owner() && ownS.speed ? 2 : 1);
       if (owner() && ownS.noclip) { me0.x += ax * sp * dt; me0.y += ay * sp * dt; if (ax) me0.face = ax > 0 ? 1 : -1; } else moveEnt(me0, ax * sp * dt, ay * sp * dt);
