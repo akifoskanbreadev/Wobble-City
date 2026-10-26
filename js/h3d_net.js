@@ -34,7 +34,10 @@
   function fail(m) { leave(); status(m, true); }
   const mySkin = () => X.api.save().skin;
 
-  function join(w) {
+  let qSlot = 0;
+  function joinQuick() { qSlot = 1; join('q-h3-1', true); }
+  function join(w, quick) {
+    if (!quick) qSlot = 0;
     word = slug(w);
     if (!word) return status('Type a word first (any word you and your friends agree on).', true);
     if (!root.Peer) return status('Could not load the matchmaking library (are you offline?).', true);
@@ -109,7 +112,7 @@
     const G = X.G;
     switch (m.t) {
       case 'welcome': myNet = m.id; isHost = false; connected = true; break;
-      case 'busy': status(m.why, true); leave(); break;
+      case 'busy': if (qSlot && qSlot < 10) { qSlot++; join('q-h3-' + qSlot, true); break; } status(m.why, true); leave(); break;
       case 'hi': if (isHost) { roster[from] = { skin: m.skin, hat: m.hat || null }; sendRoster(); } break;
       case 'roster': { for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin }; }); refresh(); break; }
       case 'start': if (!isHost) { X.dom().online.style.display = 'none'; X.start({ map: m.setup.map, seed: m.setup.seed, setup: m.setup, myId: m.my, online: { host: false, my: m.my } }); } break;
@@ -167,7 +170,7 @@
   }
 
   H.setNet({
-    join, leave, hostStart, refresh,
+    join, joinQuick, leave, hostStart, refresh,
     isHost: () => isHost, connected: () => connected,
     event: (o) => { if (isHost) toAll(o); }, send: (o) => toHost(o), hostStep, clientStep,
   });

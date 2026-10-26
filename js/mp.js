@@ -8,7 +8,7 @@
 (function (root) {
   'use strict';
   const MAX = 4, PREFIX = 'wobblecity-v1-';
-  let sel = { mode: 'race', arg: 'r:0' }, api = null, peer = null, hostConn = null, isHost = false, myId = 0, connected = false, word = '', tries = 0, busyMsg = '';
+  let qSlot = 0, sel = { mode: 'race', arg: 'r:0' }, api = null, peer = null, hostConn = null, isHost = false, myId = 0, connected = false, word = '', tries = 0, busyMsg = '';
   const conns = new Map();                 // host only: guest id -> connection
   const roster = {};                       // id -> { skin, equip }
   const ghosts = {};                       // id -> { cur, tgt }
@@ -34,7 +34,9 @@
   }
   function fail(msg) { disconnect(); status(msg, true); }
 
-  function join(w) {
+  function joinQuick() { qSlot = 1; join('q-play-1', true); }
+  function join(w, quick) {
+    if (!quick) qSlot = 0;
     word = slug(w);
     if (!word) return status('Type a word first (any word you and your friends agree on).', true);
     if (!root.Peer) return status('Could not load the matchmaking library (are you offline?).', true);
@@ -88,6 +90,7 @@
   function lost() {
     if (!connected && !hostConn) return;
     const wasGame = !!M.mode; const msg = busyMsg; busyMsg = '';
+    if (msg && qSlot && qSlot < 10) { disconnect(); qSlot++; join('q-play-' + qSlot, true); return; }
     disconnect();
     if (msg) { status(msg, true); return; }
     if (wasGame) api.showMenu();
@@ -405,7 +408,7 @@
       '<div class="overlay hidden" id="mpMenu"><div class="card wide" style="max-width:560px"><h2>👥 Multiplayer lobby</h2>' +
       '<div id="mpStatus" class="small">Pick a word. Everyone who types the same word joins the same room.</div>' +
       '<div id="mpJoinBox"><div class="row" style="margin:8px 0"><input type="text" id="mpWord" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="room word"><button class="big small-btn" id="mpJoinBtn">Join</button></div>' +
-      '<div class="row"><button class="sec" id="mpQuick">🎲 Make a random room</button></div>' +
+      '<div class="row"><button class="big small-btn" id="mpQuick">🎲 Random lobby (find players)</button><button class="sec" id="mpQuickOld" style="display:none">x</button></div>' +
       '<div class="small" style="margin-top:6px">The first person to use a word hosts the room. The room disappears when the host leaves. Some networks (strict NATs, some mobile data / school Wi-Fi) block direct connections.</div></div>' +
       '<div id="mpRoom" style="display:none"><b id="mpRoomName"></b> <button class="sec" id="mpInvite">🔗 Copy invite link</button><div id="mpRoster"></div><div id="mpSel"></div>' +
       '<button class="big small-btn" id="mpReady" style="display:none">👍 I’m ready</button></div>' +
@@ -418,7 +421,8 @@
     $('mpMap').onchange = () => hostSel(null, $('mpMap').value);
     $('mpStart').onclick = () => { const v = String(sel.arg); hostStartMode(sel.mode, sel.mode === 'race' ? (v.startsWith('r:') ? v : +v) : sel.mode === 'duel' ? v : +v); };
     $('mpReady').onclick = () => { const r = roster[myId]; if (r) { r.ready = !r.ready; toHost({ t: 'ready', v: r.ready }); ui(); } };
-    $('mpQuick').onclick = () => { const w = ['honk', 'goose', 'bread', 'pond', 'wobble', 'feather', 'noodle', 'quack'][(Math.random() * 8) | 0] + (10 + ((Math.random() * 90) | 0)); $('mpWord').value = w; join(w); };
+    $('mpQuick').onclick = () => { joinQuick(); return; };
+    $('mpQuickOld').onclick = () => { const w = ['honk', 'goose', 'bread', 'pond', 'wobble', 'feather', 'noodle', 'quack'][(Math.random() * 8) | 0] + (10 + ((Math.random() * 90) | 0)); $('mpWord').value = w; join(w); };
     $('mpInvite').onclick = async () => {
       const u = inviteUrl();
       try { if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) { await navigator.share({ title: 'Wobble City', text: 'Join my goose room!', url: u }); return; } } catch (e) { /* fall through */ }

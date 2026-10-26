@@ -63,7 +63,7 @@
       </div></div>
       <div class="panel" id="h3end"><div class="card"><h2 id="h3endt"></h2><pre id="h3endx"></pre><div class="row"><button class="go" id="h3again">Play again</button><button class="go alt" id="h3menu">Menu</button></div></div></div>
       <div class="panel" id="h3online-p"><div class="card"><h2>👥 Online room</h2><div class="sub">Everyone types the same word. Up to 8 friends play together; bots fill the empty places.</div>
-        <div class="row"><input id="h3word" maxlength="24" placeholder="room word" autocomplete="off" autocapitalize="off"><button class="go" id="h3join">Join</button></div>
+        <div class="row"><input id="h3word" maxlength="24" placeholder="room word" autocomplete="off" autocapitalize="off"><button class="go" id="h3join">Join</button><button class="go alt" id="h3quick">🎲 Random lobby</button></div>
         <div class="tip" id="h3ostat"></div><div class="row" id="h3orow" style="display:none"><button class="go" id="h3ostart">Start game</button></div><div class="row"><button class="go alt" id="h3oback">Back</button></div></div></div>`;
     document.body.appendChild(d);
     dom = { root: d, gl: $('h3gl'), hud: $('h3hud'), stick: $('h3stick'), knob: $('h3knob'), act: $('h3act'), actt: $('h3actt'), acts: $('h3acts'), jump: $('h3jump'), exit: $('h3exit'), whis: $('h3whis'), own: $('h3own'), lobby: $('h3lobby'), end: $('h3end'), online: $('h3online-p') };
@@ -80,6 +80,7 @@
     $('h3online').addEventListener('click', () => { dom.lobby.style.display = 'none'; dom.online.style.display = 'flex'; });
     $('h3oback').addEventListener('click', () => { net.leave(); dom.online.style.display = 'none'; dom.lobby.style.display = 'flex'; });
     $('h3join').addEventListener('click', () => net.join($('h3word').value));
+    $('h3quick').addEventListener('click', () => net.joinQuick && net.joinQuick());
     $('h3ostart').addEventListener('click', () => net.hostStart());
     $('h3word').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') net.join($('h3word').value); });
     $('h3word').addEventListener('keyup', (e) => e.stopPropagation());

@@ -113,16 +113,27 @@ export default {
     }
 
     const { system, user, model } = body;
-    if (typeof system !== 'string' || typeof user !== 'string' || system.length > 30000 || user.length > 8000) return new Response('bad request', { status: 400, headers: cors });
-    const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
+    if (typeof system !== 'string' || typeof user !== 'string' || system.length > 30000 || user.length > 12000) return new Response('bad request', { status: 400, headers: cors });
+    const messages = [{ role: 'system', content: system }];
+    if (Array.isArray(body.history)) for (const h of body.history.slice(-8)) if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') messages.push({ role: h.role, content: h.content.slice(0, 1500) });
+    // optional screenshot (helper geese): a vision model writes a short caption that is added to the question
+    let shot = '';
+    if (typeof body.image === 'string' && body.image.length > 200 && body.image.length < 450000) {
+      try {
+        const bin = atob(body.image), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const r = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', { image: Array.from(bytes), prompt: 'This is a screenshot of a cartoon goose video game. Describe what is on screen: menus, buttons, text, characters, obstacles, and where things are.', max_tokens: 280 });
+        shot = String(r.description || r.response || '').slice(0, 1200);
+      } catch (e) { shot = ''; }
+    }
+    messages.push({ role: 'user', content: shot ? user + '\n\n[Screenshot description from a vision model, may be imperfect]\n' + shot : user });
     let text = null;
     for (const m of model === 'big' ? [BIG, SMALL] : [SMALL]) {
       try {
-        const r = await env.AI.run(m, { messages, max_tokens: 2200, temperature: 0.8 });
+        const r = await env.AI.run(m, { messages, max_tokens: body.max || 2200, temperature: typeof body.temp === 'number' ? Math.max(0, Math.min(1.2, body.temp)) : 0.8 });
         text = typeof r.response === 'string' ? r.response : JSON.stringify(r.response);
         if (text) break;
       } catch (e) { text = null; }
     }
-    return json({ text });
+    return json({ text, shot: shot ? 1 : 0 });
   },
 };

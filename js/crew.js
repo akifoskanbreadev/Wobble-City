@@ -98,6 +98,41 @@
     } catch (e) { /* ignore */ }
   }
 
+  // ------------------------------------------------------------------ special roles
+  const SUBINFO = {
+    detective: { ic: '🔍', name: 'Detective', desc: 'Scan a nearby goose to learn if they are a Fox (3 scans).', btn: 'SCAN' },
+    medic: { ic: '🩹', name: 'Medic', desc: 'Shield a nearby goose: the next kill on them fails (1 shield, lasts until the next meeting).', btn: 'SHIELD' },
+    engineer: { ic: '🔧', name: 'Engineer', desc: 'You may use the vents, 4 times (press F near a vent).', btn: '' },
+    jester: { ic: '🤡', name: 'Jester', desc: 'No tasks count for you. Get voted out and YOU win alone!', btn: '' },
+    shifter: { ic: '🎭', name: 'Shapeshifter', desc: 'Fox power: MORPH into a nearby player for 20 seconds (35s cooldown).', btn: 'MORPH' },
+  };
+  const counts = (p) => p.role === 'crew' && p.sub !== 'jester';
+  function assignSubs(P, n) {
+    P.forEach((p) => { p.sub = ''; p.ab = null; p.shield = false; p.disg = null; });
+    const cr = shuffle(P.filter((p) => p.role === 'crew')), im = shuffle(P.filter((p) => p.role === 'imp'));
+    const list = ['detective']; if (n >= 6) list.push('medic'); if (n >= 7) list.push('engineer'); if (n >= 8) list.push('jester');
+    list.forEach((sub, i) => { if (cr[i]) cr[i].sub = sub; });
+    if (n >= 6 && im[0]) im[0].sub = 'shifter';
+    P.forEach((p) => { if (p.sub) p.ab = { cd: 0, uses: p.sub === 'detective' ? 3 : p.sub === 'medic' ? 1 : p.sub === 'engineer' ? 4 : p.sub === 'shifter' ? 99 : 0 }; });
+  }
+  const subLabel = (p) => (p.sub ? SUBINFO[p.sub].ic + ' ' + SUBINFO[p.sub].name : p.role === 'imp' ? '🦊 Fox' : '🪿 Goose');
+  const lookOf = (p) => (p.disg != null && G.players[p.disg] ? G.players[p.disg] : p);
+  const canVent = (p) => p.alive && (p.role === 'imp' || (p.sub === 'engineer' && p.ab && p.ab.uses > 0));
+  function abilTarget(p) { let b = null, bd = 100; for (const q of G.players) if (q.alive && q !== p && q.vent == null) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd && segFree(p.x, p.y, q.x, q.y, 0)) { b = q; bd = d; } } return b; }
+  function doAbil(who) {
+    const p = who || G.me;
+    if (G.online && !G.host && !who) { if (p.alive && p.sub) room.send({ k: 'abil' }); return; }
+    if (G.phase !== 'play' || !p.alive || !p.sub || !p.ab || p.vent != null || (G.task && p === G.me)) return;
+    const a = p.ab; if (a.cd > 0 || a.uses <= 0) return;
+    const note = (t) => { if (p === G.me) toast(t, 3.5); else if (p.remote) toGuests({ k: 'toast', t, s: 3.5 }, p); };
+    if (p.sub === 'detective') { const t = abilTarget(p); if (!t) return note('Nobody close enough to scan.'); a.uses--; a.cd = 10; note('🔍 ' + lookOf(t).name + ' is ' + (t.role === 'imp' ? 'a FOX!' : 'a Goose (not a Fox).')); }
+    else if (p.sub === 'medic') { const t = abilTarget(p); if (!t) return note('Nobody close enough to shield.'); a.uses--; a.cd = 5; G.players.forEach((q) => { q.shield = false; }); t.shield = true; G.shieldBy = p.id; note('🩹 ' + lookOf(t).name + ' is shielded until the next meeting.'); }
+    else if (p.sub === 'shifter') { const t = abilTarget(p); if (!t) return note('Stand next to someone to copy them.'); a.cd = 35; p.disg = t.id; p.disgT = 20; note('🎭 You look like ' + t.name + ' for 20 seconds!'); }
+    else return;
+    tone(600, 0.12, 'triangle', 0.05);
+  }
+  function taskDone(p) { if (counts(p)) G.tasksDone++; }
+
   // ------------------------------------------------------------------ game setup
   function newGame(o) {
     const hum = o.humans || null, n = hum ? Math.max(5, Math.min(10, o.n || 8), hum.length) : Math.max(5, Math.min(9, o.n || 7)), nImp = o.nImp ? Math.min(o.nImp, Math.max(1, Math.floor((n - 1) / 3) + (n >= 7 ? 0 : 0))) : (n >= 7 ? 2 : 1);
@@ -115,7 +150,8 @@
       const a = (i / n) * Math.PI * 2; p.x = HUB.x + Math.cos(a) * 150; p.y = HUB.y + Math.sin(a) * 95;
       p.tasks = shuffle(STATIONS.map((s) => s.id)).slice(0, 4).map((id) => ({ id, done: false }));
     });
-    const crew = P.filter((p) => p.role === 'crew');
+    assignSubs(P, n);
+    const crew = P.filter(counts);
     G = { online: !!hum, host: true, nImp, phase: 'intro', t: 0, introT: 3.2, players: P, me: P[0], bodies: [], chat: [], m: null, task: null, lights: 0, overload: null, sabCd: 40, tasksTotal: crew.length * 4, tasksDone: 0, result: null, meetings: 0, kills: 0, auto: !!o.auto, intel: 0, toasts: [], emergLeft: 1, sabMenu: false };
     return G;
   }
@@ -151,9 +187,11 @@
 
   // ------------------------------------------------------------------ actions: kill, vent, report, sabotage
   function witnessAt(x, y, who, amount, why) {
+    if (who.disg != null && G.players[who.disg]) who = G.players[who.disg];
     for (const w of G.players) if (w.alive && w !== who && w.role === 'crew' && w.bot && canSee(w, x, y)) { w.susp[who.id] = (w.susp[who.id] || 0) + amount; w.saw = w.saw || {}; w.saw[who.id] = why; }
   }
   function kill(k, v) {
+    if (v.shield) { v.shield = false; k.cd = 8; const med = G.players[G.shieldBy]; const say = (q, t) => { if (!q) return; if (q === G.me) toast(t, 3.5); else if (q.remote) toGuests({ k: 'toast', t, s: 3.5 }, q); }; say(k, '🛡 Blocked! ' + lookOf(v).name + ' had a shield.'); say(v, '🛡 A Fox tried to attack you, but your shield held!'); say(med, '🩹 Your shield saved ' + lookOf(v).name + '!'); tone(520, 0.2, 'square', 0.06); return; }
     G.bodies.push({ id: v.id, x: v.x, y: v.y, col: v.col, name: v.name, rep: false, t: G.t });
     v.alive = false; v.vent = null; k.x = v.x; k.y = v.y; k.cd = KILL_CD; G.kills++;
     witnessAt(k.x, k.y, k, 100, 'kill'); tone(140, 0.25, 'sawtooth', 0.08);
@@ -175,14 +213,16 @@
   function startMeeting(by, body) {
     G.phase = 'meeting'; G.meetings++; G.task = null; closeTask(); G.sabMenu = false;
     G.m = { by, body, stage: 'discuss', t: 0, dur: 14, vdur: 18, votes: {}, lines: [], vAt: {}, res: null, rt: 0, emerg: !body };
-    G.chat = []; if (body) body.rep = true;
+    G.chat = []; (G.log = G.log || []).push({ sep: 'Meeting ' + G.meetings + (body ? ' · body of ' + body.name : ' · emergency') }); if (body) body.rep = true;
+    G.players.forEach((q) => { q.disg = null; q.shield = false; });
     G.players.forEach((p, i) => { if (p.alive) { const a = (i / G.players.length) * Math.PI * 2; p.x = HUB.x + Math.cos(a) * 150; p.y = HUB.y + Math.sin(a) * 95; p.vent = null; p.path = null; } });
     sayNow(by, body ? 'I found ' + body.name + ' in ' + roomName(body.x, body.y) + '!' : 'Emergency meeting! We need to talk.');
     // schedule what every bot will say and when it will vote
     const liv = G.players.filter((p) => p.alive && p.bot);
     for (const p of liv) {
       const lines = [];
-      if (p.role === 'crew') {
+      if (p.sub === 'jester') { const t = pick(G.players.filter((q) => q.alive && q !== p)); lines.push([rnd(2, 6), pick(['It was totally me. Or was it? 🤡', 'Vote me, I dare you!', t.name + ' gave me a funny look...', 'I was seen vibing near the body. Suspicious, right?']), -1, 0]); }
+      else if (p.role === 'crew') {
         const culprit = Object.keys(p.saw || {}).map(Number).find((id) => G.players[id]);
         if (culprit != null) lines.push([rnd(1, 4), 'I saw ' + G.players[culprit].name + ' ' + (p.saw[culprit] === 'vent' ? 'jump into a vent' : 'attack someone') + '!', culprit, 60]);
         else {
@@ -199,9 +239,21 @@
       G.m.vAt[p.id] = rnd(1.5, 13);
     }
   }
-  function sayNow(p, text) { G.chat.push({ name: p.name, col: p.col, text }); tone(520, 0.05, 'triangle', 0.03); renderChat(); if (G.online && G.host) toGuests({ k: 'chat', name: p.name, col: p.col, text }); }
+  function sayNow(p, text) { G.chat.push({ name: p.name, col: p.col, text }); (G.log = G.log || []).push({ name: p.name, col: p.col, text }); reactToChat(p, text); tone(520, 0.05, 'triangle', 0.03); renderChat(); if (G.online && G.host) toGuests({ k: 'chat', name: p.name, col: p.col, text }); }
+  function reactToChat(from, text) {
+    if (!G || !G.m || G.m.stage === 'result') return; const t = text.toLowerCase();
+    const bad = /(sus|vent|kill|fox|liar|lying|saw|caught|faked|fake|suspicious|think it)/.test(t), good = /(vouch|clear|safe|trust|with me|innocent|not the fox)/.test(t), skip = /skip/.test(t);
+    for (const q of G.players) {
+      if (q === from || !q.alive || !q.bot) continue; const named = G.players.find((o) => o !== from && o.alive && t.includes(o.name.toLowerCase()));
+      if (named && q.role === 'crew' && named.role !== undefined) { if (bad && !good) q.susp[named.id] = (q.susp[named.id] || 0) + (from.bot ? 0 : 9); if (good) q.susp[named.id] = Math.max(0, (q.susp[named.id] || 0) - 8); }
+      if (named === q && bad && !good && !from.bot && Math.random() < 0.6 && G.m.stage !== 'vote') G.m.lines.push({ at: G.m.t + rnd(1, 3), p: q, text: pick(['Hey, I was just doing my tasks!', 'That is not true, ' + from.name + '!', 'Why me? Check the others!', 'I am not the Fox, I promise!']), target: -1, amt: 0, said: false });
+    }
+    if (skip && !from.bot) for (const q of G.players) if (q.bot && q.alive && q.role === 'crew' && Math.random() < 0.25) q.skipBias = (q.skipBias || 0) + 1;
+  }
   function botVote(p) {
     const cand = G.players.filter((q) => q.alive && q !== p);
+    if (p.sub === 'jester') return Math.random() < 0.15 ? 'skip' : pick(cand).id;
+    if (p.skipBias && Math.random() < 0.5) return 'skip';
     if (p.role === 'crew') {
       const top = cand.map((q) => [q, p.susp[q.id] || 0]).sort((a, b) => b[1] - a[1])[0];
       if (top && top[1] >= 20) return top[0].id;
@@ -231,7 +283,8 @@
     const m = G.m, tally = {}; for (const k in m.votes) { const v = m.votes[k]; tally[v] = (tally[v] || 0) + 1; }
     const order = Object.keys(tally).sort((a, b) => tally[b] - tally[a]); let ej = null;
     if (order.length && order[0] !== 'skip' && (order.length === 1 || tally[order[0]] > tally[order[1]])) ej = G.players[+order[0]];
-    if (ej) { ej.alive = false; ej.ejected = true; }
+    if (ej) { ej.alive = false; ej.ejected = true; if (ej.sub === 'jester') G.jesterWin = ej.id; }
+    (G.log = G.log || []).push({ sys: 'Votes: ' + (Object.keys(m.votes).map((k) => G.players[k].name + ' → ' + (m.votes[k] === 'skip' ? 'skip' : G.players[m.votes[k]].name)).join(', ') || 'nobody voted') + (ej ? '. ' + ej.name + ' was ejected.' : '. Nobody was ejected.') });
     m.res = { ej, tally }; m.stage = 'result'; m.rt = 0; renderMeeting(); tone(200, 0.4, 'sawtooth', 0.06);
   }
   function endMeeting() {
@@ -243,7 +296,8 @@
   function checkWin() {
     if (!G || G.phase === 'end') return;
     let w = null, why = '';
-    if (G.tasksDone >= G.tasksTotal) { w = 'crew'; why = 'Every task is done!'; }
+    if (G.jesterWin != null && G.phase !== 'meeting') { w = 'jester'; why = G.players[G.jesterWin].name + ' the Jester tricked everyone into voting them out!'; }
+    else if (G.tasksDone >= G.tasksTotal) { w = 'crew'; why = 'Every task is done!'; }
     else if (!imps().length) { w = 'crew'; why = 'All Foxes were found!'; }
     else if (imps().length >= crewAlive().length) { w = 'imp'; why = 'The Foxes outnumber the crew!'; }
     else if (G.overload && G.overload.t <= 0) { w = 'imp'; why = 'The reactor blew up!'; }
@@ -251,8 +305,8 @@
     if (G.forceW) { w = G.forceW; why = 'The owner decided it.'; }
     if (!w) return;
     G.phase = 'end'; G.result = { winner: w, reason: why }; closeTask();
-    const meImp = G.me.role === 'imp', won = (w === 'imp') === meImp, gain = won ? (meImp ? 35 : 25) : 6;
-    if (G.online) toGuests({ k: 'end', winner: w, reason: why, roles: G.players.map((q) => q.role), alive: G.players.map((q) => (q.alive ? 1 : q.ejected ? 2 : 0)), td: G.tasksDone, tt: G.tasksTotal, mt: G.meetings, kl: G.kills });
+    const meImp = G.me.role === 'imp', won = w === 'jester' ? G.me.id === G.jesterWin : (w === 'imp') === meImp && G.me.id !== G.jesterWin, gain = won ? (w === 'jester' ? 40 : meImp ? 35 : 25) : 6;
+    if (G.online) toGuests({ k: 'end', winner: w, reason: why, jw: G.jesterWin == null ? -1 : G.jesterWin, subs: G.players.map((q) => q.sub || ''), roles: G.players.map((q) => q.role), alive: G.players.map((q) => (q.alive ? 1 : q.ejected ? 2 : 0)), td: G.tasksDone, tt: G.tasksTotal, mt: G.meetings, kl: G.kills });
     if (!G.auto && opts && opts.award) opts.award(gain); G.result.gain = gain; G.result.won = won;
     showEnd();
   }
@@ -288,7 +342,7 @@
   }
   function crewStep(p, dt) {
     if (p.mode === 'work') {
-      p.moving = false; if (p.timer <= 0) { const t = p.tasks.find((x) => !x.done && p.cur === x); if (t) { t.done = true; G.tasksDone++; tone(880, 0.08, 'triangle', 0.03); checkWin(); } p.mode = 'idle'; p.cur = null; } return;
+      p.moving = false; if (p.timer <= 0) { const t = p.tasks.find((x) => !x.done && p.cur === x); if (t) { t.done = true; taskDone(p); tone(880, 0.08, 'triangle', 0.03); checkWin(); } p.mode = 'idle'; p.cur = null; } return;
     }
     if (p.mode === 'idle') {
       const t = p.tasks.find((x) => !x.done); p.cur = t || null;
@@ -301,7 +355,7 @@
   function ghostStep(p, dt) {                       // dead crew bots keep finishing tasks (invisible)
     if (p.role !== 'crew' || p.bot === false) return;
     const t = p.tasks.find((x) => !x.done); if (!t) return;
-    p.ghostT = (p.ghostT || rnd(8, 18)) - dt; if (p.ghostT <= 0) { t.done = true; G.tasksDone++; p.ghostT = rnd(10, 22); checkWin(); }
+    p.ghostT = (p.ghostT || rnd(8, 18)) - dt; if (p.ghostT <= 0) { t.done = true; taskDone(p); p.ghostT = rnd(10, 22); checkWin(); }
   }
   function impStep(p, dt) {
     G.sabCd = G.sabCd; const crew = crewAlive();
@@ -359,9 +413,9 @@
   }
   function doKill(who) { const p = who || G.me; if (G.online && !G.host && !who) { if (G.me.role === 'imp' && G.me.alive && G.me.cd <= 0) room.send({ k: 'kill' }); return; } if (G.phase !== 'play' || p.role !== 'imp' || !p.alive || (p.cd > 0 && !(p === G.me && owner() && ownS.nocd)) || p.vent != null || G.task) return; const v = crewAlive().filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < KILL_RANGE).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]; if (v) kill(p, v); }
   function doVent(who) {
-    const p = who || G.me; if (G.online && !G.host && !who) { if (p.role === 'imp' && p.alive) room.send({ k: 'vent' }); return; }
-    if (G.phase !== 'play' || p.role !== 'imp' || !p.alive || (G.task && p === G.me)) return;
-    if (p.vent == null) { const v = nearestVent(p, 70); if (v) enterVent(p, v); }
+    const p = who || G.me; if (G.online && !G.host && !who) { if (canVent(p)) room.send({ k: 'vent' }); return; }
+    if (G.phase !== 'play' || !canVent(p) || (G.task && p === G.me)) return;
+    if (p.vent == null) { const v = nearestVent(p, 70); if (v) { if (p.role !== 'imp') p.ab.uses--; enterVent(p, v); } }
     else { const nx = VENTS[(p.vent + 1) % VENTS.length]; p.vent = nx.id; p.x = nx.x; p.y = nx.y; tone(300, 0.08, 'triangle'); }
   }
   function doExitVent(who) { const p = who || G.me; if (G.online && !G.host && !who) { room.send({ k: 'exitvent' }); return; } if (p.vent != null) exitVent(p); }
@@ -387,6 +441,7 @@
     if (G.phase === 'meeting') { stepMeeting(dt); return; }
     if (G.task) { G.task.t.t += dt; G.task.t.update && G.task.t.update(dt); if (G.task.t.done) { G.task.fin = (G.task.fin || 0) + dt; if (G.task.fin > 0.6) finishTask(); } }
     for (const p of G.players) { if (p === G.me && !G.auto) humanStep(dt); else if (p.remote) remoteStep(p, dt); else if (!p.frz || (p.frz -= dt) <= 0) botStep(p, dt); }
+    for (const p of G.players) { if (p.ab && p.ab.cd > 0) p.ab.cd -= dt; if (p.disgT > 0 && (p.disgT -= dt) <= 0) p.disg = null; }
     if (G.lights > 0) G.lights -= dt; if (G.sabCd > 0 && !G.lights && !G.overload) G.sabCd -= dt;
     if (G.overload) { G.overload.t -= dt; if (G.overload.fixed[0] && G.overload.fixed[1]) { G.overload = null; toast('Reactor saved!', 2); G.sabCd = 35; } else if (G.overload.t <= 0) checkWin(); }
     if (G.t > GAME_LIMIT) checkWin();
@@ -439,7 +494,7 @@
   function finishTask() {
     const k = G.task; closeTask(); if (!k) return;
     if (G.online && !G.host) { if (G.me.role === 'crew' && !k.st.done) { k.st.done = true; room.send({ k: 'task', id: k.s.id }); tone(880, 0.1, 'triangle', 0.05); } else if (G.me.role === 'imp') toast('Nice fake. Nobody suspects a thing.', 1.8); return; }
-    if (G.me.role === 'crew' && !k.st.done) { k.st.done = true; G.tasksDone++; tone(880, 0.1, 'triangle', 0.05); checkWin(); }
+    if (G.me.role === 'crew' && !k.st.done) { k.st.done = true; taskDone(G.me); tone(880, 0.1, 'triangle', 0.05); checkWin(); }
     else if (G.me.role === 'imp') toast('Nice fake. Nobody suspects a thing.', 1.8);
   }
 
@@ -503,8 +558,12 @@
     for (const b of G.bodies) if (meGhost || canSee(me, b.x, b.y)) goose(c, b.x, b.y, b.col, 1, 0, false, false, true);
     const draw = G.players.filter((p) => p.alive || meGhost && p.ghostShow).filter((p) => p === me || p.vent == null && !(p.invis && !(owner() && ownS.xray)) && (me.alive ? canSee(me, p.x, p.y) : true)).sort((a, b) => a.y - b.y);
     for (const p of draw) {
-      goose(c, p.x, p.y, p.col, p.face, p.anim, p.moving, !p.alive, false, p.role === 'imp' && (p === me || (me.role === 'imp') || owner() && ownS.xray));
-      c.font = '800 13px system-ui'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#000'; c.fillStyle = p.role === 'imp' && (me.role === 'imp' || (owner() && ownS.xray)) ? '#ff6a4a' : '#fff'; c.strokeText(p.name, p.x, p.y - 40); c.fillText(p.name, p.x, p.y - 40);
+      const lk = lookOf(p), ghostly = p.invis; if (ghostly) c.globalAlpha = 0.38;
+      if (p.shield && (p === me || me.sub === 'medic')) { c.strokeStyle = 'rgba(120,200,255,.9)'; c.lineWidth = 3; c.beginPath(); c.arc(p.x, p.y - 4, 34, 0, 7); c.stroke(); }
+      goose(c, p.x, p.y, lk.col, p.face, p.anim, p.moving, !p.alive, false, p.role === 'imp' && (p === me || (me.role === 'imp') || owner() && ownS.xray));
+      c.font = '800 13px system-ui'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#000'; c.fillStyle = p.role === 'imp' && (me.role === 'imp' || (owner() && ownS.xray)) ? '#ff6a4a' : '#fff'; c.strokeText(lk.name, p.x, p.y - 40); c.fillText(lk.name, p.x, p.y - 40);
+      if (p.disg != null && p === me) { c.font = '700 11px system-ui'; c.fillStyle = '#ffd23f'; c.fillText('(really you)', p.x, p.y - 54); }
+      if (ghostly) c.globalAlpha = 1;
     }
     if (meGhost) for (const p of G.players) if (!p.alive && !p.ejected && p !== me) { /* other ghosts stay hidden */ }
     c.restore();
@@ -528,6 +587,7 @@
     c.textAlign = 'center'; c.font = '800 15px system-ui'; let ty = ch - 14 - 130; for (const t of G.toasts) { c.fillStyle = 'rgba(0,0,0,.7)'; const tw = c.measureText(t.t).width + 24; c.beginPath(); c.roundRect(cw / 2 - tw / 2, ty - 18, tw, 28, 14); c.fill(); c.fillStyle = '#fff'; c.fillText(t.t, cw / 2, ty); ty -= 34; }
     if (G.phase === 'intro') {
       c.fillStyle = 'rgba(0,0,0,.78)'; c.fillRect(0, 0, cw, ch); const imp = me.role === 'imp'; c.fillStyle = imp ? '#ff6a4a' : '#8be9a0'; c.font = '900 ' + Math.round(48 * f) + 'px system-ui'; c.textAlign = 'center'; c.fillText(imp ? 'YOU ARE A FOX' : 'YOU ARE A GOOSE', cw / 2, ch / 2 - 30);
+      if (me.sub) { c.fillStyle = '#ffd23f'; c.font = '900 ' + Math.round(30 * f) + 'px system-ui'; c.fillText(subLabel(me).toUpperCase(), cw / 2, ch / 2 + 6); c.fillStyle = '#fff'; c.font = '700 ' + Math.round(15 * f) + 'px system-ui'; c.fillText(SUBINFO[me.sub].desc, cw / 2, ch / 2 + 78 * f); }
       c.fillStyle = '#fff'; c.font = '700 ' + Math.round(18 * f) + 'px system-ui'; c.fillText(imp ? 'Sneak-kill the crew. Teammates: ' + (imps().filter((p) => p !== me).map((p) => p.name).join(', ') || 'none (you are alone!)') : ((G.nImp || imps().length) + ' Fox' + ((G.nImp || imps().length) > 1 ? 'es are' : ' is') + ' hiding among ' + G.players.length + ' geese. Finish tasks, find the Fox!'), cw / 2, ch / 2 + 12);
     }
     if (G.phase === 'meeting' && G.m.stage === 'result') {
@@ -552,8 +612,10 @@
     const show = (b, on, dim) => { b.style.display = on ? 'flex' : 'none'; b.style.opacity = dim ? 0.45 : 1; };
     show(dom.use, G.phase === 'play' && !G.task && me.vent == null, !u); show(dom.rep, play && me.alive && G.bodies.some((b) => !b.rep && Math.hypot(b.x - me.x, b.y - me.y) < REPORT_RANGE), false);
     show(dom.kill, play && imp && me.vent == null, me.cd > 0 || !crewAlive().some((q) => Math.hypot(q.x - me.x, q.y - me.y) < KILL_RANGE)); dom.kill.querySelector('small').textContent = me.cd > 0 ? Math.ceil(me.cd) + 's' : '';
-    show(dom.vent, play && imp && (me.vent != null || !!nearestVent(me, 70)), false); dom.vent.firstChild.textContent = me.vent != null ? 'NEXT' : 'VENT';
+    show(dom.vent, play && canVent(me) && (me.vent != null || !!nearestVent(me, 70)), false); dom.vent.firstChild.textContent = me.vent != null ? 'NEXT' : 'VENT';
     show(dom.sab, play && imp && me.vent == null, G.sabCd > 0 || !!G.lights || !!G.overload); dom.sabm.style.display = G.sabMenu && play ? 'flex' : 'none';
+    { const ab = me.alive && me.sub && SUBINFO[me.sub].btn; show(dom.abil, play && !!ab && me.vent == null, !!me.ab && (me.ab.cd > 0 || me.ab.uses <= 0)); if (ab) { dom.abil.firstChild.textContent = SUBINFO[me.sub].btn; dom.abil.querySelector('small').textContent = me.ab.uses <= 0 ? 'none left' : me.ab.cd > 0 ? Math.ceil(me.ab.cd) + 's' : me.sub === 'shifter' ? '(C)' : me.ab.uses + ' left'; } }
+    dom.role.style.display = G.phase !== 'end' ? 'block' : 'none'; { const t = subLabel(me) + (me.disg != null ? ' · 🎭 as ' + G.players[me.disg].name : '') + (me.invis ? ' · 🫥 invisible' : '') + (me.shield ? ' · 🛡 shielded' : ''); if (dom.role.textContent !== t) dom.role.textContent = t; }
     dom.stick.style.display = G.phase === 'play' || G.phase === 'intro' ? 'block' : 'none';
     dom.exitv.style.display = play && me.vent != null ? 'flex' : 'none';
     buildOwn();
@@ -571,7 +633,16 @@
   #crew #crsab{right:calc(max(16px,env(safe-area-inset-right)) + 192px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 40px);background:rgba(120,60,160,.92)}
   #crew #crsabm{position:absolute;right:calc(max(16px,env(safe-area-inset-right)) + 150px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 130px);display:none;gap:8px;flex-direction:column}
   #crew #crexitv{right:calc(max(16px,env(safe-area-inset-right)) + 190px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 116px);background:rgba(90,90,110,.95);width:70px;height:70px}
-  #crew #crown{position:absolute;left:10px;top:150px;display:none;flex-direction:column;gap:5px;z-index:3}#crew #crown button{font:700 12px system-ui;padding:5px 8px;border-radius:9px;border:2px solid rgba(255,255,255,.7);background:rgba(30,30,40,.6);color:#fff;text-align:left}#crew #crown button.on{background:#d6192b}
+  #crew #crown{position:absolute;left:10px;top:140px;display:none;flex-direction:column;gap:3px;z-index:3;max-height:calc(100vh - 230px);overflow:auto}#crew #crown button{font:700 11px system-ui;padding:3px 7px;border-radius:9px;border:2px solid rgba(255,255,255,.7);background:rgba(30,30,40,.6);color:#fff;text-align:left}#crew #crown button.on{background:#d6192b}
+  #crew #cabil{right:calc(max(16px,env(safe-area-inset-right)) + 118px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 116px + 100px);background:rgba(40,120,200,.95);width:84px;height:84px}
+  #crew #crlogb{right:12px;top:64px;width:44px;height:44px;font-size:20px;display:flex;border-radius:12px}
+  #crew #crrole{position:absolute;left:10px;bottom:170px;display:none;background:rgba(0,0,0,.55);border:2px solid rgba(255,255,255,.5);border-radius:10px;padding:4px 8px;font:800 12px system-ui;max-width:210px}
+  #crew #crlog .card{max-width:620px;background:#1d2440;color:#fff}#crew #crlogl{height:min(46vh,360px);overflow:auto;background:#111731;border-radius:12px;padding:8px;font-size:14px;margin:8px 0}
+  #crew .sep{text-align:center;font-weight:800;opacity:.7;margin:8px 0 4px;font-size:12px;border-top:1px solid #39456f;padding-top:6px}#crew .sys{opacity:.75;font-size:12px;margin:2px 0}
+  #crew #crsayrow{display:flex;gap:6px;margin:6px 0}#crew #crsay{flex:1;min-width:0;font-size:16px;padding:9px 10px;border-radius:10px;border:3px solid #39456f;background:#111731;color:#fff}
+  #crew #crqc select{padding:7px;border-radius:8px;font-size:13px;max-width:46%}
+  #crew #crlog{z-index:6}
+  #crew .go.sm{font-size:13px;padding:7px 12px}
   #crew #crquit{right:12px;top:12px;width:44px;height:44px;font-size:20px;display:flex;border-radius:12px}
   #crew #crstick{left:max(22px,env(safe-area-inset-left));bottom:max(28px,env(safe-area-inset-bottom));width:128px;height:128px;background:rgba(30,30,40,.3)}
   #crew #crknob{position:absolute;left:36px;top:36px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.6);pointer-events:none}
@@ -597,28 +668,30 @@
       <div class="b" id="cruse"><span>USE</span><small>(E)</small></div><div class="b" id="crrep"><span>REPORT</span><small>(R)</small></div>
       <div class="b" id="crkill"><span>KILL</span><small></small></div><div class="b" id="crvent"><span>VENT</span><small>(F)</small></div><div class="b" id="crsab"><span>SABO</span><small>(X/Z)</small></div>
       <div id="crsabm"><button class="go" id="crlights">💡 Lights out</button><button class="go" id="crover">☢ Overload</button></div>
-      <div id="crown"></div><div class="b" id="crexitv"><span>EXIT</span></div><div class="b" id="crquit">☰</div>
+      <div id="crown"></div><div class="b" id="cabil"><span>SCAN</span><small></small></div><div id="crrole"></div><div class="b" id="crlogb" title="Chat log">💬</div><div class="b" id="crexitv"><span>EXIT</span></div><div class="b" id="crquit">☰</div>
       <div class="panel" id="crlobby"><div class="card"><h2>🚀 Goose Among Us</h2><div class="sub">A Fox sneaked aboard the flying barn-ship! Geese do tasks and vote the Fox out; Foxes sneak-kill. Offline, with bots.</div>
-        <div class="row"><b>Your role</b><span class="chip on">🎲 Secret: the game picks it</span></div>
+        <div class="row"><b>Your role</b><span class="chip on">🎲 Secret: the game picks it</span></div><div style="font-size:12.5px;opacity:.8;margin:-2px 0 4px">Special roles (6+ players): 🔍 Detective · 🩹 Medic · 🔧 Engineer · 🤡 Jester (get voted out to win) · 🎭 Shapeshifter Fox</div>
         <div class="row"><b>Players</b><span class="chip" data-n="5">5</span><span class="chip on" data-n="7">7</span><span class="chip" data-n="9">9</span><span style="font-size:12px;opacity:.7">(7+ players: two Foxes)</span></div>
         <div class="row"><button class="go" id="crstart">Play</button><button class="go alt" id="crback">Back</button></div>
         <h4 style="margin:10px 0 2px">👥 Online with friends</h4>
-        <div class="row"><input id="crword" maxlength="24" placeholder="room word (same for everyone)" style="font-size:16px;padding:9px 12px;border-radius:10px;border:3px solid #dfe3f1;width:210px"><button class="go" id="crjoin">Join / create</button></div>
+        <div class="row"><input id="crword" maxlength="24" placeholder="room word (same for everyone)" style="font-size:16px;padding:9px 12px;border-radius:10px;border:3px solid #dfe3f1;width:210px"><button class="go" id="crjoin">Join / create</button><button class="go alt" id="crquick">🎲 Random lobby</button></div>
         <div id="cronl" style="display:none"><div class="row" id="crroster"></div><div id="crwait" class="sub"></div>
           <div class="row" id="crhostopts"><span class="chip" id="crOn">Players: 8</span><span class="chip" id="crOi">Foxes: 1</span></div>
           <div class="row"><button class="go" id="crstartonl">▶ Start online game</button><button class="go alt" id="crleave">Leave room</button></div></div>
         <div id="crstat" style="font-size:13px;min-height:16px"></div>
         <div style="font-size:12.5px;opacity:.75">Move: WASD / arrows or the stick · E use · Q kill · R report · F vent · X lights out · Z overload</div></div></div>
+      <div class="panel" id="crlog"><div class="card"><h2>💬 Chat log</h2><div id="crlogl"></div><div class="row"><button class="go alt" id="crlogx">Close</button></div></div></div>
       <div class="panel" id="crtask"><div class="card"><div id="crttl" style="font-weight:800;margin-bottom:8px"></div><canvas id="crtcv" width="800" height="600"></canvas><div class="row" style="justify-content:center"><button class="go alt" id="crtclose">Close</button></div></div></div>
-      <div class="panel" id="crmeet"><div class="card"><h2 id="crmt">Meeting</h2><div id="crmsub" class="sub" style="color:#aab"></div><div id="crchat"></div><div id="crcards"></div><div class="row" id="crqc" style="justify-content:center"></div><div class="row" style="justify-content:center"><button class="go" id="crskip">Skip vote</button></div></div></div>
+      <div class="panel" id="crmeet"><div class="card"><h2 id="crmt">Meeting</h2><div id="crmsub" class="sub" style="color:#aab"></div><div id="crchat"></div><div id="crcards"></div><div id="crsayrow"><input id="crsay" maxlength="70" placeholder="Type your own message…" autocomplete="off"><button class="go sm" id="crsend">Send</button></div><div class="row" id="crqc" style="justify-content:center"></div><div class="row" style="justify-content:center"><button class="go" id="crskip">Skip vote</button></div></div></div>
       <div class="panel" id="crend"><div class="card"><h2 id="crendt"></h2><pre id="crendx" style="white-space:pre-wrap;font-family:inherit;font-size:15px"></pre><div class="row"><button class="go" id="cragain">Play again</button><button class="go alt" id="crmenu">Menu</button></div></div></div>`;
     document.body.appendChild(d);
-    dom = { root: d, cv: $('crcv'), stick: $('crstick'), knob: $('crknob'), use: $('cruse'), rep: $('crrep'), kill: $('crkill'), vent: $('crvent'), sab: $('crsab'), sabm: $('crsabm'), exitv: $('crexitv'), lobby: $('crlobby'), task: $('crtask'), tcv: $('crtcv'), ttl: $('crttl'), meet: $('crmeet'), end: $('crend') };
+    dom = { abil: $('cabil'), role: $('crrole'), root: d, cv: $('crcv'), stick: $('crstick'), knob: $('crknob'), use: $('cruse'), rep: $('crrep'), kill: $('crkill'), vent: $('crvent'), sab: $('crsab'), sabm: $('crsabm'), exitv: $('crexitv'), lobby: $('crlobby'), task: $('crtask'), tcv: $('crtcv'), ttl: $('crttl'), meet: $('crmeet'), end: $('crend') };
     const sel = { role: 'random', n: 7 }; dom.sel = sel;
     d.querySelectorAll('[data-n]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-n]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); sel.n = +c.dataset.n; }));
     const cyc = (id, key, vals, fmt) => $(id).addEventListener('click', () => { osel[key] = vals[(vals.indexOf(osel[key]) + 1) % vals.length]; $(id).textContent = fmt(osel[key]); });
     cyc('crOn', 'n', [6, 8, 10], (v) => 'Players: ' + v); cyc('crOi', 'imp', [1, 2], (v) => 'Foxes: ' + v);
     $('crjoin').addEventListener('click', () => { setupRoom(); try { localStorage.setItem('wobbleCrewWord', $('crword').value); } catch (e) { /* ignore */ } if (room) room.join($('crword').value); else status('Online play is not available (could not load the matchmaking library).', true); });
+    $('crquick').addEventListener('click', () => { setupRoom(); if (room) room.quick('crew'); else status('Online play is not available.', true); });
     $('crword').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('crjoin').click(); }); $('crword').addEventListener('keyup', (e) => e.stopPropagation());
     $('crstartonl').addEventListener('click', startOnline); $('crleave').addEventListener('click', () => { if (room) room.leave(); renderRoster([]); status(''); });
     try { const w = localStorage.getItem('wobbleCrewWord'); if (w) $('crword').value = w; } catch (e) { /* ignore */ }
@@ -626,6 +699,8 @@
     $('crback').addEventListener('click', close); $('crmenu').addEventListener('click', close); $('crquit').addEventListener('click', () => { if (G && G.phase !== 'end') { if (G.online && room) room.leave(); showPanel('lobby'); G = null; closeTask(); } else close(); });
     $('crtclose').addEventListener('click', closeTask); $('crskip').addEventListener('click', () => { if (G && G.m && G.m.stage === 'vote') castVote(G.me, 'skip'); });
     const press = (b, fn) => { b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (G) fn(); }); };
+    $('crsend').addEventListener('click', () => { const i = $('crsay'); if (sayAs(i.value)) i.value = ''; }); $('crsay').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('crsend').click(); }); $('crsay').addEventListener('keyup', (e) => e.stopPropagation());
+    press(dom.abil, doAbil); $('crlogb').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); showLog(true); }); $('crlogx').addEventListener('click', () => showLog(false));
     press(dom.use, doUse); press(dom.rep, doReport); press(dom.kill, doKill); press(dom.vent, doVent); press(dom.exitv, doExitVent); press(dom.sab, () => { G.sabMenu = !G.sabMenu; });
     $('crlights').addEventListener('click', () => { G.sabMenu = false; if (G.online && !G.host) room.send({ k: 'sab', w: 'l' }); else startLights(); }); $('crover').addEventListener('click', () => { G.sabMenu = false; if (G.online && !G.host) room.send({ k: 'sab', w: 'o' }); else startOverload(); });
     // joystick
@@ -639,9 +714,9 @@
     tcv.addEventListener('pointermove', (e) => { if (G && G.task && G.task.t.move) { const p = tp(e); G.task.t.move(p[0], p[1]); } });
     const tup = (e) => { if (G && G.task && G.task.t.up) { const p = tp(e); G.task.t.up(p[0], p[1]); } }; tcv.addEventListener('pointerup', tup); tcv.addEventListener('pointercancel', tup);
     const kd = (e) => {
-      if (!isOpen) return; const k = e.key.toLowerCase(); e.stopImmediatePropagation(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+      if (!isOpen) return; if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return; const k = e.key.toLowerCase(); e.stopImmediatePropagation(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
       if (e.type === 'keyup') { keys[k] = false; return; } keys[k] = true; if (e.repeat || !G) return;
-      if (k === 'e') doUse(); else if (k === 'q') doKill(); else if (k === 'r') doReport(); else if (k === 'f') doVent(); else if (k === 'x') { if (G.me.role === 'imp' && G.me.alive) { if (G.online && !G.host) room.send({ k: 'sab', w: 'l' }); else startLights(); } } else if (k === 'z') { if (G.me.role === 'imp' && G.me.alive) { if (G.online && !G.host) room.send({ k: 'sab', w: 'o' }); else startOverload(); } } else if (k === 'escape') { if (G.task) closeTask(); }
+      if (k === 'e') doUse(); else if (k === 'c') doAbil(); else if (k === 'l') showLog(true); else if (k === 'q') doKill(); else if (k === 'r') doReport(); else if (k === 'f') doVent(); else if (k === 'x') { if (G.me.role === 'imp' && G.me.alive) { if (G.online && !G.host) room.send({ k: 'sab', w: 'l' }); else startLights(); } } else if (k === 'z') { if (G.me.role === 'imp' && G.me.alive) { if (G.online && !G.host) room.send({ k: 'sab', w: 'o' }); else startOverload(); } } else if (k === 'escape') { if (G.task) closeTask(); }
     };
     root.addEventListener('keydown', kd, true); root.addEventListener('keyup', kd, true);
     d.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -650,6 +725,45 @@
   function renderChat() {
     if (!dom || !G) return; const el = $('crchat'); el.innerHTML = '';
     G.chat.forEach((m) => { const d = document.createElement('div'); d.className = 'msg'; const i = document.createElement('i'); i.style.color = m.col; i.textContent = m.name + ': '; d.appendChild(i); d.appendChild(document.createTextNode(m.text)); el.appendChild(d); }); el.scrollTop = el.scrollHeight;
+  }
+  // ---- chat: type anything, or pick from lots of phrases; every message is kept in the log (💬)
+  const PHRASES = [
+    ['Accuse', ['I think {p} is the Fox!', '{p} is acting suspicious.', 'I saw {p} vent!', 'I saw {p} kill someone!', '{p} was near the body.', '{p} was not doing any tasks.', 'Vote {p}, trust me.', 'Where was {p}?']],
+    ['Defend', ['I was in {r} doing tasks.', 'I vouch for {p}, we were together.', '{p} is clear, I saw them do a task.', 'It was not me, I promise!', 'Do not vote {p}, they are safe.', 'I was in {r} the whole time.']],
+    ['Info', ['I found the body in {r}.', 'Who was in {r}?', 'I saw {p} in {r}.', 'I just finished a task in {r}.', 'The lights went out and I could not see anything.', 'I saw nothing.', 'Anyone see anything?', 'I think a Fox is near {r}.']],
+    ['Roles', ['I am the Detective, I scanned someone.', 'I am the Medic, I shielded {p}.', 'I am the Engineer, I used the vents.', 'Beware, the Jester is among us!', 'I am just a goose, I swear.']],
+    ['Vote', ['Let us skip, there is no evidence.', 'Everyone vote {p}!', 'Hurry up and vote!', 'Wait, let us talk a bit more.', 'Sorry, I am lost, what happened?']],
+    ['Fun', ['Honk!', 'GG!', 'Bread is life.', 'That was close!', 'Trust me, I am a goose. 🪿']],
+  ];
+  let lastSay = 0;
+  function sayAs(text) {
+    text = String(text || '').trim().slice(0, 70); if (!text || !G || !G.m || G.m.stage === 'result' || !G.me.alive) return false;
+    const now = performance.now(); if (now - lastSay < 900) return false; lastSay = now;
+    if (G.online && !G.host) room.send({ k: 'say', text }); else sayNow(G.me, text);
+    return true;
+  }
+  function chatTools(m) {
+    const row = $('crsayrow'), qc = $('crqc'); if (!row || !qc) return;
+    const can = G.me.alive && m.stage !== 'result'; row.style.display = can ? 'flex' : 'none';
+    const key = (can ? 1 : 0) + G.players.map((q) => (q.alive ? 1 : 0)).join('') + (G.me.ab ? G.me.ab.uses : '');
+    if (qc.dataset.k === key) return; qc.dataset.k = key; qc.innerHTML = '';
+    if (!can) { qc.innerHTML = '<span style="opacity:.7;font-size:13px">' + (G.me.alive ? '' : '👻 Ghosts cannot chat or vote.') + '</span>'; return; }
+    const mk = (tag, css) => { const e = document.createElement(tag); if (css) e.style.cssText = css; return e; };
+    const tsel = mk('select'), psel = mk('select'), rsel = mk('select');
+    const ph = mk('option'); ph.value = ''; ph.textContent = '💬 Pick a phrase…'; tsel.appendChild(ph);
+    PHRASES.forEach(([g, list]) => { const og = mk('optgroup'); og.label = g; list.forEach((t) => { const o = mk('option'); o.value = t; o.textContent = t; og.appendChild(o); }); tsel.appendChild(og); });
+    G.players.forEach((q) => { if (q.alive && q !== G.me) { const o = mk('option'); o.value = q.name; o.textContent = '👤 ' + q.name; psel.appendChild(o); } });
+    ROOMS.forEach((r) => { const o = mk('option'); o.value = r; o.textContent = '📍 ' + r; rsel.appendChild(o); });
+    const go = mk('button'); go.className = 'go sm'; go.textContent = 'Say it';
+    go.addEventListener('click', () => { if (!tsel.value) return; sayAs(tsel.value.replace(/\{p\}/g, psel.value || 'someone').replace(/\{r\}/g, rsel.value || 'somewhere')); tsel.value = ''; });
+    qc.append(tsel, psel, rsel, go);
+  }
+  function showLog(on) {
+    const pn = $('crlog'); if (!pn || !G) return; pn.style.display = on ? 'flex' : 'none'; if (!on) return;
+    const box = $('crlogl'); box.innerHTML = '';
+    if (!(G.log || []).length) box.textContent = 'Nothing has been said yet. Chat happens in meetings.';
+    (G.log || []).forEach((l) => { const d = document.createElement('div'); if (l.sep) { d.className = 'sep'; d.textContent = l.sep; } else if (l.sys) { d.className = 'sys'; d.textContent = l.sys; } else { d.className = 'msg'; const i = document.createElement('i'); i.style.color = l.col; i.textContent = l.name + ': '; d.appendChild(i); d.appendChild(document.createTextNode(l.text)); } box.appendChild(d); });
+    box.scrollTop = box.scrollHeight;
   }
   function renderMeeting() {
     if (!dom || !G || !G.m) return; const m = G.m;
@@ -662,21 +776,13 @@
       const sm = document.createElement('small'); sm.textContent = m.votes[p.id] !== undefined ? '✔ voted' : ''; d.append(dot, nm, sm);
       d.addEventListener('click', () => { if (m.stage === 'vote' && p.alive && G.me.alive) castVote(G.me, p.id); }); cards.appendChild(d);
     });
-    const qc = $('crqc'); if (qc && !qc.dataset.k + '' !== 'x') { /* built below */ }
-    if (qc) { const key = m.stage + (G.me.alive ? 1 : 0); if (qc.dataset.k !== key) { qc.dataset.k = key; qc.innerHTML = '';
-      if (G.online && G.me.alive && m.stage !== 'result') {
-        const say = (t) => { if (G.host) sayNow(G.me, t); else room.send({ k: 'say', text: t }); };
-        ['I saw nothing.', 'I was doing tasks.', 'Where was the body?', 'Let us skip.'].forEach((t) => { const b = document.createElement('button'); b.className = 'go alt'; b.style.cssText = 'font-size:13px;padding:6px 10px'; b.textContent = t; b.addEventListener('click', () => say(t)); qc.appendChild(b); });
-        const sel2 = document.createElement('select'); sel2.id = 'crsus'; sel2.style.cssText = 'padding:6px;border-radius:8px'; G.players.forEach((q) => { if (q.alive && q !== G.me) { const o = document.createElement('option'); o.value = q.name; o.textContent = q.name; sel2.appendChild(o); } });
-        const sb = document.createElement('button'); sb.className = 'go alt'; sb.style.cssText = 'font-size:13px;padding:6px 10px'; sb.textContent = '🤨 Accuse'; sb.addEventListener('click', () => { if (sel2.value) say('I think ' + sel2.value + ' is the Fox!'); });
-        qc.append(sel2, sb);
-      } } }
+    chatTools(m);
     $('crskip').style.display = m.stage === 'vote' && G.me.alive && m.votes[G.me.id] === undefined ? '' : 'none';
   }
   function showEnd() {
     const r = G.result, me = G.me; showPanel('end'); dom.task.style.display = 'none';
-    $('crendt').textContent = (r.won ? '🏆 You win! ' : '😵 You lose. ') + (r.winner === 'crew' ? 'The Geese win!' : 'The Foxes win!');
-    $('crendx').textContent = r.reason + '\n\n' + G.players.map((p) => (p.role === 'imp' ? '🦊' : '🪿') + ' ' + p.name + (p.alive ? '' : (p.ejected ? ' (ejected)' : ' (caught)'))).join('\n') + '\n\nTasks ' + G.tasksDone + '/' + G.tasksTotal + ' · meetings ' + G.meetings + ' · kills ' + G.kills + (r.gain && !G.auto ? '\n+' + r.gain + ' 🍞' : '');
+    $('crendt').textContent = (r.won ? '🏆 You win! ' : '😵 You lose. ') + (r.winner === 'crew' ? 'The Geese win!' : r.winner === 'jester' ? 'The Jester wins! 🤡' : 'The Foxes win!');
+    $('crendx').textContent = r.reason + '\n\n' + G.players.map((p) => subLabel(p).split(' ')[0] + ' ' + p.name + (p.sub ? ' (' + SUBINFO[p.sub].name + ')' : '') + (p.alive ? '' : (p.ejected ? ' (ejected)' : ' (caught)'))).join('\n') + '\n\nTasks ' + G.tasksDone + '/' + G.tasksTotal + ' · meetings ' + G.meetings + ' · kills ' + G.kills + (r.gain && !G.auto ? '\n+' + r.gain + ' 🍞' : '');
   }
 
 
@@ -719,7 +825,7 @@
     if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
   }
   function startMsg(q) {
-    return { k: 'start', i: q.id, ps: G.players.map((x) => ({ name: x.name, col: x.col })), role: q.role, mates: q.role === 'imp' ? G.players.filter((x) => x.role === 'imp' && x !== q).map((x) => x.id) : [], tasks: q.tasks.map((t) => t.id), tt: G.tasksTotal, ni: G.nImp, pos: G.players.map((x) => [Math.round(x.x), Math.round(x.y)]) };
+    return { k: 'start', sub: q.sub || '', i: q.id, ps: G.players.map((x) => ({ name: x.name, col: x.col })), role: q.role, mates: q.role === 'imp' ? G.players.filter((x) => x.role === 'imp' && x !== q).map((x) => x.id) : [], tasks: q.tasks.map((t) => t.id), tt: G.tasksTotal, ni: G.nImp, pos: G.players.map((x) => [Math.round(x.x), Math.round(x.y)]) };
   }
   function remoteStep(p, dt) {
     p.cd -= dt; p.anim += dt;
@@ -736,7 +842,7 @@
         const ok = m.nc ? true : free(m.x, m.y, R) && Math.hypot(m.x - p.x, m.y - p.y) < 110;
         if (ok) { p.x = +m.x; p.y = +m.y; } p.face = m.f < 0 ? -1 : 1; p.moving = !!m.mv; p.lastPos = G.t; p.invis = !!m.iv;
       } break;
-      case 'task': { if (G.phase !== 'play' || p.role !== 'crew') break; const t = p.tasks.find((x) => x.id === m.id && !x.done); if (t && (m.force || near(p, STATIONS[t.id], USE_RANGE + 70))) { t.done = true; G.tasksDone++; checkWin(); } break; }
+      case 'task': { if (G.phase !== 'play' || p.role !== 'crew') break; const t = p.tasks.find((x) => x.id === m.id && !x.done); if (t && (m.force || near(p, STATIONS[t.id], USE_RANGE + 70))) { t.done = true; taskDone(p); checkWin(); } break; }
       case 'fix': if (G.phase === 'play' && p.role === 'crew' && G.overload && !G.overload.fixed[m.i] && FIX[m.i] && near(p, FIX[m.i], USE_RANGE + 40)) G.overload.fixed[m.i] = true; break;
       case 'fuse': if (G.phase === 'play' && p.role === 'crew' && G.lights > 0 && near(p, FUSE, USE_RANGE + 40)) G.lights = 0; break;
       case 'table': if (G.phase === 'play' && p.alive && G.emergLeft > 0 && near(p, HUB, 150)) { G.emergLeft--; startMeeting(p, null); } break;
@@ -748,6 +854,7 @@
       case 'vote': if (G.phase === 'meeting' && G.m && p.alive) { const w = m.who === 'skip' ? 'skip' : +m.who; if (w === 'skip' || (G.players[w] && G.players[w].alive && w !== p.id)) castVote(p, w); } break;
       case 'say': if (G.phase === 'meeting' && p.alive && typeof m.text === 'string') sayNow(p, m.text.slice(0, 70)); break;
       case 'noise': makeNoise(); break;
+      case 'abil': doAbil(p); break;
       default: break;
     }
   }
@@ -757,13 +864,13 @@
     G.netT -= dt; if (G.netT > 0) return; G.netT = 0.1;
     const m = G.m, snap = {
       k: 's', ph: G.phase, it: r1(G.introT || 0), li: r1(G.lights > 0 ? G.lights : 0), ov: G.overload ? [r1(G.overload.t), G.overload.fixed[0] ? 1 : 0, G.overload.fixed[1] ? 1 : 0] : null, td: G.tasksDone, sc: Math.round(G.sabCd), mt: G.meetings, kl: G.kills,
-      pl: G.players.map((q) => [Math.round(q.x), Math.round(q.y), q.face, q.alive ? 1 : 0, q.vent == null ? -1 : q.vent, q.moving ? 1 : 0, q.ejected ? 1 : 0, q.invis ? 1 : 0]),
+      pl: G.players.map((q) => [Math.round(q.x), Math.round(q.y), q.face, q.alive ? 1 : 0, q.vent == null ? -1 : q.vent, q.moving ? 1 : 0, q.ejected ? 1 : 0, q.invis ? 1 : 0, q.disg == null ? -1 : q.disg]),
       b: G.bodies.map((b) => [b.id, Math.round(b.x), Math.round(b.y), b.rep ? 1 : 0]), nz: G.noise ? [Math.round(G.noise.x), Math.round(G.noise.y)] : null
     };
     if (G.noise && (G.noise.t += 0.1) > 4) G.noise = null;
     if (m) snap.m = { s: m.stage, t: r1(m.t), by: m.by.id, bd: m.body ? m.body.id : -1, em: m.emerg ? 1 : 0, v: Object.keys(m.votes).map(Number), rt: r1(m.rt || 0), dur: m.dur, vd: m.vdur, res: m.res ? { ej: m.res.ej ? m.res.ej.id : -1, tally: m.res.tally, votes: m.votes } : null };
     toGuests(snap);
-    for (const q of G.players) if (q.remote) toGuests({ k: 'me', cd: r1(Math.max(0, q.cd)), td: q.tasks.map((t) => (t.done ? 1 : 0)), em: G.emergLeft }, q);
+    for (const q of G.players) if (q.remote) toGuests({ k: 'me', ab: q.ab ? [r1(Math.max(0, q.ab.cd)), q.ab.uses] : null, cd: r1(Math.max(0, q.cd)), td: q.tasks.map((t) => (t.done ? 1 : 0)), em: G.emergLeft }, q);
   }
   // ---- guest side
   function fromHost(m) {
@@ -771,19 +878,19 @@
       case 'start': {
         ensureDom();
         const ps = m.ps.map((x, i) => ({ id: i, name: x.name, col: x.col, x: m.pos[i][0], y: m.pos[i][1], tx: m.pos[i][0], ty: m.pos[i][1], face: 1, alive: true, role: 'crew', bot: false, tasks: [], cd: 10, seen: {}, susp: {}, vent: null, anim: Math.random() * 6, moving: false }));
-        const me0 = ps[m.i]; me0.role = m.role; me0.tasks = m.tasks.map((id) => ({ id, done: false })); m.mates.forEach((k) => { ps[k].role = 'imp'; });
+        const me0 = ps[m.i]; me0.role = m.role; me0.sub = m.sub || ''; me0.ab = me0.sub ? { cd: 0, uses: me0.sub === 'detective' ? 3 : me0.sub === 'medic' ? 1 : me0.sub === 'engineer' ? 4 : 99 } : null; me0.tasks = m.tasks.map((id) => ({ id, done: false })); m.mates.forEach((k) => { ps[k].role = 'imp'; });
         G = { online: true, host: false, nImp: m.ni, phase: 'intro', t: 0, introT: 3.2, players: ps, me: me0, bodies: [], chat: [], m: null, task: null, lights: 0, overload: null, sabCd: 40, tasksTotal: m.tt, tasksDone: 0, result: null, meetings: 0, kills: 0, auto: false, intel: 0, toasts: [], emergLeft: 1, sabMenu: false, posT: 0 };
         showPanel(null); closeTask(); renderChat(); break;
       }
       case 's': if (G && G.online && !G.host) applySnap(m); break;
-      case 'me': if (G && G.online && !G.host) { const me0 = G.me; me0.cd = m.cd; m.td.forEach((d, i) => { if (me0.tasks[i]) me0.tasks[i].done = !!d || me0.tasks[i].done; }); G.emergLeft = m.em; } break;
-      case 'chat': if (G) { G.chat.push({ name: m.name, col: m.col, text: m.text }); tone(520, 0.05, 'triangle', 0.03); renderChat(); } break;
+      case 'me': if (G && G.online && !G.host) { const me0 = G.me; me0.cd = m.cd; if (m.ab && me0.ab) { me0.ab.cd = m.ab[0]; me0.ab.uses = m.ab[1]; } m.td.forEach((d, i) => { if (me0.tasks[i]) me0.tasks[i].done = !!d || me0.tasks[i].done; }); G.emergLeft = m.em; } break;
+      case 'chat': if (G) { G.chat.push({ name: m.name, col: m.col, text: m.text }); (G.log = G.log || []).push({ name: m.name, col: m.col, text: m.text }); tone(520, 0.05, 'triangle', 0.03); renderChat(); } break;
       case 'toast': if (G) toast(m.t, m.s); break;
       case 'dead': if (G) { toast('You were caught by a Fox! You are a ghost now.', 4); closeTask(); } break;
       case 'end': if (G && G.phase !== 'end') {
-        G.phase = 'end'; closeTask(); m.roles.forEach((r, i) => { G.players[i].role = r; G.players[i].alive = m.alive[i] === 1; G.players[i].ejected = m.alive[i] === 2; });
+        G.phase = 'end'; closeTask(); m.roles.forEach((r, i) => { G.players[i].sub = (m.subs && m.subs[i]) || ''; G.players[i].role = r; G.players[i].alive = m.alive[i] === 1; G.players[i].ejected = m.alive[i] === 2; });
         G.tasksDone = m.td; G.meetings = m.mt; G.kills = m.kl;
-        const meImp = G.me.role === 'imp', won = (m.winner === 'imp') === meImp, gain = won ? (meImp ? 35 : 25) : 6;
+        const meImp = G.me.role === 'imp', won = m.winner === 'jester' ? G.me.id === m.jw : (m.winner === 'imp') === meImp && G.me.id !== m.jw, gain = won ? (m.winner === 'jester' ? 40 : meImp ? 35 : 25) : 6;
         G.result = { winner: m.winner, reason: m.reason, gain, won }; if (opts && opts.award) opts.award(gain); showEnd();
       } break;
       default: break;
@@ -795,7 +902,7 @@
     G.noise = m.nz ? { x: m.nz[0], y: m.nz[1] } : null;
     m.pl.forEach((a, i) => {
       const q = G.players[i]; if (!q) return;
-      q.alive = !!a[3]; q.vent = a[4] < 0 ? null : a[4]; q.ejected = !!a[6]; q.invis = !!a[7];
+      q.alive = !!a[3]; q.vent = a[4] < 0 ? null : a[4]; q.ejected = !!a[6]; q.invis = !!a[7]; q.disg = a[8] == null || a[8] < 0 ? null : a[8];
       if (q === me0) {
         const far = Math.hypot(a[0] - q.x, a[1] - q.y);
         if (G.phase !== 'play' || q.vent != null || far > 160 || prevPh !== G.phase) { q.x = a[0]; q.y = a[1]; }
@@ -805,7 +912,7 @@
     G.bodies = m.b.map((b) => ({ id: b[0], x: b[1], y: b[2], rep: !!b[3], col: G.players[b[0]] ? G.players[b[0]].col : '#fff', name: G.players[b[0]] ? G.players[b[0]].name : '' }));
     if (m.m) {
       const first = !G.m;
-      if (first) { G.task = null; closeTask(); G.sabMenu = false; G.chat = []; G.m = { by: G.players[m.m.by], body: m.m.bd >= 0 ? { id: m.m.bd } : null, stage: 'discuss', t: 0, dur: m.m.dur, vdur: m.m.vd, votes: {}, lines: [], vAt: {}, res: null, rt: 0, emerg: !!m.m.em, mine: undefined }; renderChat(); }
+      if (first) { G.task = null; closeTask(); G.sabMenu = false; G.chat = []; (G.log = G.log || []).push({ sep: 'Meeting ' + m.mt });  G.m = { by: G.players[m.m.by], body: m.m.bd >= 0 ? { id: m.m.bd } : null, stage: 'discuss', t: 0, dur: m.m.dur, vdur: m.m.vd, votes: {}, lines: [], vAt: {}, res: null, rt: 0, emerg: !!m.m.em, mine: undefined }; renderChat(); }
       const g = G.m, stageChanged = g.stage !== m.m.s, nv = m.m.v.length;
       g.stage = m.m.s; g.t = m.m.t; g.rt = m.m.rt;
       const votes = {}; m.m.v.forEach((id) => { votes[id] = true; }); if (g.mine !== undefined) votes[me0.id] = g.mine;
@@ -833,7 +940,7 @@
   }
   // ---- owner tray
   function buildOwn() {
-    const box = dom && $('crown'); if (!box) return; const show = !!G && G.phase !== 'end' && owner(); box.style.display = show ? 'flex' : 'none'; if (!show || box.dataset.on) return; box.dataset.on = '1';
+    const box = dom && $('crown'); if (!box) return; const show = !!G && G.phase !== 'end' && G.phase !== 'meeting' && owner(); box.style.display = show ? 'flex' : 'none'; if (!show || box.dataset.on) return; box.dataset.on = '1';
     box.innerHTML = '<div style="font:800 11px system-ui;opacity:.85">OWNER</div>';
     const host = () => !G.online || G.host;
     const defs = [['xray', '👁 X-ray (see Foxes)'], ['invis', '🫥 Invisible'], ['speed', '💨 Speed x2'], ['noclip', '👻 Walk through walls'], ['nocd', '🔪 No kill cooldown'], ['tasks', '✅ Finish my tasks', 1], ['noise', '📣 Noise from elsewhere', 1], ['meet', '🚨 Force a meeting', 1, 1], ['body', '💀 Drop a fake body', 1, 1], ['freeze', '🧊 Freeze bots 5s', 1, 1], ['win', '🏆 Win the game', 1, 1]];
@@ -842,9 +949,9 @@
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
       b.addEventListener('click', (e) => {
         e.stopPropagation(); if (!G) return; const me0 = G.me;
-        if (!one) { ownS[k] = !ownS[k]; b.className = ownS[k] ? 'on' : ''; return; }
+        if (!one) { ownS[k] = !ownS[k]; b.className = ownS[k] ? 'on' : ''; toast(l + (ownS[k] ? ': ON' : ': OFF'), 1.8); return; }
         if (hostOnly && !host()) { toast('Only works when you are the host (or offline).', 2); return; }
-        if (k === 'tasks') { if (me0.role !== 'crew') return toast('Foxes only pretend to do tasks.', 2); for (const t of me0.tasks) if (!t.done) { t.done = true; if (host()) G.tasksDone++; else room.send({ k: 'task', id: t.id, force: 1 }); } if (host()) checkWin(); }
+        if (k === 'tasks') { if (me0.role !== 'crew') return toast('Foxes only pretend to do tasks.', 2); for (const t of me0.tasks) if (!t.done) { t.done = true; if (host()) taskDone(me0); else room.send({ k: 'task', id: t.id, force: 1 }); } if (host()) checkWin(); }
         else if (k === 'noise') { if (host()) makeNoise(); else room.send({ k: 'noise' }); }
         else if (k === 'meet') { if (G.phase === 'play') startMeeting(me0, null); }
         else if (k === 'body') { G.bodies.push({ id: me0.id, x: me0.x + 20, y: me0.y, col: me0.col, name: 'Fake', rep: false, t: G.t }); }

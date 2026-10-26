@@ -476,7 +476,7 @@
         <h4>Stage</h4><div class="row" id="chStages"></div>
         <h4>Offline vs bots</h4><div class="row"><span class="chip" id="chTot">6 players</span><button class="go" id="chHide">🎨 Hide first</button><button class="go" id="chSeek">🔎 Seek first</button></div>
         <h4>Online with friends</h4>
-        <div class="row" id="chJoinRow"><input type="text" id="chWord" maxlength="24" placeholder="room word (same for everyone)"><button class="go" id="chJoin">Join / create</button></div>
+        <div class="row" id="chJoinRow"><input type="text" id="chWord" maxlength="24" placeholder="room word (same for everyone)"><button class="go" id="chJoin">Join / create</button><button class="go alt" id="chQuick">🎲 Random lobby</button></div>
         <div id="chOnl" style="display:none"><div class="row" id="chRoster"></div><div id="chWaitMsg" class="sub"></div>
           <div class="row" id="chHostOpts"><span class="chip" id="chOTot">Players: 6</span><span class="chip" id="chORounds">Rounds: 3</span></div>
           <div class="row"><button class="go" id="chStartOnl">▶ Start</button><button class="go alt" id="chLeave">Leave room</button></div></div>
@@ -504,6 +504,7 @@
     $('chSeek').addEventListener('click', () => start({ role: 'seeker', stage: sel.stage < 0 ? null : sel.stage, total: sel.total, rounds: 2 }));
     $('chBack').addEventListener('click', close);
     $('chJoin').addEventListener('click', () => { setupRoom(); try { localStorage.setItem('wobbleChamWord', $('chWord').value); } catch (e) { /* ignore */ } if (room) room.join($('chWord').value); else { $('chStat').textContent = 'Online play is not available (matchmaking library missing).'; } });
+    $('chQuick').addEventListener('click', () => { setupRoom(); if (room) room.quick('cham'); else $('chStat').textContent = 'Online play is not available.'; });
     $('chWord').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('chJoin').click(); });
     $('chWord').addEventListener('keyup', (e) => e.stopPropagation());
     $('chStartOnl').addEventListener('click', startOnline); $('chLeave').addEventListener('click', () => { if (room) room.leave(); renderRoster([]); });

@@ -13,7 +13,7 @@
 (function (root) {
   'use strict';
   function create(o) {
-    let peer = null, hostConn = null, host = false, myId = 0, word = '', connected = false, tries = 0, gen = 0;
+    let peer = null, hostConn = null, host = false, myId = 0, word = '', connected = false, tries = 0, gen = 0, qTag = '', qSlot = 0;
     const conns = new Map(), roster = {};
     const status = (t, bad) => { if (o.onStatus) o.onStatus(t, !!bad); };
     const slug = (w) => String(w || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
@@ -65,7 +65,7 @@
       if (!m) return;
       if (m.t === 'welcome') { myId = m.id; connected = true; status('Joined room “' + word + '”.'); }
       else if (m.t === 'roster') { for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((e) => { roster[e.id] = e; }); if (o.onRoster) o.onRoster(list()); }
-      else if (m.t === 'busy') { leave(true); status(m.why, true); if (o.onLost) o.onLost(m.why, false); }
+      else if (m.t === 'busy') { if (qTag && qSlot < 10) { qSlot++; join('q-' + qTag + '-' + qSlot); return; } leave(true); status(m.why, true); if (o.onLost) o.onLost(m.why, false); }
       else if (m.t === 'stop') lost('The host left the room.');
       else if (m.t === 'm' && o.onMsg) o.onMsg(0, m.d);
     }
@@ -85,7 +85,8 @@
     }
     function drop(id) { if (!conns.has(id)) return; conns.delete(id); delete roster[id]; if (o.onDrop) o.onDrop(id); pushRoster(); }
     return {
-      join, leave: () => leave(), isHost: () => host, id: () => myId, list, connected: () => connected, word: () => word,
+      join: (w) => { qTag = ''; join(w); }, quick: (tag) => { qTag = String(tag || 'x'); qSlot = 1; status('Looking for a random lobby…'); join('q-' + qTag + '-1'); }, quickOn: () => !!qTag,
+      leave: () => { qTag = ''; leave(); }, isHost: () => host, id: () => myId, list, connected: () => connected, word: () => word,
       send: (m) => { if (host) { if (o.onMsg) o.onMsg(0, m); } else safe(hostConn, { t: 'm', d: m }); },
       toAll: (m) => { if (host) conns.forEach((c) => safe(c, { t: 'm', d: m })); },
       toOne: (id, m) => { if (host) safe(conns.get(id), { t: 'm', d: m }); },
