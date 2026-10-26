@@ -11,7 +11,7 @@
  */
 (function (root) {
   'use strict';
-  const W = 960, H = 540, WW = 2400, FL = 470, FLY = 486, PW = 96, PH = 120, GW = 72, GH = 90, TW = 32, TH = 40;
+  let WW = 2400; const W = 960, H = 540, FL = 470, FLY = 486, PW = 96, PH = 120, GW = 72, GH = 90, TW = 32, TH = 40;
   const PREP = 45, SEEKT = 100, PREFIX = 'wobble-cham-v1-';
   const POSES = ['stand', 'crouch', 'flat'], PSH = { stand: { sx: 1, sy: 1, n: 'Stand' }, crouch: { sx: 1.1, sy: 0.72, n: 'Crouch' }, flat: { sx: 1.35, sy: 0.46, n: 'Flat' } };
   const COLS = ['#4aa3ff', '#ff6b6b', '#ffd23f', '#4cc35a', '#b57aff', '#ff8c42', '#2ec4b6', '#ff7eb6', '#9aa3b2', '#7a5230'];
@@ -115,12 +115,75 @@
       pat(g, 'checker', 0, FL, WW, H - FL, '#eae6dc', '#d3cdbd', R); pat(g, 'splat', 0, FL, WW, H - FL, 'rgba(0,0,0,0)', '#000', R);
     } }
   ];
+  // ---- bigger stages: the five originals are doubled, and ten new scenic stages are generated from small specs
+  const P_ = {
+    window(g, x, R, o) { box(g, x, 70, 120, 150, o.glass || '#bfe6ff', o.frame || '#6a4a14', 6); g.strokeStyle = o.frame || '#6a4a14'; g.lineWidth = 5; g.beginPath(); g.moveTo(x + 60, 70); g.lineTo(x + 60, 220); g.moveTo(x, 145); g.lineTo(x + 120, 145); g.stroke(); },
+    picture(g, x, R, o) { const w = 90 + R() * 70, h = 70 + R() * 70; box(g, x, 60 + R() * 60, w, h, pick(o.cols), '#3a2410', 4); g.fillStyle = pick(o.cols); g.beginPath(); g.arc(x + w * 0.4, 100 + R() * 30, 14 + R() * 16, 0, 7); g.fill(); },
+    shelf(g, x, R, o) { const y = 150 + R() * 40; box(g, x, y, 260, 10, '#7a5230', '#3a2410'); for (let i = 0; i < 7; i++) { const bw = 20 + R() * 22; box(g, x + 8 + i * 35, y - bw, bw, bw, pick(o.cols), '#2a1a0a', 2); } },
+    plant(g, x, R, o) { box(g, x, FL - 46, 46, 46, '#b5653a', '#6a3a1a', 4); for (let i = 0; i < 6; i++) { g.fillStyle = pick(o.leaf || ['#3f9b45', '#2c7a3a']); g.beginPath(); g.ellipse(x + 23 + (i - 2.5) * 12, FL - 70 - R() * 40, 8, 30 + R() * 20, (i - 2.5) * 0.3, 0, 7); g.fill(); } },
+    crate(g, x, R, o) { const n = 1 + ((R() * 3) | 0); for (let i = 0; i < n; i++) { const w = 70 + R() * 30, hh = 60; box(g, x + i * 6, FL - hh * (i + 1), w, hh, pick(o.cols), '#2a1a0a', 3); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x + i * 6, FL - hh * (i + 1)); g.lineTo(x + i * 6 + w, FL - hh * i); g.stroke(); } },
+    barrel(g, x, R, o) { g.fillStyle = pick(o.cols); g.strokeStyle = '#2a1a0a'; g.lineWidth = 3; g.beginPath(); g.ellipse(x + 30, FL - 40, 30, 42, 0, 0, 7); g.fill(); g.stroke(); g.strokeStyle = 'rgba(0,0,0,.4)'; for (const y of [-20, 0, 20]) { g.beginPath(); g.ellipse(x + 30, FL - 40 + y, 30, 6, 0, 0, Math.PI); g.stroke(); } },
+    lamp(g, x, R, o) { g.strokeStyle = '#333'; g.lineWidth = 3; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 60); g.stroke(); const gr = g.createRadialGradient(x, 80, 4, x, 80, 70); gr.addColorStop(0, o.glow || 'rgba(255,230,150,.9)'); gr.addColorStop(1, 'rgba(255,230,150,0)'); g.fillStyle = gr; g.fillRect(x - 70, 10, 140, 140); g.fillStyle = pick(o.cols); g.beginPath(); g.arc(x, 66, 16, 0, 7); g.fill(); },
+    bubbles(g, x, R, o) { for (let i = 0; i < 9; i++) { g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; g.beginPath(); g.arc(x + R() * 160, 30 + R() * 400, 4 + R() * 14, 0, 7); g.stroke(); } },
+    coral(g, x, R, o) { const c1 = pick(o.cols); g.strokeStyle = c1; g.lineCap = 'round'; g.lineWidth = 12; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(x + i * 18, FL); g.quadraticCurveTo(x + i * 18 + (R() - 0.5) * 50, FL - 60, x + i * 18 + (R() - 0.5) * 70, FL - 90 - R() * 80); g.stroke(); } },
+    weed(g, x, R, o) { g.strokeStyle = pick(o.leaf || ['#2f9e5a']); g.lineWidth = 9; g.lineCap = 'round'; g.beginPath(); g.moveTo(x, FL); for (let i = 1; i <= 6; i++) g.lineTo(x + Math.sin(i * 1.3 + R()) * 22, FL - i * 40); g.stroke(); },
+    star(g, x, R, o) { for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(255,255,255,' + (0.4 + R() * 0.6) + ')'; g.beginPath(); g.arc(x + R() * 360, R() * 430, 1 + R() * 2.4, 0, 7); g.fill(); } },
+    planet(g, x, R, o) { const r = 30 + R() * 50, y = 60 + R() * 200, c1 = pick(o.cols); g.fillStyle = c1; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = 5; g.beginPath(); g.ellipse(x, y, r * 1.6, r * 0.35, -0.3, 0, 7); g.stroke(); },
+    console(g, x, R, o) { box(g, x, FL - 110, 160, 110, '#2b3358', '#0e1226', 6); for (let i = 0; i < 12; i++) { g.fillStyle = pick(o.cols); g.beginPath(); g.arc(x + 18 + (i % 6) * 25, FL - 90 + ((i / 6) | 0) * 26, 6, 0, 7); g.fill(); } box(g, x + 20, FL - 160, 120, 50, '#0a1030', '#7fd0ff', 4); },
+    pipe(g, x, R, o) { g.fillStyle = pick(o.cols); g.fillRect(x, 0, 24, FL); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x + 4, 0, 6, FL); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x - 6, 100 + R() * 250, 36, 14); },
+    ghost(g, x, R, o) { g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.arc(x, 150, 34, Math.PI, 0); g.lineTo(x + 34, 230); for (let i = 3; i >= -3; i--) g.lineTo(x + i * 11, 230 + (i % 2 ? 14 : 0)); g.closePath(); g.fill(); g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.arc(x - 11, 148, 5, 0, 7); g.arc(x + 11, 148, 5, 0, 7); g.fill(); },
+    candle(g, x, R, o) { box(g, x, FL - 90, 20, 90, '#f3ead0', '#8a7a50', 2); const gr = g.createRadialGradient(x + 10, FL - 104, 2, x + 10, FL - 104, 36); gr.addColorStop(0, 'rgba(255,220,120,.95)'); gr.addColorStop(1, 'rgba(255,200,80,0)'); g.fillStyle = gr; g.fillRect(x - 30, FL - 150, 80, 80); },
+    web(g, x, R, o) { g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1.5; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + Math.cos(i * 0.3) * 90, Math.sin(i * 0.3 + 0.7) * 90 + 30); g.stroke(); } for (let r = 20; r < 90; r += 22) { g.beginPath(); g.arc(x, 0, r, 0.1, 1.5); g.stroke(); } },
+    pillar(g, x, R, o) { g.fillStyle = pick(o.cols); g.fillRect(x, 0, 70, FL); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(x + 54, 0, 16, FL); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x + 6, 0, 8, FL); },
+    vine(g, x, R, o) { g.strokeStyle = '#2d7a38'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(x, 0); for (let i = 1; i <= 9; i++) g.lineTo(x + Math.sin(i * 0.9 + R() * 2) * 18, i * (60 + R() * 20)); g.stroke(); for (let i = 0; i < 6; i++) { g.fillStyle = '#3f9b45'; g.beginPath(); g.ellipse(x + (R() - 0.5) * 36, 40 + R() * 380, 9, 5, R() * 3, 0, 7); g.fill(); } },
+    statue(g, x, R, o) { g.fillStyle = '#8f9a8a'; g.strokeStyle = '#4a5546'; g.lineWidth = 3; g.fillRect(x, FL - 40, 80, 40); g.strokeRect(x, FL - 40, 80, 40); g.beginPath(); g.moveTo(x + 14, FL - 40); g.lineTo(x + 20, FL - 140); g.lineTo(x + 60, FL - 140); g.lineTo(x + 66, FL - 40); g.closePath(); g.fill(); g.stroke(); g.beginPath(); g.arc(x + 40, FL - 160, 22, 0, 7); g.fill(); g.stroke(); },
+    tree(g, x, R, o) { g.fillStyle = '#5a3a1e'; g.fillRect(x + 34, FL - 70, 14, 70); for (let i = 0; i < 4; i++) { g.fillStyle = pick(o.leaf || ['#2f7a45']); g.beginPath(); g.moveTo(x + 40, FL - 200 + i * 38 - 40); g.lineTo(x + 100 - i * 6, FL - 70 - (3 - i) * 22 + 10); g.lineTo(x - 20 + i * 6, FL - 70 - (3 - i) * 22 + 10); g.closePath(); g.fill(); } },
+    fire(g, x, R, o) { box(g, x, FL - 150, 190, 150, '#7a6a5a', '#3a2e24', 6); box(g, x + 36, FL - 100, 118, 100, '#1a1008', '#3a2e24', 4); for (let i = 0; i < 5; i++) { g.fillStyle = i % 2 ? '#ffb02e' : '#ff5a1e'; g.beginPath(); g.moveTo(x + 50 + i * 20, FL); g.quadraticCurveTo(x + 40 + i * 20, FL - 40, x + 62 + i * 20, FL - 80 - R() * 14); g.quadraticCurveTo(x + 80 + i * 20, FL - 40, x + 74 + i * 20, FL); g.fill(); } },
+    cabinet(g, x, R, o) { box(g, x, FL - 200, 110, 200, pick(o.cols), '#0a0a14', 6); box(g, x + 12, FL - 180, 86, 66, '#0a0a14', pick(o.cols), 3); g.fillStyle = pick(o.cols); g.beginPath(); g.arc(x + 30, FL - 90, 8, 0, 7); g.arc(x + 60, FL - 90, 8, 0, 7); g.fill(); },
+    neon(g, x, R, o) { const c1 = pick(o.cols); g.strokeStyle = c1; g.shadowColor = c1; g.shadowBlur = 18; g.lineWidth = 6; g.beginPath(); g.roundRect ? g.roundRect(x, 60 + R() * 60, 150 + R() * 80, 60, 14) : g.rect(x, 80, 180, 60); g.stroke(); g.beginPath(); g.moveTo(x + 24, 150 + R() * 40); g.lineTo(x + 100, 150 + R() * 40); g.stroke(); g.shadowBlur = 0; },
+    hay(g, x, R, o) { const w = 110 + R() * 30; box(g, x, FL - 70, w, 70, '#e6c35a', '#9a7a20', 8); g.strokeStyle = '#b8932a'; g.lineWidth = 2; for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(x + 8 + i * 12, FL - 66); g.lineTo(x + 14 + i * 12, FL - 6); g.stroke(); } },
+    fork(g, x, R, o) { g.strokeStyle = '#6a5a4a'; g.lineWidth = 6; g.beginPath(); g.moveTo(x, FL - 10); g.lineTo(x + 8, FL - 230); g.stroke(); g.lineWidth = 4; for (const d of [-14, 0, 14]) { g.beginPath(); g.moveTo(x + 8 + d, FL - 230); g.lineTo(x + 8 + d, FL - 270); g.stroke(); } },
+    tent(g, x, R, o) { const w = 220, c1 = pick(o.cols); g.fillStyle = c1; g.beginPath(); g.moveTo(x, FL); g.lineTo(x + 30, FL - 160); g.lineTo(x + w - 30, FL - 160); g.lineTo(x + w, FL); g.closePath(); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 8; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(x + 30 + i * 32, FL - 160); g.lineTo(x + 8 + i * 34, FL); g.stroke(); } },
+    cactus(g, x, R, o) { g.fillStyle = '#4a9a4a'; g.strokeStyle = '#2a6a2a'; g.lineWidth = 3; g.beginPath(); g.roundRect ? g.roundRect(x + 24, FL - 150, 26, 150, 12) : g.rect(x + 24, FL - 150, 26, 150); g.fill(); g.stroke(); g.beginPath(); g.roundRect ? g.roundRect(x, FL - 110, 18, 60, 9) : g.rect(x, FL - 110, 18, 60); g.fill(); g.stroke(); g.beginPath(); g.roundRect ? g.roundRect(x + 56, FL - 120, 18, 60, 9) : g.rect(x + 56, FL - 120, 18, 60); g.fill(); g.stroke(); },
+    cannon(g, x, R, o) { g.fillStyle = '#2a2a33'; g.beginPath(); g.ellipse(x + 50, FL - 46, 56, 24, -0.12, 0, 7); g.fill(); g.fillStyle = '#6a4a22'; g.beginPath(); g.arc(x + 30, FL - 18, 18, 0, 7); g.arc(x + 80, FL - 18, 18, 0, 7); g.fill(); g.strokeStyle = '#2a1a0a'; g.lineWidth = 3; g.stroke(); },
+    flags(g, x, R, o) { g.strokeStyle = '#555'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, 40); g.quadraticCurveTo(x + 150, 90, x + 300, 40); g.stroke(); for (let i = 0; i < 8; i++) { const t = (i + 0.5) / 8, fx = x + t * 300, fy = 40 + Math.sin(t * Math.PI) * 38; g.fillStyle = pick(o.cols); g.beginPath(); g.moveTo(fx - 12, fy); g.lineTo(fx + 12, fy); g.lineTo(fx, fy + 28); g.closePath(); g.fill(); } },
+    lolli(g, x, R, o) { g.strokeStyle = '#f3ead0'; g.lineWidth = 8; g.beginPath(); g.moveTo(x, FL); g.lineTo(x, FL - 150); g.stroke(); const c1 = pick(o.cols); g.fillStyle = c1; g.beginPath(); g.arc(x, FL - 190, 40, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 6; g.beginPath(); g.arc(x, FL - 190, 24, 0, 5); g.stroke(); },
+    gumdrop(g, x, R, o) { g.fillStyle = pick(o.cols); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x, FL); g.quadraticCurveTo(x + 6, FL - 100, x + 45, FL - 100); g.quadraticCurveTo(x + 84, FL - 100, x + 90, FL); g.closePath(); g.fill(); g.stroke(); g.fillStyle = 'rgba(255,255,255,.3)'; for (let i = 0; i < 8; i++) { g.beginPath(); g.arc(x + 15 + R() * 60, FL - 85 + R() * 70, 2.5, 0, 7); g.fill(); } },
+    cane(g, x, R, o) { g.lineCap = 'round'; g.lineWidth = 18; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(x, FL); g.lineTo(x, FL - 170); g.arc(x + 28, FL - 170, 28, Math.PI, 0.1 * Math.PI, false); g.stroke(); g.strokeStyle = '#e63946'; g.lineWidth = 18; g.setLineDash([14, 18]); g.stroke(); g.setLineDash([]); },
+    fish(g, x, R, o) { const y = 60 + R() * 330, c1 = pick(o.cols); g.fillStyle = c1; g.globalAlpha = 0.85; g.beginPath(); g.ellipse(x, y, 24, 12, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(x + 22, y); g.lineTo(x + 42, y - 14); g.lineTo(x + 42, y + 14); g.closePath(); g.fill(); g.globalAlpha = 1; g.fillStyle = '#fff'; g.beginPath(); g.arc(x - 12, y - 3, 3, 0, 7); g.fill(); },
+  };
+  const scenic = (spec) => ({ name: spec.name, emoji: spec.emoji, ww: spec.ww, draw(g, R) {
+    const bw = spec.bandW || 400, n = Math.ceil(WW / bw);
+    if (spec.sky) { const sk = g.createLinearGradient(0, 0, 0, FL); sk.addColorStop(0, spec.sky[0]); sk.addColorStop(1, spec.sky[1]); g.fillStyle = sk; g.fillRect(0, 0, WW, FL); }
+    for (let i = 0; i < n; i++) { const b = spec.bands[i % spec.bands.length]; if (b[0] !== 'none') pat(g, b[0], i * bw, 0, bw, FL, b[1], b[2], R); }
+    for (const [type, per, o] of spec.props) { const cnt = Math.round(WW / 2400 * per), fn = P_[type]; for (let k = 0; k < cnt; k++) fn(g, 40 + (k + R() * 0.6) * ((WW - 160) / cnt), R, Object.assign({ cols: spec.cols || ['#ff5c7a', '#ffd23f', '#4aa3ff', '#4cc35a'] }, o || {})); }
+    pat(g, spec.floor[0], 0, FL, WW, H - FL, spec.floor[1], spec.floor[2], R);
+    if (spec.after) spec.after(g, R);
+  } });
+  STAGES.slice(0, 5).forEach((s) => { s.ww = 4800; s.dbl = true; });
+  STAGES.push(
+    scenic({ name: 'Pirate Ship', emoji: '🏴‍☠️', ww: 4800, bands: [['hstripes', '#9a6b3c', '#82582d'], ['hstripes', '#a67744', '#8a5f32']], floor: ['hstripes', '#7a5230', '#5e3d22'], cols: ['#8a5a2a', '#b87a3a', '#6a4a22', '#e63946'], props: [['window', 6, { glass: '#4aa3d6', frame: '#3a2410' }], ['barrel', 9], ['crate', 8], ['cannon', 5], ['flags', 5, { cols: ['#e63946', '#ffd23f', '#fff', '#2a2a33'] }], ['lamp', 5, { cols: ['#ffd23f'] }]] }),
+    scenic({ name: 'Candy Land', emoji: '🍭', ww: 4800, bands: [['dots', '#ffd7e8', '#ff8fb8'], ['stripes', '#d9f5e0', '#9be3b5'], ['checker', '#fff1c8', '#ffd86b'], ['zigzag', '#d7e6ff', '#9bbcff']], floor: ['checker', '#ffe0ef', '#ffc2de'], cols: ['#ff5c7a', '#ffd23f', '#4aa3ff', '#4cc35a', '#b57aff', '#ff8c42'], props: [['lolli', 12], ['gumdrop', 14], ['cane', 9], ['flags', 5]] }),
+    scenic({ name: 'Space Station', emoji: '🚀', ww: 6000, bands: [['checker', '#1c2340', '#232c52'], ['hstripes', '#1a2040', '#222a50'], ['diamonds', '#1c2340', '#2b3566']], floor: ['hstripes', '#3a4468', '#2c3452'], cols: ['#5ce1e6', '#ff5c7a', '#ffd23f', '#6dff8d'], props: [['star', 14], ['planet', 5, { cols: ['#c0653a', '#4a7bd6', '#b57aff', '#4cc35a'] }], ['window', 6, { glass: '#050a1c', frame: '#8f9ab8' }], ['pipe', 8, { cols: ['#6a7798', '#8f9ab8', '#d6384f'] }], ['console', 9]] }),
+    scenic({ name: 'Coral Reef', emoji: '🐠', ww: 4800, sky: ['#2aa6e0', '#0b5d9e'], bands: [['none']], floor: ['dots', '#e8d29a', '#d4b97a'], cols: ['#ff7a5c', '#ff5c9a', '#ffd23f', '#b57aff', '#4cc3a8'], props: [['bubbles', 14], ['fish', 26, { cols: ['#ffd23f', '#ff8c42', '#ff7eb6', '#7ad6ff'] }], ['weed', 16, { leaf: ['#2f9e5a', '#3fbf70'] }], ['coral', 20]] }),
+    scenic({ name: 'Haunted Mansion', emoji: '👻', ww: 4800, bands: [['stripes', '#3a2150', '#4a2d66'], ['diamonds', '#33204a', '#442a62']], floor: ['checker', '#241632', '#35224a'], cols: ['#8a6a3a', '#5a3a7a', '#7a2a3a'], props: [['window', 5, { glass: '#0e1230', frame: '#7a5a3a' }], ['picture', 9], ['ghost', 9], ['candle', 8], ['web', 8], ['lamp', 3, { cols: ['#ffd23f'] }]] }),
+    scenic({ name: 'Jungle Temple', emoji: '🗿', ww: 6000, bands: [['bricks', '#7d8a6a', '#5f6c4e'], ['leaves', '#2f7a3a', '#1e5a2a'], ['bricks', '#8a9672', '#66744f']], floor: ['leaves', '#4a7a3a', '#376028'], cols: ['#8a9672', '#6f7c5a'], props: [['pillar', 9], ['vine', 18], ['statue', 7], ['plant', 10, { leaf: ['#2fae4a', '#1f8a3a'] }]] }),
+    scenic({ name: 'Snow Cabin', emoji: '⛄', ww: 4800, bands: [['hstripes', '#a8774a', '#966638'], ['hstripes', '#b0814f', '#9c6c3e']], floor: ['hstripes', '#8a5f35', '#744c28'], cols: ['#e63946', '#4aa3ff', '#ffd23f', '#4cc35a'], props: [['window', 6, { glass: '#d7ecff', frame: '#5a3a1a' }], ['fire', 4], ['shelf', 8], ['tree', 6, { leaf: ['#2f7a45', '#3a8a55'] }], ['lamp', 4]] }),
+    scenic({ name: 'Neon Arcade', emoji: '🕹️', ww: 6000, bands: [['stripes', '#14102a', '#1d1740'], ['zigzag', '#12102a', '#2a1a55']], floor: ['checker', '#0e0b1e', '#e21fb0'], cols: ['#ff3df0', '#3dfcff', '#ffe83d', '#6dff3d'], props: [['neon', 16], ['cabinet', 16], ['star', 4]] }),
+    scenic({ name: 'Farm Barn', emoji: '🐄', ww: 4800, bands: [['stripes', '#b8372e', '#9c2a22'], ['stripes', '#c0423a', '#a63028']], floor: ['dots', '#d8b86a', '#b8964a'], cols: ['#e6c35a', '#7a5230', '#c98d5a'], props: [['window', 5, { glass: '#bfe6ff', frame: '#f3ead0' }], ['hay', 14], ['fork', 7], ['barrel', 6], ['lamp', 4]] }),
+    scenic({ name: 'Desert Market', emoji: '🐪', ww: 6000, sky: ['#ffb46a', '#ffe3b0'], bands: [['none']], floor: ['dots', '#e8c88a', '#d4b070'], cols: ['#e63946', '#2a9d8f', '#ffd23f', '#b57aff', '#ff8c42'], props: [['tent', 13], ['cactus', 12], ['crate', 8], ['flags', 7], ['barrel', 5]] })
+  );
+  const stageW = (i) => (STAGES[i] && STAGES[i].ww) || 2400;
+  const seekT = () => Math.round(SEEKT * Math.pow(WW / 2400, 0.55)), prepT = () => Math.round(PREP * Math.pow(WW / 2400, 0.4));
   const stageCache = {};
   function stageOf(i) {
     if (stageCache[i]) return stageCache[i];
-    const s = mk(WW, H), g = ctx2(s, 1), R = rng(9301 + i * 7919); STAGES[i].draw(g, R);
-    const sh = g.createLinearGradient(0, FL - 4, 0, FL + 22); sh.addColorStop(0, 'rgba(0,0,0,.22)'); sh.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = sh; g.fillRect(0, FL - 4, WW, 26);
-    const vg = g.createLinearGradient(0, 0, 0, 60); vg.addColorStop(0, 'rgba(0,0,0,.18)'); vg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = vg; g.fillRect(0, 0, WW, 60);
+    const ww = stageW(i), keep = WW; WW = ww;
+    const s = mk(ww, H), g = ctx2(s, 1), R = rng(9301 + i * 7919); STAGES[i].draw(g, R);
+    if (STAGES[i].dbl) { g.save(); g.translate(2400, 0); STAGES[i].draw(g, rng(5171 + i * 3331)); g.restore(); }
+    WW = keep;
+    const sh = g.createLinearGradient(0, FL - 4, 0, FL + 22); sh.addColorStop(0, 'rgba(0,0,0,.22)'); sh.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = sh; g.fillRect(0, FL - 4, ww, 26);
+    const vg = g.createLinearGradient(0, 0, 0, 60); vg.addColorStop(0, 'rgba(0,0,0,.18)'); vg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = vg; g.fillRect(0, 0, ww, 60);
     return (stageCache[i] = s);
   }
 
@@ -167,11 +230,11 @@
     const total = clamp(opts.total || 6, 3, 10), rounds = opts.rounds || 2, st = opts.stage == null ? (Math.random() * STAGES.length) | 0 : opts.stage;
     const names = NAMES.slice().sort(() => Math.random() - 0.5), ps = [];
     for (let i = 0; i < total; i++) ps.push(newPlayer(i, { name: i ? names[i] : (myName || 'You'), net: i ? -1 : 0, bot: i > 0 || !!opts.auto }));
-    G = { online: false, host: true, ps, me: 0, stage: st, round: 0, rounds, ph: 'prep', t: PREP, el: 0, toasts: [], cam: 0, ui: 'walk', walkTo: null, ns: Math.ceil(total / 4), auto: !!opts.auto, firstSeeker: opts.role === 'seeker', over: false, res: null, sk0: opts.role === 'seeker' ? 0 : 1, snapT: 0, total, tagFx: [], pingFx: [], blendT: 0, ev: [] };
+    G = { online: false, host: true, ps, me: 0, stage: st, round: 0, rounds, ph: 'prep', t: prepT(), el: 0, toasts: [], cam: 0, ui: 'walk', walkTo: null, ns: Math.ceil(total / 4), auto: !!opts.auto, firstSeeker: opts.role === 'seeker', over: false, res: null, sk0: opts.role === 'seeker' ? 0 : 1, snapT: 0, total, tagFx: [], pingFx: [], blendT: 0, ev: [] }; WW = stageW(G.stage);
     beginRound(0); layoutUI();
   }
   function beginRound(r) {
-    const g = G, n = g.ps.length; g.round = r; g.ph = 'prep'; g.t = PREP; g.el = 0; g.res = null; g.over = false; g.ui = 'walk'; g.walkTo = null; g.tagFx = []; g.pingFx = []; g.ev = [];
+    const g = G, n = g.ps.length; g.round = r; g.ph = 'prep'; g.t = prepT(); g.el = 0; g.res = null; g.over = false; g.ui = 'walk'; g.walkTo = null; g.tagFx = []; g.pingFx = []; g.ev = [];
     const s0 = g.online ? g.sk0 : g.sk0;
     for (const p of g.ps) { p.role = 'hider'; }
     for (let k = 0; k < g.ns; k++) g.ps[(s0 + r * g.ns + k) % n].role = 'seeker';
@@ -214,7 +277,7 @@
     list.forEach((e, i) => ps.push(newPlayer(i, { name: e.name || 'Goose', net: e.id })));
     for (let i = list.length; i < total; i++) ps.push(newPlayer(i, { name: names[i % names.length], bot: true }));
     const st = sel.stage < 0 ? (Math.random() * STAGES.length) | 0 : sel.stage;
-    G = { online: true, host: true, ps, me: 0, stage: st, round: 0, rounds: sel.rounds, ph: 'prep', t: PREP, el: 0, toasts: [], cam: 0, ui: 'walk', walkTo: null, ns: Math.ceil(total / 4), auto: false, sk0: list.length > 1 ? 1 : (Math.random() * total) | 0, over: false, res: null, snapT: 0, total, tagFx: [], pingFx: [], blendT: 0, ev: [] };
+    G = { online: true, host: true, ps, me: 0, stage: st, round: 0, rounds: sel.rounds, ph: 'prep', t: prepT(), el: 0, toasts: [], cam: 0, ui: 'walk', walkTo: null, ns: Math.ceil(total / 4), auto: false, sk0: list.length > 1 ? 1 : (Math.random() * total) | 0, over: false, res: null, snapT: 0, total, tagFx: [], pingFx: [], blendT: 0, ev: [] }; WW = stageW(G.stage);
     beginRound(0);
   }
   const pByNet = (id) => G && G.ps.find((p) => p.net === id);
@@ -239,13 +302,13 @@
         const first = !G || G.round !== m.round || !G.online; const keep = G && G.online ? G : null;
         const ps = m.ps.map((d, i) => { const p = newPlayer(i, { name: d.n, net: d.net, bot: !!d.bot, role: d.role, x: d.x, tot: d.tot }); return p; });
         const mi = ps.findIndex((p) => p.net === room.id());
-        G = { online: true, host: false, ps, me: Math.max(0, mi), stage: m.stage, round: m.round, rounds: m.rounds, ph: 'prep', t: PREP, el: 0, toasts: keep ? keep.toasts : [], cam: 0, ui: 'walk', walkTo: null, ns: m.ns, auto: false, over: false, res: null, snapT: 0, total: ps.length, tagFx: [], pingFx: [], sk0: m.sk0, ev: [] };
+        G = { online: true, host: false, ps, me: Math.max(0, mi), stage: m.stage, round: m.round, rounds: m.rounds, ph: 'prep', t: prepT(), el: 0, toasts: keep ? keep.toasts : [], cam: 0, ui: 'walk', walkTo: null, ns: m.ns, auto: false, over: false, res: null, snapT: 0, total: ps.length, tagFx: [], pingFx: [], sk0: m.sk0, ev: [] }; WW = stageW(G.stage);
         void first; const mm = me(); G.cam = clamp(mm.x - W / 2, 0, WW - W); if (mm.role === 'hider') G.ui = 'paint'; layoutUI(); sync(); break;
       }
       case 'snap': if (G) {
         G.ph = m.ph; G.t = m.t; m.pl.forEach((a, i) => { const p = G.ps[i]; if (!p) return; if (!isMe(p)) { p.tx = a[0]; p.face = a[1]; p.pose = POSES[a[2]] || 'stand'; p.mv = !!a[3]; } p.tagged = !!a[4]; p.ready = !!a[5]; p.blend = a[6] / 100; p.bot = !!a[7]; if (!isMe(p)) p.invis = !!a[8]; });
         if (G.ph === 'seek' && G.ui !== 'walk' && G.ui !== 'pick') { G.ui = 'walk'; layoutUI(); } break; }
-      case 'seek': if (G) { G.ph = 'seek'; G.t = SEEKT; G.ui = 'walk'; for (const k of Object.keys(m.paints)) loadPaint(G.ps[+k], m.paints[k]); me().ready = true; toast(me().role === 'seeker' ? 'GO! Find them all!' : 'Seekers are coming. Stay still!'); beep(660, 0.2); layoutUI(); } break;
+      case 'seek': if (G) { G.ph = 'seek'; G.t = seekT(); G.ui = 'walk'; for (const k of Object.keys(m.paints)) loadPaint(G.ps[+k], m.paints[k]); me().ready = true; toast(me().role === 'seeker' ? 'GO! Find them all!' : 'Seekers are coming. Stay still!'); beep(660, 0.2); layoutUI(); } break;
       case 'ev': if (G) applyEv(m); break;
       case 'end': if (G) { G.ph = 'end'; G.res = m; for (const p of G.ps) { p.pts = m.pts[p.i]; p.tot = m.tot[p.i]; p.blend = m.avg[p.i] / 100; p.tags = m.tg[p.i]; } showEnd(); } break;
       default: break;
@@ -261,7 +324,7 @@
 
   // ================================================================== host rules
   function startSeek() {
-    const g = G; g.ph = 'seek'; g.t = SEEKT; g.el = 0; g.ui = g.ui === 'pick' ? 'walk' : g.ui;
+    const g = G; g.ph = 'seek'; g.t = seekT(); g.el = 0; g.ui = g.ui === 'pick' ? 'walk' : g.ui;
     for (const p of g.ps) { if (p.role === 'hider') { if (!p.P && p.bot) autoPaint(p, g.stage, 0.6); p.ready = true; p.ai = null; } else p.ai = { mode: 'sweep', tx: rnd(400, WW - 200), wait: 0, target: null, react: 0, look: 0 }; }
     const paints = {}; if (g.online) for (const p of g.ps) if (p.role === 'hider') paints[p.i] = p.P ? p.P.toDataURL('image/png') : null;
     if (g.online) toNet({ k: 'seek', paints }, true);
@@ -285,7 +348,7 @@
     const g = G, a = s.ai; s.tagCd -= dt; if (!a) return;
     if (s.frz > 0) { s.frz -= dt; s.mv = false; return; }
     a.look -= dt;
-    if (a.look <= 0) { a.look = 0.4; if (a.mode !== 'chase') { let best = null, bd = 1e9; for (const h of g.ps) if (h.role === 'hider' && !h.tagged && !h.invis) { const dx = Math.abs(h.x - s.x), v = h.mv ? 1 : Math.pow(1 - h.blend, 1.5), R = 16 + 330 * v * (0.55 + 0.45 * s.skill); if (dx < R && dx < bd) { bd = dx; best = h; } } if (best) { a.mode = 'chase'; a.target = best; a.react = rnd(0.35, 0.9); } } }
+    if (a.look <= 0) { a.look = 0.4; if (a.mode !== 'chase') { let best = null, bd = 1e9; for (const h of g.ps) if (h.role === 'hider' && !h.tagged && !h.invis) { const dx = Math.abs(h.x - s.x), v = h.mv ? 1 : Math.pow(1 - h.blend, 1.5), R = (16 + 330 * v * (0.55 + 0.45 * s.skill)) * Math.pow(2400 / WW, 0.3); if (dx < R && dx < bd) { bd = dx; best = h; } } if (best) { a.mode = 'chase'; a.target = best; a.react = rnd(0.35, 0.9); } } }
     if (a.mode === 'chase') {
       const h = a.target; if (!h || h.tagged) { a.mode = 'sweep'; a.tx = s.x + rnd(-300, 300); return; }
       a.react -= dt; if (a.react > 0) { s.mv = false; return; }
@@ -323,8 +386,8 @@
     void frac;
     for (const p of g.ps) {
       const av = p.bt > 0 ? p.bsum / p.bt : p.blend;
-      if (p.role === 'hider') { const surv = p.tagged ? Math.min(1, p.tagT / SEEKT) : 1; p.pts = Math.round(surv * 35 + av * 55 + (p.tagged ? 0 : 15) + (win === 'hiders' ? 10 : 0)); }
-      else p.pts = p.tags * 30 + (allFound ? Math.round(clamp(g.t / SEEKT, 0, 1) * 25) + 10 : 0) - Math.min(10, p.misses * 2);
+      if (p.role === 'hider') { const surv = p.tagged ? Math.min(1, p.tagT / seekT()) : 1; p.pts = Math.round(surv * 35 + av * 55 + (p.tagged ? 0 : 15) + (win === 'hiders' ? 10 : 0)); }
+      else p.pts = p.tags * 30 + (allFound ? Math.round(clamp(g.t / seekT(), 0, 1) * 25) + 10 : 0) - Math.min(10, p.misses * 2);
       p.pts = Math.max(0, p.pts - (p.whistles || 0) * 5); p.tot += p.pts; p.avg = av; tot.push(p.tot); avg.push(Math.round(av * 100)); tg.push(p.tags);
     }
     g.res = { k: 'end', win, pts: g.ps.map((p) => p.pts), tot, avg, tg, last: g.round + 1 >= g.rounds }; void n;
