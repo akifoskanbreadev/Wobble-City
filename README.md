@@ -88,6 +88,6 @@ Type `sync`, pick a secret word (6+ characters). **Sync** merges, **Load** repla
 
 ## Accounts, ranks and the akif panel
 - Sign in with a name + password (only a hash is stored, passwords are never shown; the owner can reset one).
-- Ranks: admin code, friend code (headadmin, chosen by the owner in the panel), akif PIN (owner). Rank shows next to names in the player list.
+- Ranks: admin code, head admin (the owner picks people in the panel), akif PIN (owner). Rank shows next to names in the player list.
 - Owner panel: troll / prank screens / locks / bans (with removal time) can target everyone or chosen players. Bans and locks are enforced by the client, so a modified client could bypass them.
 - Re-paste the full `ai-proxy/worker-free.js` into Cloudflare for the account/ban/friend-code ops.

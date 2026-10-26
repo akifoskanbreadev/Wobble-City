@@ -92,10 +92,7 @@ export default {
       }
       const u = await get(id);
       if (!u || u.ph !== body.ph) return json({ error: 'wrong' }, 403);
-      if (body.op === 'acct-friend') {   // a friend code makes you head admin (the owner picks the code; only its hash is stored)
-        const fc = await env.SYNC.get('cfg:friend'); if (!fc || !hex(body.h) || body.h !== fc) return json({ error: 'wrong' }, 403);
-        if (u.rank !== 'owner') { u.rank = 'headadmin'; await put(id, u); } return json({ ok: true, rank: u.rank });
-      }
+      if (body.op === 'acct-friend') return json({ error: 'gone' }, 410);
       if (body.op === 'acct-login' || body.op === 'acct-ping') {
         let dirty = false;
         const cp = await env.SYNC.get('cfg:pin');

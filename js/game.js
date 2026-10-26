@@ -1323,11 +1323,7 @@
     } else if (c === 'codes') {
       renderCodes(); $('codeList').classList.remove('hidden'); say(activeCodes().length ? 'Your active codes:' : 'You have no active codes yet.');
     } else {
-      say('Checking…');
-      window.Account.friend(c).then((ok) => {
-        if (ok) { snd.egg(); say('🧡 Head admin unlocked! Use the orange HEAD button (top right).', true); }
-        else { say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
-      });
+      say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
     }
     inp.value = '';
   }
