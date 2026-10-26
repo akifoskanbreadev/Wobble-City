@@ -61,7 +61,7 @@ Play it by opening `index.html` (or serving the folder with any static server, e
 
 ## New modes and owner
 - **🦎 Mecha Chameleon** (2D): robot chameleon goose. SCAN a prop and MORPH into it, hide among copies, avoid the seeker's scanner; or play the seeker and find the bot hider.
-- **🚀 Goose Among Us** (offline, with bots): geese do tasks, a Fox sneak-kills; report bodies, discuss and vote.
+- **🚀 Goose Among Us** (solo with bots, or online with up to 10 friends via a room word; the host runs the rules and bots fill empty seats; owner tray: x-ray, invisible, speed, noclip, no cooldown, force meeting/win): geese do tasks, a Fox sneak-kills; report bodies, discuss and vote.
 - **3D Hide & Seek** hiding is now physical: stand still inside cover (bush, haystack, tent...) or walk into the orange door pad of a cupboard (locker, wardrobe, crate...). Seekers open them by walking in.
 - **Deep Sea** levels: bread rings, bubble columns, mine tunnels, kelp doors, secret grottos and a chasing giant fish.
 - **Owner** (`akif`): owner panel with tools, an owner PIN and locks for cheat codes (server-stored). Never locked: sync, codes, akif, rainbow, disco, zoom. PIN-verified owner gets x-ray in 3D Hide & Seek.
@@ -84,3 +84,10 @@ Type `sync`, pick a secret word (6+ characters). **Sync** merges, **Load** repla
 - `js/mp.js`, `js/minigames*.js`: multiplayer and minigames
 - `js/h3d_*.js`, `js/hide3d.js`: 3D Hide & Seek
 - `js/sync.js`: save sync; `ai-proxy/worker-free.js`: the small Cloudflare Worker behind AI and sync
+
+
+## Accounts, ranks and the akif panel
+- Sign in with a name + password (only a hash is stored, passwords are never shown; the owner can reset one).
+- Ranks: admin code, friend code (headadmin, chosen by the owner in the panel), akif PIN (owner). Rank shows next to names in the player list.
+- Owner panel: troll / prank screens / locks / bans (with removal time) can target everyone or chosen players. Bans and locks are enforced by the client, so a modified client could bypass them.
+- Re-paste the full `ai-proxy/worker-free.js` into Cloudflare for the account/ban/friend-code ops.

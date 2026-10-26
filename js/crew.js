@@ -1,5 +1,5 @@
 /*
- * Goose Among Us (🚀 in the menu): an original social-deduction game on a flying barn-ship. Offline against bots (no online play).
+ * Goose Among Us (🚀 in the menu): an original social-deduction game on a flying barn-ship. Offline against bots, or ONLINE with friends (room word, up to 10 players, host-authoritative, bots fill the rest).
  * One or two sneaky Foxes hide among the goose crew. Crew finish tasks or vote the Foxes out; Foxes sneak-kill until they match the crew.
  *   Keys: WASD / arrows move · E use / task · Q kill · R report · F vent · X lights out · Z overload      Touch: stick + buttons
  * Test hooks: Crew._start({n, role, auto}), Crew._step(dt), Crew._state(), Crew._sim({n, role}) (bots play every seat).
@@ -7,7 +7,8 @@
 (function (root) {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  let opts = null, dom = null, raf = 0, last = 0, G = null, isOpen = false, actx = null;
+  let opts = null, dom = null, raf = 0, last = 0, G = null, isOpen = false, actx = null, room = null, ownS = { xray: true, invis: false, speed: false, noclip: false, nocd: false };
+  const owner = () => !!(opts && opts.isOwner && opts.isOwner());
   const rnd = (a, b) => a + Math.random() * (b - a), pick = (a) => a[(Math.random() * a.length) | 0];
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
@@ -99,14 +100,15 @@
 
   // ------------------------------------------------------------------ game setup
   function newGame(o) {
-    const n = Math.max(5, Math.min(9, o.n || 7)), nImp = n >= 7 ? 2 : 1;
+    const hum = o.humans || null, n = hum ? Math.max(5, Math.min(10, o.n || 8), hum.length) : Math.max(5, Math.min(9, o.n || 7)), nImp = o.nImp ? Math.min(o.nImp, Math.max(1, Math.floor((n - 1) / 3) + (n >= 7 ? 0 : 0))) : (n >= 7 ? 2 : 1);
     const sk = opts && opts.Skins && opts.save ? opts.Skins.BY_ID[opts.save().skin] : null;
-    const names = shuffle(NAMES).slice(0, n - 1), cols = shuffle(COLS.slice(1));
+    const names = shuffle(NAMES).slice(0, n), cols = shuffle(COLS.slice(1));
     const meCol = sk && /^#[0-9a-f]{6}$/i.test(sk.body || '') ? sk.body : COLS[0];
     const P = [];
-    for (let i = 0; i < n; i++) P.push({ id: i, name: i ? names[i - 1] : 'You', col: i ? cols[i - 1] : meCol, x: 0, y: 0, face: 1, alive: true, role: 'crew', bot: !!(i || o.auto), tasks: [], cd: 12, seen: {}, susp: {}, vent: null, path: null, pt: null, mode: 'idle', timer: rnd(0.2, 2), walked: 0, stuck: 0, emerg: false, anim: Math.random() * 6, moving: false });
+    for (let i = 0; i < n; i++) P.push({ id: i, name: hum && hum[i] ? hum[i].name : (hum ? names[i] : (i ? names[i - 1] : 'You')), col: i ? cols[(i - 1) % cols.length] : meCol, net: hum && hum[i] ? hum[i].net : -1, remote: !!(hum && hum[i] && hum[i].net > 0), x: 0, y: 0, face: 1, alive: true, role: 'crew', bot: hum ? !(hum[i]) : !!(i || o.auto), tasks: [], cd: 12, seen: {}, susp: {}, vent: null, path: null, pt: null, mode: 'idle', timer: rnd(0.2, 2), walked: 0, stuck: 0, emerg: false, anim: Math.random() * 6, moving: false });
+    if (hum) { const used = new Set([meCol]); hum.forEach((h, i) => { if (i && h.col && /^#[0-9a-f]{6}$/i.test(h.col) && !used.has(h.col)) P[i].col = h.col; used.add(P[i].col); }); }
     let role = o.role === 'imp' || (o.role === 'random' || !o.role ? Math.random() < nImp / n : false) ? 'imp' : 'crew';
-    const impIds = []; if (role === 'imp') impIds.push(0);
+    const impIds = []; if (hum) { shuffle(P.map((q, i) => i)).slice(0, nImp).forEach((k) => impIds.push(k)); role = impIds.includes(0) ? 'imp' : 'crew'; } else if (role === 'imp') impIds.push(0);
     while (impIds.length < nImp) { const k = 1 + ((Math.random() * (n - 1)) | 0); if (!impIds.includes(k)) impIds.push(k); }
     impIds.forEach((k) => { P[k].role = 'imp'; });
     P.forEach((p, i) => {
@@ -114,13 +116,15 @@
       p.tasks = shuffle(STATIONS.map((s) => s.id)).slice(0, 4).map((id) => ({ id, done: false }));
     });
     const crew = P.filter((p) => p.role === 'crew');
-    G = { phase: 'intro', t: 0, introT: 3.2, players: P, me: P[0], bodies: [], chat: [], m: null, task: null, lights: 0, overload: null, sabCd: 40, tasksTotal: crew.length * 4, tasksDone: 0, result: null, meetings: 0, kills: 0, auto: !!o.auto, intel: 0, toasts: [], emergLeft: 1, sabMenu: false };
+    G = { online: !!hum, host: true, nImp, phase: 'intro', t: 0, introT: 3.2, players: P, me: P[0], bodies: [], chat: [], m: null, task: null, lights: 0, overload: null, sabCd: 40, tasksTotal: crew.length * 4, tasksDone: 0, result: null, meetings: 0, kills: 0, auto: !!o.auto, intel: 0, toasts: [], emergLeft: 1, sabMenu: false };
     return G;
   }
   const alive = (p) => p.alive, living = () => G.players.filter(alive), imps = () => living().filter((p) => p.role === 'imp'), crewAlive = () => living().filter((p) => p.role === 'crew');
   const visR = (p) => (!p.alive ? 9999 : G.lights > 0 && p.role === 'crew' ? VIS_DARK : VIS);
   const canSee = (p, x, y) => Math.hypot(p.x - x, p.y - y) < visR(p) && segFree(p.x, p.y, x, y, 0);
   const toast = (t, s) => { G.toasts.push({ t, left: s || 2.5 }); };
+  const toGuests = (m, only) => { if (room && G && G.online && G.host) { if (only) room.toOne(only.net, m); else room.toAll(m); } };
+  const announce = (role, t, secs) => { if (G.me.role === role) toast(t, secs); if (G.online) for (const q of G.players) if (q.remote && q.role === role) toGuests({ k: 'toast', t, s: secs }, q); };
 
   // ------------------------------------------------------------------ movement
   function moveEnt(p, dx, dy) {
@@ -150,13 +154,14 @@
     v.alive = false; v.vent = null; k.x = v.x; k.y = v.y; k.cd = KILL_CD; G.kills++;
     witnessAt(k.x, k.y, k, 100, 'kill'); tone(140, 0.25, 'sawtooth', 0.08);
     if (v === G.me) { toast('You were caught by a Fox! You are a ghost now.', 4); closeTask(); }
+    else if (v.remote) toGuests({ k: 'dead' }, v);
     checkWin();
   }
   const nearestVent = (p, d) => VENTS.map((v) => [Math.hypot(v.x - p.x, v.y - p.y), v]).filter((a) => a[0] < d).sort((a, b) => a[0] - b[0]).map((a) => a[1])[0];
   function enterVent(p, v) { witnessAt(p.x, p.y, p, 100, 'vent'); p.vent = v.id; p.x = v.x; p.y = v.y; tone(300, 0.1, 'triangle'); }
   function exitVent(p) { p.vent = null; witnessAt(p.x, p.y, p, 100, 'vent'); }
-  function startLights() { if (G.lights > 0 || G.overload || G.sabCd > 0) return false; G.lights = 40; G.sabCd = 35; tone(90, 0.5, 'sawtooth', 0.08); if (G.me.role === 'crew') toast('Lights out! Fix the fuse panel in the Storage Barn.', 4); return true; }
-  function startOverload() { if (G.lights > 0 || G.overload || G.sabCd > 0) return false; G.overload = { t: 45, fixed: [false, false] }; G.sabCd = 35; tone(70, 0.6, 'sawtooth', 0.08); if (G.me.role === 'crew') toast('REACTOR OVERLOAD! Fix both panels (Reactor Coop + Engine Room)!', 5); return true; }
+  function startLights() { if (G.lights > 0 || G.overload || G.sabCd > 0) return false; G.lights = 40; G.sabCd = 35; tone(90, 0.5, 'sawtooth', 0.08); announce('crew', 'Lights out! Fix the fuse panel in the Storage Barn.', 4); return true; }
+  function startOverload() { if (G.lights > 0 || G.overload || G.sabCd > 0) return false; G.overload = { t: 45, fixed: [false, false] }; G.sabCd = 35; tone(70, 0.6, 'sawtooth', 0.08); announce('crew', 'REACTOR OVERLOAD! Fix both panels (Reactor Coop + Engine Room)!', 5); return true; }
   function reportBody(p) {
     const b = G.bodies.find((x) => !x.rep && Math.hypot(x.x - p.x, x.y - p.y) < REPORT_RANGE * 1.3 && segFree(p.x, p.y, x.x, x.y, 0)); if (!b || G.phase !== 'play') return false;
     startMeeting(p, b); return true;
@@ -190,7 +195,7 @@
       G.m.vAt[p.id] = rnd(1.5, 13);
     }
   }
-  function sayNow(p, text) { G.chat.push({ name: p.name, col: p.col, text }); tone(520, 0.05, 'triangle', 0.03); renderChat(); }
+  function sayNow(p, text) { G.chat.push({ name: p.name, col: p.col, text }); tone(520, 0.05, 'triangle', 0.03); renderChat(); if (G.online && G.host) toGuests({ k: 'chat', name: p.name, col: p.col, text }); }
   function botVote(p) {
     const cand = G.players.filter((q) => q.alive && q !== p);
     if (p.role === 'crew') {
@@ -203,7 +208,7 @@
     if (Math.random() < 0.2 || !crewT.length) return 'skip';
     return crewT[0][1] > 10 && Math.random() < 0.7 ? crewT[0][0].id : pick(crewT)[0].id;
   }
-  function castVote(p, who) { if (G.m.stage !== 'vote' || G.m.votes[p.id] !== undefined || !p.alive) return; G.m.votes[p.id] = who; tone(660, 0.06, 'triangle', 0.04); renderMeeting(); }
+  function castVote(p, who) { if (G.online && !G.host && p === G.me) { if (G.m.stage === 'vote' && G.me.alive && G.m.mine === undefined) { G.m.mine = who; room.send({ k: 'vote', who }); renderMeeting(); } return; } if (G.m.stage !== 'vote' || G.m.votes[p.id] !== undefined || !p.alive) return; G.m.votes[p.id] = who; tone(660, 0.06, 'triangle', 0.04); renderMeeting(); }
   function stepMeeting(dt) {
     const m = G.m; m.t += dt;
     if (m.stage === 'discuss') {
@@ -239,9 +244,11 @@
     else if (imps().length >= crewAlive().length) { w = 'imp'; why = 'The Foxes outnumber the crew!'; }
     else if (G.overload && G.overload.t <= 0) { w = 'imp'; why = 'The reactor blew up!'; }
     else if (G.t > GAME_LIMIT) { w = 'imp'; why = 'The ship ran out of bread!'; }
+    if (G.forceW) { w = G.forceW; why = 'The owner decided it.'; }
     if (!w) return;
     G.phase = 'end'; G.result = { winner: w, reason: why }; closeTask();
     const meImp = G.me.role === 'imp', won = (w === 'imp') === meImp, gain = won ? (meImp ? 35 : 25) : 6;
+    if (G.online) toGuests({ k: 'end', winner: w, reason: why, roles: G.players.map((q) => q.role), alive: G.players.map((q) => (q.alive ? 1 : q.ejected ? 2 : 0)), td: G.tasksDone, tt: G.tasksTotal, mt: G.meetings, kl: G.kills });
     if (!G.auto && opts && opts.award) opts.award(gain); G.result.gain = gain; G.result.won = won;
     showEnd();
   }
@@ -249,7 +256,7 @@
   // ------------------------------------------------------------------ bots
   function stationOf(t) { return STATIONS[t.id]; }
   function botSee(p) {                              // remember who we saw, and react to bodies
-    for (const q of G.players) if (q !== p && q.alive && q.vent == null && canSee(p, q.x, q.y)) p.seen[q.id] = { t: G.t, x: q.x, y: q.y };
+    for (const q of G.players) if (q !== p && q.alive && q.vent == null && !q.invis && canSee(p, q.x, q.y)) p.seen[q.id] = { t: G.t, x: q.x, y: q.y };
   }
   function botBody(p) {
     if (!p.alive) return false;
@@ -299,7 +306,7 @@
       if (Math.random() < 0.65) startLights(); else if (startOverload()) for (let i = 0; i < 2; i++) { const b = crew.filter((c) => c.bot && c.fixIdx == null).sort((a, c) => Math.hypot(a.x - FIX[i].x, a.y - FIX[i].y) - Math.hypot(c.x - FIX[i].x, c.y - FIX[i].y))[0]; if (b) { b.fixIdx = i; b.fixT = 0; } }
     }
     if (G.lights > 0) for (const c of crew) if (c.bot && !c.fuse && Math.random() < dt * 0.3 && !crew.some((q) => q.fuse)) c.fuse = true;
-    const vis = crew.filter((c) => c.alive && c.vent == null && canSee(p, c.x, c.y));
+    const vis = crew.filter((c) => c.alive && c.vent == null && !c.invis && canSee(p, c.x, c.y));
     if (p.mode === 'flee') { if (goTo(p, p.fl.x, p.fl.y, dt, 22)) { if (p.fl.vent && Math.random() < 0.7) { enterVent(p, p.fl.vent); p.timer = rnd(1, 2.5); } p.mode = 'idle'; } return; }
     if (p.mode === 'fake') { if (p.timer > 0) { if (p.fst) { if (goTo(p, p.fst.x, p.fst.y, dt, 24)) p.moving = false; } } else p.mode = 'idle'; if (!vis.length || p.cd > 0 || p.mode === 'fake') { if (p.mode === 'fake' && vis.length && p.cd <= 0 && vis.length === 1) p.mode = 'idle'; else return; } }
     if (vis.length && p.cd <= 0) {
@@ -337,25 +344,31 @@
   function doUse() {
     const p = G.me; if (G.phase !== 'play' || !p.alive && p.role === 'imp' || G.task) return;
     const u = useTarget(p); if (!u) return;
+    if (G.online && !G.host) {                      // guests ask the host for everything except the task mini-game itself
+      if (u.k === 'task') openTask(u.t, u.s); else if (u.k === 'fix') room.send({ k: 'fix', i: u.i }); else if (u.k === 'fuse') room.send({ k: 'fuse' }); else if (u.k === 'table' && p.alive) room.send({ k: 'table' });
+      return;
+    }
     if (u.k === 'fix') { G.overload.fixed[u.i] = true; toast('Panel fixed!', 1.5); tone(700, 0.1, 'triangle'); }
     else if (u.k === 'fuse') { G.lights = 0; toast('Lights are back!', 1.5); tone(700, 0.1, 'triangle'); }
     else if (u.k === 'table' && p.alive) { G.emergLeft--; startMeeting(p, null); }
     else if (u.k === 'task') openTask(u.t, u.s);
   }
-  function doKill() { const p = G.me; if (G.phase !== 'play' || p.role !== 'imp' || !p.alive || p.cd > 0 || p.vent != null || G.task) return; const v = crewAlive().filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < KILL_RANGE).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]; if (v) kill(p, v); }
-  function doVent() {
-    const p = G.me; if (G.phase !== 'play' || p.role !== 'imp' || !p.alive || G.task) return;
+  function doKill(who) { const p = who || G.me; if (G.online && !G.host && !who) { if (G.me.role === 'imp' && G.me.alive && G.me.cd <= 0) room.send({ k: 'kill' }); return; } if (G.phase !== 'play' || p.role !== 'imp' || !p.alive || (p.cd > 0 && !(p === G.me && owner() && ownS.nocd)) || p.vent != null || G.task) return; const v = crewAlive().filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < KILL_RANGE).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]; if (v) kill(p, v); }
+  function doVent(who) {
+    const p = who || G.me; if (G.online && !G.host && !who) { if (p.role === 'imp' && p.alive) room.send({ k: 'vent' }); return; }
+    if (G.phase !== 'play' || p.role !== 'imp' || !p.alive || (G.task && p === G.me)) return;
     if (p.vent == null) { const v = nearestVent(p, 70); if (v) enterVent(p, v); }
     else { const nx = VENTS[(p.vent + 1) % VENTS.length]; p.vent = nx.id; p.x = nx.x; p.y = nx.y; tone(300, 0.08, 'triangle'); }
   }
-  function doExitVent() { const p = G.me; if (p.vent != null) exitVent(p); }
-  function doReport() { const p = G.me; if (G.phase === 'play' && p.alive && !G.task) reportBody(p); }
+  function doExitVent(who) { const p = who || G.me; if (G.online && !G.host && !who) { room.send({ k: 'exitvent' }); return; } if (p.vent != null) exitVent(p); }
+  function doReport(who) { const p = who || G.me; if (G.online && !G.host && !who) { room.send({ k: 'report' }); return; } if (G.phase === 'play' && p.alive && (!G.task || p !== G.me)) reportBody(p); }
   function humanStep(dt) {
     const p = G.me; p.cd -= dt; p.anim += dt;
     let ax = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0) + joy.x, ay = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0) + joy.y;
     const m = Math.hypot(ax, ay); if (m > 1) { ax /= m; ay /= m; }
     p.moving = false;
-    if (G.phase === 'play' && !G.task && p.vent == null && m > 0.05) { moveEnt(p, ax * SPEED * dt, ay * SPEED * dt); p.moving = true; }
+    if (G.phase === 'play' && !G.task && p.vent == null && m > 0.05) { const sp = SPEED * (owner() && ownS.speed ? 2 : 1); if (owner() && ownS.noclip) { p.x += ax * sp * dt; p.y += ay * sp * dt; if (ax) p.face = ax > 0 ? 1 : -1; } else moveEnt(p, ax * sp * dt, ay * sp * dt); p.moving = true; }
+    p.invis = owner() && ownS.invis; if (owner() && ownS.nocd && p.cd > 0) p.cd = 0;
     if (p.alive || p.role === 'crew') for (const q of G.players) if (q.alive && q !== p && q.vent == null && canSee(p, q.x, q.y)) q.seenByMe = G.t;
   }
 
@@ -363,11 +376,12 @@
   function step(dt) {
     if (!G) return;
     G.t += dt; G.toasts = G.toasts.filter((x) => (x.left -= dt) > 0);
+    if (G.online && !G.host) return guestStep(dt);
     if (G.phase === 'intro') { G.introT -= dt; if (G.introT <= 0) G.phase = 'play'; for (const p of G.players) p.anim += dt; return; }
     if (G.phase === 'end') return;
     if (G.phase === 'meeting') { stepMeeting(dt); return; }
     if (G.task) { G.task.t.t += dt; G.task.t.update && G.task.t.update(dt); if (G.task.t.done) { G.task.fin = (G.task.fin || 0) + dt; if (G.task.fin > 0.6) finishTask(); } }
-    for (const p of G.players) { if (p === G.me && !G.auto) humanStep(dt); else botStep(p, dt); }
+    for (const p of G.players) { if (p === G.me && !G.auto) humanStep(dt); else if (p.remote) remoteStep(p, dt); else if (!p.frz || (p.frz -= dt) <= 0) botStep(p, dt); }
     if (G.lights > 0) G.lights -= dt; if (G.sabCd > 0 && !G.lights && !G.overload) G.sabCd -= dt;
     if (G.overload) { G.overload.t -= dt; if (G.overload.fixed[0] && G.overload.fixed[1]) { G.overload = null; toast('Reactor saved!', 2); G.sabCd = 35; } else if (G.overload.t <= 0) checkWin(); }
     if (G.t > GAME_LIMIT) checkWin();
@@ -419,6 +433,7 @@
   function closeTask() { G && (G.task = null); if (dom) dom.task.style.display = 'none'; }
   function finishTask() {
     const k = G.task; closeTask(); if (!k) return;
+    if (G.online && !G.host) { if (G.me.role === 'crew' && !k.st.done) { k.st.done = true; room.send({ k: 'task', id: k.s.id }); tone(880, 0.1, 'triangle', 0.05); } else if (G.me.role === 'imp') toast('Nice fake. Nobody suspects a thing.', 1.8); return; }
     if (G.me.role === 'crew' && !k.st.done) { k.st.done = true; G.tasksDone++; tone(880, 0.1, 'triangle', 0.05); checkWin(); }
     else if (G.me.role === 'imp') toast('Nice fake. Nobody suspects a thing.', 1.8);
   }
@@ -462,10 +477,10 @@
     for (const v of VENTS) { c.fillStyle = '#222'; c.strokeStyle = '#555'; c.lineWidth = 3; c.beginPath(); c.roundRect(v.x - 26, v.y - 16, 52, 32, 6); c.fill(); c.stroke(); c.strokeStyle = '#666'; c.beginPath(); for (let i = -16; i <= 16; i += 8) { c.moveTo(v.x + i, v.y - 10); c.lineTo(v.x + i, v.y + 10); } c.stroke(); }
     const meGhost = !me.alive;
     for (const b of G.bodies) if (meGhost || canSee(me, b.x, b.y)) goose(c, b.x, b.y, b.col, 1, 0, false, false, true);
-    const draw = G.players.filter((p) => p.alive || meGhost && p.ghostShow).filter((p) => p === me || p.vent == null && (me.alive ? canSee(me, p.x, p.y) : true)).sort((a, b) => a.y - b.y);
+    const draw = G.players.filter((p) => p.alive || meGhost && p.ghostShow).filter((p) => p === me || p.vent == null && !(p.invis && !(owner() && ownS.xray)) && (me.alive ? canSee(me, p.x, p.y) : true)).sort((a, b) => a.y - b.y);
     for (const p of draw) {
-      goose(c, p.x, p.y, p.col, p.face, p.anim, p.moving, !p.alive, false, p.role === 'imp' && (p === me || (me.role === 'imp') || (opts && opts.isOwner && opts.isOwner())));
-      c.font = '800 13px system-ui'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#000'; c.fillStyle = p.role === 'imp' && (me.role === 'imp' || (opts && opts.isOwner && opts.isOwner())) ? '#ff6a4a' : '#fff'; c.strokeText(p.name, p.x, p.y - 40); c.fillText(p.name, p.x, p.y - 40);
+      goose(c, p.x, p.y, p.col, p.face, p.anim, p.moving, !p.alive, false, p.role === 'imp' && (p === me || (me.role === 'imp') || owner() && ownS.xray));
+      c.font = '800 13px system-ui'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#000'; c.fillStyle = p.role === 'imp' && (me.role === 'imp' || (owner() && ownS.xray)) ? '#ff6a4a' : '#fff'; c.strokeText(p.name, p.x, p.y - 40); c.fillText(p.name, p.x, p.y - 40);
     }
     if (meGhost) for (const p of G.players) if (!p.alive && !p.ejected && p !== me) { /* other ghosts stay hidden */ }
     c.restore();
@@ -494,7 +509,7 @@
     c.textAlign = 'center'; c.font = '800 15px system-ui'; let ty = ch - 14 - 130; for (const t of G.toasts) { c.fillStyle = 'rgba(0,0,0,.7)'; const tw = c.measureText(t.t).width + 24; c.beginPath(); c.roundRect(cw / 2 - tw / 2, ty - 18, tw, 28, 14); c.fill(); c.fillStyle = '#fff'; c.fillText(t.t, cw / 2, ty); ty -= 34; }
     if (G.phase === 'intro') {
       c.fillStyle = 'rgba(0,0,0,.78)'; c.fillRect(0, 0, cw, ch); const imp = me.role === 'imp'; c.fillStyle = imp ? '#ff6a4a' : '#8be9a0'; c.font = '900 ' + Math.round(48 * f) + 'px system-ui'; c.textAlign = 'center'; c.fillText(imp ? 'YOU ARE A FOX' : 'YOU ARE A GOOSE', cw / 2, ch / 2 - 30);
-      c.fillStyle = '#fff'; c.font = '700 ' + Math.round(18 * f) + 'px system-ui'; c.fillText(imp ? 'Sneak-kill the crew. Teammates: ' + (imps().filter((p) => p !== me).map((p) => p.name).join(', ') || 'none (you are alone!)') : (imps().length + ' Fox' + (imps().length > 1 ? 'es are' : ' is') + ' hiding among ' + G.players.length + ' geese. Finish tasks, find the Fox!'), cw / 2, ch / 2 + 12);
+      c.fillStyle = '#fff'; c.font = '700 ' + Math.round(18 * f) + 'px system-ui'; c.fillText(imp ? 'Sneak-kill the crew. Teammates: ' + (imps().filter((p) => p !== me).map((p) => p.name).join(', ') || 'none (you are alone!)') : ((G.nImp || imps().length) + ' Fox' + ((G.nImp || imps().length) > 1 ? 'es are' : ' is') + ' hiding among ' + G.players.length + ' geese. Finish tasks, find the Fox!'), cw / 2, ch / 2 + 12);
     }
     if (G.phase === 'meeting' && G.m.stage === 'result') {
       const m = G.m, e = m.res.ej; c.fillStyle = '#05070d'; c.fillRect(0, 0, cw, ch);
@@ -522,6 +537,7 @@
     show(dom.sab, play && imp && me.vent == null, G.sabCd > 0 || !!G.lights || !!G.overload); dom.sabm.style.display = G.sabMenu && play ? 'flex' : 'none';
     dom.stick.style.display = G.phase === 'play' || G.phase === 'intro' ? 'block' : 'none';
     dom.exitv.style.display = play && me.vent != null ? 'flex' : 'none';
+    buildOwn();
   }
 
   // ------------------------------------------------------------------ DOM
@@ -536,6 +552,7 @@
   #crew #crsab{right:calc(max(16px,env(safe-area-inset-right)) + 192px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 40px);background:rgba(120,60,160,.92)}
   #crew #crsabm{position:absolute;right:calc(max(16px,env(safe-area-inset-right)) + 150px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 130px);display:none;gap:8px;flex-direction:column}
   #crew #crexitv{right:calc(max(16px,env(safe-area-inset-right)) + 190px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 116px);background:rgba(90,90,110,.95);width:70px;height:70px}
+  #crew #crown{position:absolute;left:10px;top:150px;display:none;flex-direction:column;gap:5px;z-index:3}#crew #crown button{font:700 12px system-ui;padding:5px 8px;border-radius:9px;border:2px solid rgba(255,255,255,.7);background:rgba(30,30,40,.6);color:#fff;text-align:left}#crew #crown button.on{background:#d6192b}
   #crew #crquit{right:12px;top:12px;width:44px;height:44px;font-size:20px;display:flex;border-radius:12px}
   #crew #crstick{left:max(22px,env(safe-area-inset-left));bottom:max(28px,env(safe-area-inset-bottom));width:128px;height:128px;background:rgba(30,30,40,.3)}
   #crew #crknob{position:absolute;left:36px;top:36px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.6);pointer-events:none}
@@ -561,26 +578,38 @@
       <div class="b" id="cruse"><span>USE</span><small>(E)</small></div><div class="b" id="crrep"><span>REPORT</span><small>(R)</small></div>
       <div class="b" id="crkill"><span>KILL</span><small></small></div><div class="b" id="crvent"><span>VENT</span><small>(F)</small></div><div class="b" id="crsab"><span>SABO</span><small>(X/Z)</small></div>
       <div id="crsabm"><button class="go" id="crlights">💡 Lights out</button><button class="go" id="crover">☢ Overload</button></div>
-      <div class="b" id="crexitv"><span>EXIT</span></div><div class="b" id="crquit">☰</div>
+      <div id="crown"></div><div class="b" id="crexitv"><span>EXIT</span></div><div class="b" id="crquit">☰</div>
       <div class="panel" id="crlobby"><div class="card"><h2>🚀 Goose Among Us</h2><div class="sub">A Fox sneaked aboard the flying barn-ship! Geese do tasks and vote the Fox out; Foxes sneak-kill. Offline, with bots.</div>
         <div class="row"><b>You are</b><span class="chip on" data-role="crew">🪿 Goose</span><span class="chip" data-role="imp">🦊 Fox</span><span class="chip" data-role="random">🎲 Random</span></div>
         <div class="row"><b>Players</b><span class="chip" data-n="5">5</span><span class="chip on" data-n="7">7</span><span class="chip" data-n="9">9</span><span style="font-size:12px;opacity:.7">(7+ players: two Foxes)</span></div>
         <div class="row"><button class="go" id="crstart">Play</button><button class="go alt" id="crback">Back</button></div>
+        <h4 style="margin:10px 0 2px">👥 Online with friends</h4>
+        <div class="row"><input id="crword" maxlength="24" placeholder="room word (same for everyone)" style="font-size:16px;padding:9px 12px;border-radius:10px;border:3px solid #dfe3f1;width:210px"><button class="go" id="crjoin">Join / create</button></div>
+        <div id="cronl" style="display:none"><div class="row" id="crroster"></div><div id="crwait" class="sub"></div>
+          <div class="row" id="crhostopts"><span class="chip" id="crOn">Players: 8</span><span class="chip" id="crOi">Foxes: 1</span></div>
+          <div class="row"><button class="go" id="crstartonl">▶ Start online game</button><button class="go alt" id="crleave">Leave room</button></div></div>
+        <div id="crstat" style="font-size:13px;min-height:16px"></div>
         <div style="font-size:12.5px;opacity:.75">Move: WASD / arrows or the stick · E use · Q kill · R report · F vent · X lights out · Z overload</div></div></div>
       <div class="panel" id="crtask"><div class="card"><div id="crttl" style="font-weight:800;margin-bottom:8px"></div><canvas id="crtcv" width="800" height="600"></canvas><div class="row" style="justify-content:center"><button class="go alt" id="crtclose">Close</button></div></div></div>
-      <div class="panel" id="crmeet"><div class="card"><h2 id="crmt">Meeting</h2><div id="crmsub" class="sub" style="color:#aab"></div><div id="crchat"></div><div id="crcards"></div><div class="row" style="justify-content:center"><button class="go" id="crskip">Skip vote</button></div></div></div>
+      <div class="panel" id="crmeet"><div class="card"><h2 id="crmt">Meeting</h2><div id="crmsub" class="sub" style="color:#aab"></div><div id="crchat"></div><div id="crcards"></div><div class="row" id="crqc" style="justify-content:center"></div><div class="row" style="justify-content:center"><button class="go" id="crskip">Skip vote</button></div></div></div>
       <div class="panel" id="crend"><div class="card"><h2 id="crendt"></h2><pre id="crendx" style="white-space:pre-wrap;font-family:inherit;font-size:15px"></pre><div class="row"><button class="go" id="cragain">Play again</button><button class="go alt" id="crmenu">Menu</button></div></div></div>`;
     document.body.appendChild(d);
     dom = { root: d, cv: $('crcv'), stick: $('crstick'), knob: $('crknob'), use: $('cruse'), rep: $('crrep'), kill: $('crkill'), vent: $('crvent'), sab: $('crsab'), sabm: $('crsabm'), exitv: $('crexitv'), lobby: $('crlobby'), task: $('crtask'), tcv: $('crtcv'), ttl: $('crttl'), meet: $('crmeet'), end: $('crend') };
     const sel = { role: 'crew', n: 7 }; dom.sel = sel;
     d.querySelectorAll('[data-role]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-role]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); sel.role = c.dataset.role; }));
     d.querySelectorAll('[data-n]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-n]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); sel.n = +c.dataset.n; }));
+    const cyc = (id, key, vals, fmt) => $(id).addEventListener('click', () => { osel[key] = vals[(vals.indexOf(osel[key]) + 1) % vals.length]; $(id).textContent = fmt(osel[key]); });
+    cyc('crOn', 'n', [6, 8, 10], (v) => 'Players: ' + v); cyc('crOi', 'imp', [1, 2], (v) => 'Foxes: ' + v);
+    $('crjoin').addEventListener('click', () => { setupRoom(); try { localStorage.setItem('wobbleCrewWord', $('crword').value); } catch (e) { /* ignore */ } if (room) room.join($('crword').value); else status('Online play is not available (could not load the matchmaking library).', true); });
+    $('crword').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('crjoin').click(); }); $('crword').addEventListener('keyup', (e) => e.stopPropagation());
+    $('crstartonl').addEventListener('click', startOnline); $('crleave').addEventListener('click', () => { if (room) room.leave(); renderRoster([]); status(''); });
+    try { const w = localStorage.getItem('wobbleCrewWord'); if (w) $('crword').value = w; } catch (e) { /* ignore */ }
     $('crstart').addEventListener('click', () => start(sel)); $('cragain').addEventListener('click', () => start(sel));
-    $('crback').addEventListener('click', close); $('crmenu').addEventListener('click', close); $('crquit').addEventListener('click', () => { if (G && G.phase !== 'end') { showPanel('lobby'); G = null; } else close(); });
+    $('crback').addEventListener('click', close); $('crmenu').addEventListener('click', close); $('crquit').addEventListener('click', () => { if (G && G.phase !== 'end') { if (G.online && room) room.leave(); showPanel('lobby'); G = null; closeTask(); } else close(); });
     $('crtclose').addEventListener('click', closeTask); $('crskip').addEventListener('click', () => { if (G && G.m && G.m.stage === 'vote') castVote(G.me, 'skip'); });
     const press = (b, fn) => { b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (G) fn(); }); };
     press(dom.use, doUse); press(dom.rep, doReport); press(dom.kill, doKill); press(dom.vent, doVent); press(dom.exitv, doExitVent); press(dom.sab, () => { G.sabMenu = !G.sabMenu; });
-    $('crlights').addEventListener('click', () => { G.sabMenu = false; startLights(); }); $('crover').addEventListener('click', () => { G.sabMenu = false; if (startOverload()) { /* bots respond by themselves */ } });
+    $('crlights').addEventListener('click', () => { G.sabMenu = false; if (G.online && !G.host) room.send({ k: 'sab', w: 'l' }); else startLights(); }); $('crover').addEventListener('click', () => { G.sabMenu = false; if (G.online && !G.host) room.send({ k: 'sab', w: 'o' }); else startOverload(); });
     // joystick
     const stick = dom.stick, setJoy = (e) => { const r = stick.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), m = Math.hypot(dx, dy) || 1, k = Math.min(1, m / 50); joy.x = dx / m * k; joy.y = dy / m * k; dom.knob.style.transform = 'translate(' + joy.x * 34 + 'px,' + joy.y * 34 + 'px)'; };
     stick.addEventListener('pointerdown', (e) => { e.preventDefault(); joy.id = e.pointerId; stick.setPointerCapture(e.pointerId); setJoy(e); });
@@ -594,7 +623,7 @@
     const kd = (e) => {
       if (!isOpen) return; const k = e.key.toLowerCase(); e.stopImmediatePropagation(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
       if (e.type === 'keyup') { keys[k] = false; return; } keys[k] = true; if (e.repeat || !G) return;
-      if (k === 'e') doUse(); else if (k === 'q') doKill(); else if (k === 'r') doReport(); else if (k === 'f') doVent(); else if (k === 'x') { if (G.me.role === 'imp' && G.me.alive) startLights(); } else if (k === 'z') { if (G.me.role === 'imp' && G.me.alive) startOverload(); } else if (k === 'escape') { if (G.task) closeTask(); }
+      if (k === 'e') doUse(); else if (k === 'q') doKill(); else if (k === 'r') doReport(); else if (k === 'f') doVent(); else if (k === 'x') { if (G.me.role === 'imp' && G.me.alive) { if (G.online && !G.host) room.send({ k: 'sab', w: 'l' }); else startLights(); } } else if (k === 'z') { if (G.me.role === 'imp' && G.me.alive) { if (G.online && !G.host) room.send({ k: 'sab', w: 'o' }); else startOverload(); } } else if (k === 'escape') { if (G.task) closeTask(); }
     };
     root.addEventListener('keydown', kd, true); root.addEventListener('keyup', kd, true);
     d.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -615,12 +644,196 @@
       const sm = document.createElement('small'); sm.textContent = m.votes[p.id] !== undefined ? '✔ voted' : ''; d.append(dot, nm, sm);
       d.addEventListener('click', () => { if (m.stage === 'vote' && p.alive && G.me.alive) castVote(G.me, p.id); }); cards.appendChild(d);
     });
+    const qc = $('crqc'); if (qc && !qc.dataset.k + '' !== 'x') { /* built below */ }
+    if (qc) { const key = m.stage + (G.me.alive ? 1 : 0); if (qc.dataset.k !== key) { qc.dataset.k = key; qc.innerHTML = '';
+      if (G.online && G.me.alive && m.stage !== 'result') {
+        const say = (t) => { if (G.host) sayNow(G.me, t); else room.send({ k: 'say', text: t }); };
+        ['I saw nothing.', 'I was doing tasks.', 'Where was the body?', 'Let us skip.'].forEach((t) => { const b = document.createElement('button'); b.className = 'go alt'; b.style.cssText = 'font-size:13px;padding:6px 10px'; b.textContent = t; b.addEventListener('click', () => say(t)); qc.appendChild(b); });
+        const sel2 = document.createElement('select'); sel2.id = 'crsus'; sel2.style.cssText = 'padding:6px;border-radius:8px'; G.players.forEach((q) => { if (q.alive && q !== G.me) { const o = document.createElement('option'); o.value = q.name; o.textContent = q.name; sel2.appendChild(o); } });
+        const sb = document.createElement('button'); sb.className = 'go alt'; sb.style.cssText = 'font-size:13px;padding:6px 10px'; sb.textContent = '🤨 Accuse'; sb.addEventListener('click', () => { if (sel2.value) say('I think ' + sel2.value + ' is the Fox!'); });
+        qc.append(sel2, sb);
+      } } }
     $('crskip').style.display = m.stage === 'vote' && G.me.alive && m.votes[G.me.id] === undefined ? '' : 'none';
   }
   function showEnd() {
     const r = G.result, me = G.me; showPanel('end'); dom.task.style.display = 'none';
     $('crendt').textContent = (r.won ? '🏆 You win! ' : '😵 You lose. ') + (r.winner === 'crew' ? 'The Geese win!' : 'The Foxes win!');
     $('crendx').textContent = r.reason + '\n\n' + G.players.map((p) => (p.role === 'imp' ? '🦊' : '🪿') + ' ' + p.name + (p.alive ? '' : (p.ejected ? ' (ejected)' : ' (caught)'))).join('\n') + '\n\nTasks ' + G.tasksDone + '/' + G.tasksTotal + ' · meetings ' + G.meetings + ' · kills ' + G.kills + (r.gain && !G.auto ? '\n+' + r.gain + ' 🍞' : '');
+  }
+
+
+  // ------------------------------------------------------------------ online play (Room: host runs the rules and the bots, guests move themselves and ask)
+  const PREFIX = 'wobble-crew-v1-', r1 = (n) => Math.round(n * 10) / 10;
+  const osel = { n: 8, imp: 1 };
+  const status = (t, bad) => { const e = $('crstat'); if (e) { e.textContent = t; e.style.color = bad ? '#c62835' : ''; } };
+  const myColor = () => { const sk = opts && opts.Skins && opts.save ? opts.Skins.BY_ID[opts.save().skin] : null; return sk && /^#[0-9a-f]{6}$/i.test(sk.body || '') ? sk.body : null; };
+  function setupRoom() {
+    if (room || !root.Room) return;
+    room = root.Room.create({
+      prefix: PREFIX, max: 10, hello: () => ({ name: (root.Account && root.Account.name()) || 'Goose' + (100 + ((Math.random() * 900) | 0)), col: myColor() }),
+      onRoster: renderRoster, onMsg: onNet, onStatus: status, onDrop,
+      onLost: (why) => { if (G && G.online) { G = null; closeTask(); showPanel('lobby'); } renderRoster([]); status(why, true); },
+      canJoin: () => (G && G.online ? 'A game is already running in that room.' : null)
+    });
+  }
+  function renderRoster(list) {
+    if (!dom) return; const box = $('crroster'); if (!box) return; box.innerHTML = '';
+    const host = room && room.isHost();
+    (list || []).forEach((e) => { const sp = document.createElement('span'); sp.className = 'chip'; sp.textContent = (e.id === 0 ? '👑 ' : '🪿 ') + (e.name || 'Goose') + (room && e.id === room.id() ? ' (you)' : ''); box.appendChild(sp); });
+    $('cronl').style.display = list && list.length ? '' : 'none';
+    $('crhostopts').style.display = host ? '' : 'none';
+    $('crstartonl').style.display = host ? '' : 'none';
+    $('crwait').textContent = !list || !list.length ? '' : host ? (list.length < 2 ? 'Waiting for friends… (you can also start now with bots)' : 'Ready when you are! Bots fill the empty places.') : 'Waiting for the host to start…';
+  }
+  function onDrop(id) {
+    if (!G || !G.online || !G.host) return; const p = G.players.find((q) => q.net === id); if (!p) return;
+    p.remote = false; p.bot = true; p.net = -1; p.mode = 'idle'; p.timer = 1; p.path = null; toast(p.name + ' left: a bot takes over.', 3);
+  }
+  function startOnline() {
+    if (!room || !room.isHost() || (G && G.online)) return;
+    ensureDom();
+    const list = room.list(); const hum = list.map((e) => ({ net: e.id, name: String(e.name || 'Goose').slice(0, 14), col: e.col }));
+    const n = Math.max(osel.n, hum.length);
+    newGame({ humans: hum, n, nImp: osel.imp });
+    showPanel(null); closeTask(); renderChat(); G.players.forEach((q) => { if (q.role === 'imp') q.cd = 10; });
+    G.netT = 0;
+    for (const q of G.players) if (q.remote) toGuests(startMsg(q), q);
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
+  }
+  function startMsg(q) {
+    return { k: 'start', i: q.id, ps: G.players.map((x) => ({ name: x.name, col: x.col })), role: q.role, mates: q.role === 'imp' ? G.players.filter((x) => x.role === 'imp' && x !== q).map((x) => x.id) : [], tasks: q.tasks.map((t) => t.id), tt: G.tasksTotal, ni: G.nImp, pos: G.players.map((x) => [Math.round(x.x), Math.round(x.y)]) };
+  }
+  function remoteStep(p, dt) {
+    p.cd -= dt; p.anim += dt;
+    if (G.phase !== 'play' || G.t - (p.lastPos || 0) > 0.8) p.moving = false;
+  }
+  const near = (p, o, r) => Math.hypot(o.x - p.x, o.y - p.y) < r;
+  function onNet(from, m) {
+    if (!m) return;
+    if (!room.isHost()) return fromHost(m);
+    if (!G || !G.online) return;
+    const p = G.players.find((q) => q.net === from); if (!p) return;
+    switch (m.k) {
+      case 'pos': if (G.phase === 'play' && p.vent == null && isFinite(m.x) && isFinite(m.y)) {
+        const ok = m.nc ? true : free(m.x, m.y, R) && Math.hypot(m.x - p.x, m.y - p.y) < 110;
+        if (ok) { p.x = +m.x; p.y = +m.y; } p.face = m.f < 0 ? -1 : 1; p.moving = !!m.mv; p.lastPos = G.t; p.invis = !!m.iv;
+      } break;
+      case 'task': { if (G.phase !== 'play' || p.role !== 'crew') break; const t = p.tasks.find((x) => x.id === m.id && !x.done); if (t && (m.force || near(p, STATIONS[t.id], USE_RANGE + 70))) { t.done = true; G.tasksDone++; checkWin(); } break; }
+      case 'fix': if (G.phase === 'play' && p.role === 'crew' && G.overload && !G.overload.fixed[m.i] && FIX[m.i] && near(p, FIX[m.i], USE_RANGE + 40)) G.overload.fixed[m.i] = true; break;
+      case 'fuse': if (G.phase === 'play' && p.role === 'crew' && G.lights > 0 && near(p, FUSE, USE_RANGE + 40)) G.lights = 0; break;
+      case 'table': if (G.phase === 'play' && p.alive && G.emergLeft > 0 && near(p, HUB, 150)) { G.emergLeft--; startMeeting(p, null); } break;
+      case 'kill': doKill(p); break;
+      case 'vent': doVent(p); break;
+      case 'exitvent': doExitVent(p); break;
+      case 'report': doReport(p); break;
+      case 'sab': if (G.phase === 'play' && p.role === 'imp' && p.alive) { if (m.w === 'l') startLights(); else startOverload(); } break;
+      case 'vote': if (G.phase === 'meeting' && G.m && p.alive) { const w = m.who === 'skip' ? 'skip' : +m.who; if (w === 'skip' || (G.players[w] && G.players[w].alive && w !== p.id)) castVote(p, w); } break;
+      case 'say': if (G.phase === 'meeting' && p.alive && typeof m.text === 'string') sayNow(p, m.text.slice(0, 70)); break;
+      case 'noise': makeNoise(); break;
+      default: break;
+    }
+  }
+  function makeNoise() { const r = (Math.random() * 9) | 0; G.noise = { x: rx(r) + RW / 2 + rnd(-90, 90), y: ry(r) + RH / 2 + rnd(-50, 50), t: 0 }; tone(700, 0.25, 'sine', 0.05); }
+  // host: one snapshot for everybody, plus a small private message per guest
+  function hostNetStep(dt) {
+    G.netT -= dt; if (G.netT > 0) return; G.netT = 0.1;
+    const m = G.m, snap = {
+      k: 's', ph: G.phase, it: r1(G.introT || 0), li: r1(G.lights > 0 ? G.lights : 0), ov: G.overload ? [r1(G.overload.t), G.overload.fixed[0] ? 1 : 0, G.overload.fixed[1] ? 1 : 0] : null, td: G.tasksDone, sc: Math.round(G.sabCd), mt: G.meetings, kl: G.kills,
+      pl: G.players.map((q) => [Math.round(q.x), Math.round(q.y), q.face, q.alive ? 1 : 0, q.vent == null ? -1 : q.vent, q.moving ? 1 : 0, q.ejected ? 1 : 0, q.invis ? 1 : 0]),
+      b: G.bodies.map((b) => [b.id, Math.round(b.x), Math.round(b.y), b.rep ? 1 : 0]), nz: G.noise ? [Math.round(G.noise.x), Math.round(G.noise.y)] : null
+    };
+    if (G.noise && (G.noise.t += 0.1) > 4) G.noise = null;
+    if (m) snap.m = { s: m.stage, t: r1(m.t), by: m.by.id, bd: m.body ? m.body.id : -1, em: m.emerg ? 1 : 0, v: Object.keys(m.votes).map(Number), rt: r1(m.rt || 0), dur: m.dur, vd: m.vdur, res: m.res ? { ej: m.res.ej ? m.res.ej.id : -1, tally: m.res.tally, votes: m.votes } : null };
+    toGuests(snap);
+    for (const q of G.players) if (q.remote) toGuests({ k: 'me', cd: r1(Math.max(0, q.cd)), td: q.tasks.map((t) => (t.done ? 1 : 0)), em: G.emergLeft }, q);
+  }
+  // ---- guest side
+  function fromHost(m) {
+    switch (m.k) {
+      case 'start': {
+        ensureDom();
+        const ps = m.ps.map((x, i) => ({ id: i, name: x.name, col: x.col, x: m.pos[i][0], y: m.pos[i][1], tx: m.pos[i][0], ty: m.pos[i][1], face: 1, alive: true, role: 'crew', bot: false, tasks: [], cd: 10, seen: {}, susp: {}, vent: null, anim: Math.random() * 6, moving: false }));
+        const me0 = ps[m.i]; me0.role = m.role; me0.tasks = m.tasks.map((id) => ({ id, done: false })); m.mates.forEach((k) => { ps[k].role = 'imp'; });
+        G = { online: true, host: false, nImp: m.ni, phase: 'intro', t: 0, introT: 3.2, players: ps, me: me0, bodies: [], chat: [], m: null, task: null, lights: 0, overload: null, sabCd: 40, tasksTotal: m.tt, tasksDone: 0, result: null, meetings: 0, kills: 0, auto: false, intel: 0, toasts: [], emergLeft: 1, sabMenu: false, posT: 0 };
+        showPanel(null); closeTask(); renderChat(); break;
+      }
+      case 's': if (G && G.online && !G.host) applySnap(m); break;
+      case 'me': if (G && G.online && !G.host) { const me0 = G.me; me0.cd = m.cd; m.td.forEach((d, i) => { if (me0.tasks[i]) me0.tasks[i].done = !!d || me0.tasks[i].done; }); G.emergLeft = m.em; } break;
+      case 'chat': if (G) { G.chat.push({ name: m.name, col: m.col, text: m.text }); tone(520, 0.05, 'triangle', 0.03); renderChat(); } break;
+      case 'toast': if (G) toast(m.t, m.s); break;
+      case 'dead': if (G) { toast('You were caught by a Fox! You are a ghost now.', 4); closeTask(); } break;
+      case 'end': if (G && G.phase !== 'end') {
+        G.phase = 'end'; closeTask(); m.roles.forEach((r, i) => { G.players[i].role = r; G.players[i].alive = m.alive[i] === 1; G.players[i].ejected = m.alive[i] === 2; });
+        G.tasksDone = m.td; G.meetings = m.mt; G.kills = m.kl;
+        const meImp = G.me.role === 'imp', won = (m.winner === 'imp') === meImp, gain = won ? (meImp ? 35 : 25) : 6;
+        G.result = { winner: m.winner, reason: m.reason, gain, won }; if (opts && opts.award) opts.award(gain); showEnd();
+      } break;
+      default: break;
+    }
+  }
+  function applySnap(m) {
+    const me0 = G.me, was = me0.alive, prevPh = G.phase;
+    G.phase = m.ph; G.introT = m.it; G.lights = m.li; G.overload = m.ov ? { t: m.ov[0], fixed: [!!m.ov[1], !!m.ov[2]] } : null; G.tasksDone = m.td; G.sabCd = m.sc; G.meetings = m.mt; G.kills = m.kl;
+    G.noise = m.nz ? { x: m.nz[0], y: m.nz[1] } : null;
+    m.pl.forEach((a, i) => {
+      const q = G.players[i]; if (!q) return;
+      q.alive = !!a[3]; q.vent = a[4] < 0 ? null : a[4]; q.ejected = !!a[6]; q.invis = !!a[7];
+      if (q === me0) {
+        const far = Math.hypot(a[0] - q.x, a[1] - q.y);
+        if (G.phase !== 'play' || q.vent != null || far > 160 || prevPh !== G.phase) { q.x = a[0]; q.y = a[1]; }
+      } else { q.tx = a[0]; q.ty = a[1]; q.face = a[2]; q.moving = !!a[5]; if (Math.hypot(a[0] - q.x, a[1] - q.y) > 300 || prevPh !== G.phase) { q.x = a[0]; q.y = a[1]; } }
+    });
+    if (was && !me0.alive) closeTask();
+    G.bodies = m.b.map((b) => ({ id: b[0], x: b[1], y: b[2], rep: !!b[3], col: G.players[b[0]] ? G.players[b[0]].col : '#fff', name: G.players[b[0]] ? G.players[b[0]].name : '' }));
+    if (m.m) {
+      const first = !G.m;
+      if (first) { G.task = null; closeTask(); G.sabMenu = false; G.chat = []; G.m = { by: G.players[m.m.by], body: m.m.bd >= 0 ? { id: m.m.bd } : null, stage: 'discuss', t: 0, dur: m.m.dur, vdur: m.m.vd, votes: {}, lines: [], vAt: {}, res: null, rt: 0, emerg: !!m.m.em, mine: undefined }; renderChat(); }
+      const g = G.m, stageChanged = g.stage !== m.m.s, nv = m.m.v.length;
+      g.stage = m.m.s; g.t = m.m.t; g.rt = m.m.rt;
+      const votes = {}; m.m.v.forEach((id) => { votes[id] = true; }); if (g.mine !== undefined) votes[me0.id] = g.mine;
+      if (m.m.res) { g.res = { ej: m.m.res.ej >= 0 ? G.players[m.m.res.ej] : null, tally: m.m.res.tally }; }
+      const changed = first || stageChanged || nv !== g.nv; g.votes = votes; g.nv = nv;
+      if (changed) renderMeeting();
+    } else if (G.m) { G.m = null; showPanel(null); }
+  }
+  function guestStep(dt) {
+    const g = G, me0 = g.me;
+    if (g.phase === 'intro') g.introT -= dt;
+    for (const q of g.players) { q.anim += dt; if (q !== me0 && q.tx != null) { const k = Math.min(1, dt * 12); q.x += (q.tx - q.x) * k; q.y += (q.ty - q.y) * k; } }
+    me0.cd -= dt; me0.moving = false;
+    if (g.phase === 'meeting' && g.m) g.m.t += dt;
+    let ax = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0) + joy.x, ay = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0) + joy.y;
+    const mm = Math.hypot(ax, ay); if (mm > 1) { ax /= mm; ay /= mm; }
+    if (g.phase === 'play' && !g.task && me0.vent == null && mm > 0.05) {
+      const sp = SPEED * (owner() && ownS.speed ? 2 : 1);
+      if (owner() && ownS.noclip) { me0.x += ax * sp * dt; me0.y += ay * sp * dt; if (ax) me0.face = ax > 0 ? 1 : -1; } else moveEnt(me0, ax * sp * dt, ay * sp * dt);
+      me0.moving = true;
+    }
+    me0.invis = owner() && ownS.invis;
+    g.posT -= dt; if (g.posT <= 0 && g.phase === 'play') { g.posT = 0.066; room.send({ k: 'pos', x: Math.round(me0.x), y: Math.round(me0.y), f: me0.face, mv: me0.moving ? 1 : 0, iv: me0.invis ? 1 : 0, nc: owner() && ownS.noclip ? 1 : 0 }); }
+  }
+  // ---- owner tray
+  function buildOwn() {
+    const box = dom && $('crown'); if (!box) return; const show = !!G && G.phase !== 'end' && owner(); box.style.display = show ? 'flex' : 'none'; if (!show || box.dataset.on) return; box.dataset.on = '1';
+    box.innerHTML = '<div style="font:800 11px system-ui;opacity:.85">OWNER</div>';
+    const host = () => !G.online || G.host;
+    const defs = [['xray', '👁 X-ray (see Foxes)'], ['invis', '🫥 Invisible'], ['speed', '💨 Speed x2'], ['noclip', '👻 Walk through walls'], ['nocd', '🔪 No kill cooldown'], ['tasks', '✅ Finish my tasks', 1], ['noise', '📣 Noise from elsewhere', 1], ['meet', '🚨 Force a meeting', 1, 1], ['body', '💀 Drop a fake body', 1, 1], ['freeze', '🧊 Freeze bots 5s', 1, 1], ['win', '🏆 Win the game', 1, 1]];
+    for (const [k, l, one, hostOnly] of defs) {
+      const b = document.createElement('button'); b.textContent = l; if (!one && ownS[k]) b.className = 'on';
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      b.addEventListener('click', (e) => {
+        e.stopPropagation(); if (!G) return; const me0 = G.me;
+        if (!one) { ownS[k] = !ownS[k]; b.className = ownS[k] ? 'on' : ''; return; }
+        if (hostOnly && !host()) { toast('Only works when you are the host (or offline).', 2); return; }
+        if (k === 'tasks') { if (me0.role !== 'crew') return toast('Foxes only pretend to do tasks.', 2); for (const t of me0.tasks) if (!t.done) { t.done = true; if (host()) G.tasksDone++; else room.send({ k: 'task', id: t.id, force: 1 }); } if (host()) checkWin(); }
+        else if (k === 'noise') { if (host()) makeNoise(); else room.send({ k: 'noise' }); }
+        else if (k === 'meet') { if (G.phase === 'play') startMeeting(me0, null); }
+        else if (k === 'body') { G.bodies.push({ id: me0.id, x: me0.x + 20, y: me0.y, col: me0.col, name: 'Fake', rep: false, t: G.t }); }
+        else if (k === 'freeze') { for (const q of G.players) if (q.bot) q.frz = 5; toast('Bots frozen for 5 seconds', 2); }
+        else if (k === 'win') { G.forceW = me0.role === 'imp' ? 'imp' : 'crew'; checkWin(); }
+      });
+      box.appendChild(b);
+    }
   }
 
   // ------------------------------------------------------------------ lifecycle
@@ -630,13 +843,13 @@
   }
   function frame(now) {
     raf = 0; if (!isOpen) return; const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (G) { if (G.phase === 'meeting' && G.m && G.m.stage !== 'result' && Math.floor(G.m.t * 2) !== Math.floor((G.m.t - dt) * 2)) renderMeeting(); step(dt); render(); }
+    if (G) { if (G.phase === 'meeting' && G.m && G.m.stage !== 'result' && Math.floor(G.m.t * 2) !== Math.floor((G.m.t - dt) * 2)) renderMeeting(); step(dt); if (G.online && G.host) hostNetStep(dt); render(); }
     raf = requestAnimationFrame(frame);
   }
   function open() {
-    ensureDom(); isOpen = true; dom.root.style.display = 'block'; G = null; showPanel('lobby'); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
+    ensureDom(); setupRoom(); isOpen = true; dom.root.style.display = 'block'; G = null; showPanel('lobby'); if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
   }
-  function close() { isOpen = false; if (raf) cancelAnimationFrame(raf); raf = 0; G = null; if (dom) dom.root.style.display = 'none'; if (opts && opts.onClose) opts.onClose(); }
+  function close() { if (room) room.leave(); isOpen = false; if (raf) cancelAnimationFrame(raf); raf = 0; G = null; if (dom) dom.root.style.display = 'none'; if (opts && opts.onClose) opts.onClose(); }
   function init(o) { opts = o || {}; }
 
   // headless-ish simulation: every seat (including yours) is a bot; the meeting UI is bypassed by the bots' own votes
