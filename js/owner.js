@@ -31,11 +31,13 @@
   }
   try { cfg.locked = JSON.parse(get(LS.locked) || '[]').filter((c) => LOCKABLE.includes(c)); } catch (e) { cfg.locked = []; }
 
-  let myLocks = [];
+  let myLocks = [], myRank = '';
   const authed = () => !!get(LS.pin) && !!(A && A.save().cheats && A.save().cheats.owner);
   const isLocked = (c) => cfg.locked.includes(c);
   const blocks = (c) => (isLocked(c) || myLocks.includes(c)) && !authed();   // a locked code is dead for everybody except the PIN-verified owner
   const isOwner = () => authed();
+  const setRank = (r) => { myRank = r || ''; syncBtn(); };
+  const rankName = (r) => (r === 'owner' ? 'OWNER' : r === 'headadmin' ? 'HEADADMIN' : r === 'admin' ? 'ADMIN' : '');
   const setMyLocks = (l) => { myLocks = (l || []).filter((c) => LOCKABLE.includes(c)); if (A) A.applyCodes(); };
 
   // ------------------------------------------------------------------ troll / power effects (on this device; the owner can aim them at other players)
@@ -66,6 +68,7 @@
   const css = document.createElement('style');
   css.textContent = `
   #ownBtn{position:fixed;top:max(6px,env(safe-area-inset-top));right:6px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#d6192b;color:#fff;font:800 9px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
+  #headBtn{position:fixed;top:max(6px,env(safe-area-inset-top));right:6px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#e8780a;color:#fff;font:800 9px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
   #ownBtn:active{transform:scale(.93)}
   #ownerModal{z-index:2147483001}
   .ofx-flip canvas,.ofx-flip #h3,.ofx-flip #ch,.ofx-flip #crew{transform:rotate(180deg)}
@@ -91,7 +94,8 @@
   document.head.appendChild(css);
   const ob = document.createElement('button'); ob.id = 'ownBtn'; ob.textContent = 'ADMIN'; ob.title = 'Owner panel'; ob.setAttribute('aria-label', 'Owner panel');
   ob.addEventListener('click', () => open()); document.body.appendChild(ob);
-  const syncBtn = () => { ob.style.display = authed() ? 'block' : 'none'; };
+  const hb = document.createElement('button'); hb.id = 'headBtn'; hb.textContent = 'HEAD'; hb.title = 'Head admin panel'; hb.addEventListener('click', () => open('head')); document.body.appendChild(hb);
+  const syncBtn = () => { ob.style.display = authed() ? 'block' : 'none'; hb.style.display = !authed() && myRank === 'headadmin' ? 'block' : 'none'; };
   setInterval(() => {
     const now = Date.now(); let ch = false; for (const k of Object.keys(fx.until)) if (fx.until[k] < now) { delete fx.on[k]; delete fx.until[k]; ch = true; } if (ch) recalc();
     if (fx.autohonk && A && A.ctl) A.ctl.honk(); if (fx.breadrain && A) { A.save().bread += 7; A.refreshMenu(); }
@@ -177,22 +181,24 @@
     return 'Sent to ' + (who === 'all' ? 'everyone' : r.n + ' player' + (r.n === 1 ? '' : 's')) + '. They get it within ~20 seconds.';
   }
   const ago = (t) => { if (!t) return 'never'; const m = Math.round((Date.now() - t) / 60000); return m < 5 ? 'online' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
-  function open() {
+  function open(mode) {
     if (box) box.remove();
-    if (!authed()) return gate();
+    const head = !authed() && mode === 'head' && myRank === 'headadmin';
+    if (!authed() && !head) return gate();
+    if (head) { who = 'me'; if (['players', 'ban', 'locks', 'friend'].includes(tab)) tab = 'tools'; }
     const s = A.save();
     box = document.createElement('div'); box.className = 'overlay'; box.id = 'ownerModal';
     const tgtTxt = who === 'me' ? 'just me' : who === 'all' ? 'EVERYONE' : sel.size + ' selected';
-    box.innerHTML = CARD + '<h2 style="text-align:center;margin:0">👑 Owner panel</h2>' +
-      '<div style="text-align:center;font-size:12px;margin:2px 0 6px">PIN-verified owner. Commands apply to: <b id="ownTgt">' + tgtTxt + '</b></div>' +
+    box.innerHTML = CARD + '<h2 style="text-align:center;margin:0">' + (head ? '🧡 Head admin panel' : '👑 Owner panel') + '</h2>' +
+      '<div style="text-align:center;font-size:12px;margin:2px 0 6px">' + (head ? 'Head admin: stronger than admin, these tools only affect you.' : 'PIN-verified owner. Commands apply to: <b id="ownTgt">' + tgtTxt + '</b>') + '</div>' +
       '<div class="row" style="justify-content:center;gap:4px;margin-bottom:4px" id="ownTabs"></div>' +
       '<div id="ownWho" style="display:flex;gap:10px;justify-content:center;font-size:13px;margin:2px 0 6px"></div><div id="ownBody"></div>' +
       '<div id="ownMsg" style="text-align:center;font-weight:700;min-height:20px;margin-top:6px;white-space:pre-wrap"></div>' +
       '<div class="row" style="margin-top:6px;justify-content:center"><button class="big small-btn ghost" id="ownList">All codes</button><button class="big small-btn ghost" id="ownResign">Lock &amp; sign out</button><button class="big small-btn ghost" id="ownClose">Close</button></div></div>';
     document.body.appendChild(box);
-    const tabs = [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['players', '👥 Players'], ['ban', '⛔ Bans'], ['locks', '🔒 Locks']];
-    for (const [id, l] of tabs) { const b = document.createElement('button'); b.className = tab === id ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = l; b.addEventListener('click', () => { tab = id; open(); }); el('ownTabs').appendChild(b); }
-    if (['tools', 'troll', 'pranks'].includes(tab)) {
+    const tabs = head ? [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks']] : [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['players', '👥 Players'], ['ban', '⛔ Bans'], ['locks', '🔒 Locks'], ['friend', '🤝 Friend code']];
+    for (const [id, l] of tabs) { const b = document.createElement('button'); b.className = tab === id ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = l; b.addEventListener('click', () => { tab = id; open(mode); }); el('ownTabs').appendChild(b); }
+    if (!head && ['tools', 'troll', 'pranks'].includes(tab)) {
       for (const [v, l] of [['me', 'Just me'], ['sel', 'Selected players (' + sel.size + ')'], ['all', 'Everyone']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownwho'; r.checked = who === v; r.addEventListener('change', () => { who = v; el('ownTgt').textContent = v === 'me' ? 'just me' : v === 'all' ? 'EVERYONE' : sel.size + ' selected'; }); lb.append(r, document.createTextNode(l)); el('ownWho').appendChild(lb); }
     }
     const body = el('ownBody'), grid = () => { const g = document.createElement('div'); g.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px'; body.appendChild(g); return g; };
@@ -217,7 +223,7 @@
       h4('Only for me'); g = grid();
       tb(g, 'Unlock all levels', () => { s.unlocked = A.levelCount(); s.allDone = true; say('All levels unlocked'); });
       tb(g, 'Own everything', () => { A.ownAll(); say('You own every item and skin'); });
-      tb(g, '🛡 God mode: ' + (s.cheats.god ? 'ON' : 'off'), () => { s.cheats.admin = true; s.cheats.god = !s.cheats.god; A.applyCodes(); open(); }, s.cheats.god);
+      tb(g, '🛡 God mode: ' + (s.cheats.god ? 'ON' : 'off'), () => { s.cheats.admin = true; s.cheats.god = !s.cheats.god; A.applyCodes(); open(mode); }, s.cheats.god);
       tb(g, '⚙ Admin console', () => { s.cheats.admin = true; A.applyCodes(); say('Admin console is on: use the ⚙ button in the menu.'); });
       tb(g, '🥚 Teleport to egg', () => { ctl.toEgg && ctl.toEgg(); close(); });
       tb(g, '💥 Kill all enemies', () => { ctl.killEnemies && ctl.killEnemies(); say('Enemies gone'); });
@@ -227,8 +233,8 @@
       h4('How long?'); let g = document.createElement('div'); g.style.cssText = 'display:flex;gap:10px;font-size:13px;flex-wrap:wrap'; body.appendChild(g);
       for (const [v, l] of [[30, '30 s'], [120, '2 min'], [600, '10 min'], [0, 'until cleared']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownDur'; r.checked = dur === v; r.addEventListener('change', () => { dur = v; }); lb.append(r, document.createTextNode(l)); g.appendChild(lb); }
       h4('Effects'); g = grid();
-      for (const d of FXD) tb(g, d[1], () => sendSay({ k: 'toggle', id: d[0], on: who !== 'me' || !fx.on[d[0]], dur }).then(() => { if (who === 'me') open(); }), who === 'me' && fx.on[d[0]]);
-      tb(g, '🧹 Reset all effects', () => sendSay({ k: 'resetfx' }).then(() => { if (who === 'me') open(); }));
+      for (const d of FXD) tb(g, d[1], () => sendSay({ k: 'toggle', id: d[0], on: who !== 'me' || !fx.on[d[0]], dur }).then(() => { if (who === 'me') open(mode); }), who === 'me' && fx.on[d[0]]);
+      tb(g, '🧹 Reset all effects', () => sendSay({ k: 'resetfx' }).then(() => { if (who === 'me') open(mode); }));
     } else if (tab === 'pranks') {
       const grp = {}; for (const p of root.Pranks.LIST) (grp[p.group] = grp[p.group] || []).push(p);
       for (const gname of Object.keys(grp)) { h4(gname); const g = grid(); for (const p of grp[gname]) tb(g, p.label, async () => { if (who === 'me') close(); await sendSay({ k: 'prank', id: p.id }); }); }
@@ -245,15 +251,21 @@
           row.appendChild(cb);
           let thumb = null; try { thumb = A.thumb(u.avatar, 44); } catch (e) { /* ignore */ } if (thumb) row.appendChild(thumb);
           const t = document.createElement('div'); t.style.cssText = 'flex:1;min-width:0'; const online = Date.now() - u.seen < 300000;
-          t.innerHTML = '<b>' + esc(u.name) + '</b> <span style="color:' + (online ? '#1a9d3a' : '#888') + '">● ' + ago(u.seen) + (online && u.where ? ' · ' + esc(u.where) : '') + '</span>' + (u.ban && (!u.ban.until || u.ban.until > Date.now()) ? ' <span style="color:#c62835;font-weight:800">BANNED</span>' : '') + (u.locks && u.locks.length ? '<br><span style="font-size:11px;opacity:.7">locked: ' + esc(u.locks.join(', ')) + '</span>' : '');
+          t.innerHTML = '<b>' + esc(u.name) + '</b> ' + (rankName(u.rank) ? '<span style="background:' + (u.rank === 'owner' ? '#c9162b' : u.rank === 'headadmin' ? '#e8780a' : '#3a86ff') + ';color:#fff;border-radius:6px;padding:0 5px;font-size:10px;font-weight:800">' + rankName(u.rank) + '</span> ' : '') + '<span style="color:' + (online ? '#1a9d3a' : '#888') + '">● ' + ago(u.seen) + (online && u.where ? ' · ' + esc(u.where) : '') + '</span>' + (u.ban && (!u.ban.until || u.ban.until > Date.now()) ? ' <span style="color:#c62835;font-weight:800">BANNED</span>' : '') + (u.locks && u.locks.length ? '<br><span style="font-size:11px;opacity:.7">locked: ' + esc(u.locks.join(', ')) + '</span>' : '');
           row.appendChild(t);
           const mb = (lab, fn) => { const b = document.createElement('button'); b.className = 'sec'; b.style.cssText = 'font-size:11px;padding:3px 6px'; b.textContent = lab; b.addEventListener('click', async () => { try { await fn(); } catch (e) { say('Failed: ' + e.message, true); } }); row.appendChild(b); };
+          if (u.rank !== 'owner') { const sl = document.createElement('select'); sl.style.cssText = 'font-size:11px;padding:2px'; [['', 'no rank'], ['admin', 'admin'], ['headadmin', 'headadmin']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; if ((u.rank || '') === v) o.selected = true; sl.appendChild(o); }); sl.addEventListener('change', async () => { try { await own('acct-setrank', { targets: [u.name.toLowerCase()], rank: sl.value }); u.rank = sl.value; say(u.name + ' is now ' + (sl.value || 'unranked') + '.'); draw(); } catch (e) { say('Failed: ' + e.message, true); } }); row.appendChild(sl); }
           mb('🔑 reset', async () => { const np = root.prompt('New password for ' + u.name + ' (4+ characters):'); if (!np || np.length < 4) return; await own('acct-reset', { targets: [u.name.toLowerCase()], ph: await sha('wobble-acct-v1:' + u.name.toLowerCase() + ':' + np) }); say('Password for ' + u.name + ' reset.'); });
           mb('🗑', async () => { if (!root.confirm('Delete the account "' + u.name + '"?')) return; await own('acct-delete', { targets: [u.name.toLowerCase()] }); sel.delete(u.name.toLowerCase()); await loadUsers(); draw(); });
           box2.appendChild(row);
         }
       };
       loadUsers().then(draw);
+    } else if (tab === 'friend') {
+      body.innerHTML = '<div style="font-size:13px;margin:4px 0">🤝 The <b>friend code</b> makes whoever types it in the Code box a <b>head admin</b>: stronger than the admin code, weaker than akif (only their own screen and goose, no bans, locks or targeting). Only a hash of the code is stored on the server.</div>' +
+        '<div style="display:flex;gap:6px"><input id="frCode" maxlength="40" placeholder="choose the friend code" autocomplete="off" style="flex:1;padding:8px;border-radius:8px;border:2px solid #2a2f3a;font-size:16px"><button class="big small-btn" id="frSave">Set</button></div><div class="row" style="margin-top:6px"><button class="big small-btn ghost" id="frClear">Turn the friend code off</button></div>';
+      el('frSave').addEventListener('click', async () => { const v = el('frCode').value.trim().toLowerCase(); if (v.length < 4) return say('Use at least 4 characters.', true); try { await own('cfg-friend', { h: await sha('wobble-friend-v1:' + v) }); say('🤝 Friend code saved. Give it to your friends: "' + v + '"'); } catch (e) { say('Could not save (is the worker updated?).', true); } });
+      el('frClear').addEventListener('click', async () => { try { await own('cfg-friend', { h: '' }); say('Friend code is off.'); } catch (e) { say('Could not reach the server.', true); } });
     } else if (tab === 'ban') {
       const names = () => [...sel];
       body.innerHTML = '<div style="font-size:13px;margin-bottom:6px">Ban the players you ticked on the Players tab (' + sel.size + ' selected).</div>' +
@@ -293,5 +305,5 @@
     el('ownList').addEventListener('click', () => say('All codes:\n' + Object.keys(A.CHEATS).map((k) => k + ' = ' + A.CHEATS[k]).concat(Object.keys(A.GIFTS).map((k) => k + ' = ' + A.GIFTS[k] + ' (one-time)'), ['codes = your active codes', 'sync = save sync + lock', 'akif = this panel']).join('\n')));
   }
   function init(a) { A = a; refresh(); verifyStored(); setInterval(refresh, 600000); syncBtn(); recalc(); }
-  root.Owner = { init, open, become, isLocked, blocks, isOwner, authed, refresh, LOCKABLE, fx, call, setMyLocks, receive, hashPin };
+  root.Owner = { setRank, pinHash: () => get(LS.pin), init, open, become, isLocked, blocks, isOwner, authed, refresh, LOCKABLE, fx, call, setMyLocks, receive, hashPin };
 })(window);

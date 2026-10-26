@@ -37,6 +37,8 @@ export default {
       if (body.op === 'cfg-pin') { if (cur || !pin) return json({ error: 'pin' }, 403); await env.SYNC.put('cfg:pin', pin); return json({ ok: true }); }
       if (!cur || cur !== pin) return json({ error: 'bad pin' }, 403);
       if (body.op === 'cfg-auth') return json({ ok: true });
+      if (body.op === 'cfg-friend') { if (body.h === '') { await env.SYNC.delete('cfg:friend'); return json({ ok: true }); } if (!hex(body.h)) return json({ error: 'bad hash' }, 400); await env.SYNC.put('cfg:friend', body.h); return json({ ok: true }); }
+      if (body.op === 'cfg-get-friend') return json({ set: !!(await env.SYNC.get('cfg:friend')) });
       if (body.op === 'cfg-set') {
         const list = (Array.isArray(body.locked) ? body.locked : []).filter((c) => typeof c === 'string' && /^[a-z]{2,10}$/.test(c) && !['sync', 'codes', 'akif', 'rainbow', 'disco', 'zoom'].includes(c)).slice(0, 30);
         await env.SYNC.put('cfg:locked', JSON.stringify(list)); return json({ ok: true });
@@ -54,16 +56,16 @@ export default {
       const put = (n, u) => env.SYNC.put('u:' + n, JSON.stringify(u));
       const index = async () => JSON.parse((await env.SYNC.get('idx:users')) || '[]');
       const small = (a) => { const t = JSON.stringify(a || null); return t && t.length < 6000 ? a : null; };
-      const view = (u) => ({ ban: u.ban && (!u.ban.until || u.ban.until > now) ? u.ban : null, locks: u.locks || [], note: u.note || '' });
+      const view = (u) => ({ rank: u.rank || '', ban: u.ban && (!u.ban.until || u.ban.until > now) ? u.ban : null, locks: u.locks || [], note: u.note || '' });
       // ---- owner operations (need the owner PIN hash)
-      const ownerOps = ['acct-list', 'acct-fx', 'acct-ban', 'acct-unban', 'acct-locks', 'acct-reset', 'acct-delete'];
+      const ownerOps = ['acct-list', 'acct-fx', 'acct-ban', 'acct-unban', 'acct-locks', 'acct-reset', 'acct-delete', 'acct-setrank'];
       if (ownerOps.includes(body.op)) {
         const cur = await env.SYNC.get('cfg:pin');
         if (!cur || !hex(body.pin) || cur !== body.pin) return json({ error: 'bad pin' }, 403);
         const names = await index();
         if (body.op === 'acct-list') {
           const out = [];
-          for (const n of names.slice(0, 300)) { const u = await get(n); if (u) out.push({ name: u.name, avatar: u.avatar || null, seen: u.seen || 0, where: u.where || '', created: u.created || 0, ban: u.ban || null, locks: u.locks || [] }); }
+          for (const n of names.slice(0, 300)) { const u = await get(n); if (u) out.push({ name: u.name, avatar: u.avatar || null, seen: u.seen || 0, where: u.where || '', created: u.created || 0, rank: u.rank || '', ban: u.ban || null, locks: u.locks || [] }); }
           return json({ users: out });
         }
         const targets = body.targets === '*' ? names : (Array.isArray(body.targets) ? body.targets : []).map((t) => String(t).toLowerCase()).filter((t) => names.includes(t));
@@ -72,6 +74,7 @@ export default {
           for (const t of targets.slice(0, 120)) { const u = await get(t); if (!u) continue; u.fx = (u.fx || []).concat([{ ...fx, at: now }]).slice(-12); await put(t, u); }
           return json({ ok: true, n: targets.length });
         }
+        if (body.op === 'acct-setrank') { const r = ['', 'admin', 'headadmin'].includes(body.rank) ? body.rank : null; if (r === null) return json({ error: 'bad rank' }, 400); for (const t of targets) { const u = await get(t); if (!u) continue; u.rank = r; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-ban') { const until = Number(body.until) || 0; for (const t of targets) { const u = await get(t); if (!u) continue; u.ban = { until, reason: String(body.reason || 'Banned').slice(0, 120), at: now }; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-unban') { for (const t of targets) { const u = await get(t); if (!u) continue; u.ban = null; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-locks') { const list = (Array.isArray(body.locked) ? body.locked : []).filter((c) => typeof c === 'string' && /^[a-z]{2,10}$/.test(c) && !['sync', 'codes', 'akif', 'rainbow', 'disco', 'zoom'].includes(c)).slice(0, 30); for (const t of targets) { const u = await get(t); if (!u) continue; u.locks = list; await put(t, u); } return json({ ok: true }); }
@@ -89,8 +92,16 @@ export default {
       }
       const u = await get(id);
       if (!u || u.ph !== body.ph) return json({ error: 'wrong' }, 403);
+      if (body.op === 'acct-friend') {   // a friend code makes you head admin (the owner picks the code; only its hash is stored)
+        const fc = await env.SYNC.get('cfg:friend'); if (!fc || !hex(body.h) || body.h !== fc) return json({ error: 'wrong' }, 403);
+        if (u.rank !== 'owner') { u.rank = 'headadmin'; await put(id, u); } return json({ ok: true, rank: u.rank });
+      }
       if (body.op === 'acct-login' || body.op === 'acct-ping') {
-        const v = view(u); let dirty = false;
+        let dirty = false;
+        const cp = await env.SYNC.get('cfg:pin');
+        if (cp && hex(body.opin) && body.opin === cp && u.rank !== 'owner') { u.rank = 'owner'; dirty = true; }
+        else if (body.rank === 'admin' && !u.rank) { u.rank = 'admin'; dirty = true; }
+        const v = view(u);
         if (u.ban && !v.ban) { u.ban = null; dirty = true; }
         const av = small(body.avatar);
         if (body.op === 'acct-login' || (av && JSON.stringify(av) !== JSON.stringify(u.avatar))) { u.avatar = av || u.avatar; dirty = true; }

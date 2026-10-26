@@ -24,13 +24,13 @@
 
   function applyState(r) {
     if (!r) return;
-    if (root.Owner) root.Owner.setMyLocks(r.locks || []);
+    if (root.Owner) { root.Owner.setMyLocks(r.locks || []); root.Owner.setRank(r.rank || ''); }
     if (r.ban) showBan(r.ban); else hideBan();
     if (r.fx && r.fx.length && root.Owner) r.fx.forEach((f) => root.Owner.receive(f));
   }
   async function ping() {
     if (!acct || guest) return;
-    try { applyState(await call({ op: 'acct-ping', name: acct.name, ph: acct.ph, avatar: look(), where: A && A.where ? A.where() : '' })); }
+    try { applyState(await call({ op: 'acct-ping', name: acct.name, ph: acct.ph, avatar: look(), where: A && A.where ? A.where() : '', rank: A && A.rank ? A.rank() : '', opin: root.Owner && root.Owner.pinHash() })); }
     catch (e) { if (e.message === 'badpin') { signOut(true); } }
   }
   function startBeat() { clearInterval(timer); ping(); timer = setInterval(ping, 20000); }
@@ -105,6 +105,10 @@
       } catch (e) { say(e.message === 'badpin' ? 'Current password is wrong.' : 'Could not reach the server.', true); }
     });
   }
+  async function friend(code) {   // a friend code makes you head admin (the server checks it)
+    if (!acct || guest) return false;
+    try { const h = await sha('wobble-friend-v1:' + String(code).trim().toLowerCase()); const r = await call({ op: 'acct-friend', name: acct.name, ph: acct.ph, h }); if (root.Owner) root.Owner.setRank(r.rank); return true; } catch (e) { return false; }
+  }
   function init(a) { A = a; if (acct) { startBeat(); if (A.onReady) A.onReady(acct.name); } else showGate(); }
-  root.Account = { init, open, name: () => (acct ? acct.name : ''), signedIn: () => !!acct || guest, ping };
+  root.Account = { friend, init, open, name: () => (acct ? acct.name : ''), signedIn: () => !!acct || guest, ping };
 })(window);

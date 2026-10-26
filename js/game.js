@@ -1322,7 +1322,13 @@
       window.Sync.open(syncCtx);
     } else if (c === 'codes') {
       renderCodes(); $('codeList').classList.remove('hidden'); say(activeCodes().length ? 'Your active codes:' : 'You have no active codes yet.');
-    } else { say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
+    } else {
+      say('Checking…');
+      window.Account.friend(c).then((ok) => {
+        if (ok) { snd.egg(); say('🧡 Head admin unlocked! Use the orange HEAD button (top right).', true); }
+        else { say('Hmm, that is not a code.', false); snd.no(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
+      });
+    }
     inp.value = '';
   }
   $('codeShow').addEventListener('click', () => { const l = $('codeList'); const show = l.classList.contains('hidden'); l.classList.toggle('hidden', !show); renderCodes(); $('codeShow').textContent = show ? 'Hide codes' : 'Active codes'; });
@@ -1352,7 +1358,7 @@
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
   window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, thumb: avatarThumb, ctl: { toMenu: () => { try { showMenu(); } catch (e) { /* ignore */ } }, applyFx: () => applyFxLive(), honk: () => { input.honkQueue = true; }, win: () => { if (state === 'play') finishLevel(); else toast('Start a level first.', 2); }, respawn: () => { if (goose && state === 'play') respawn(); }, refill: () => { if (goose) goose.stamina = 99; }, killEnemies: () => { enemies = []; }, toEgg: () => { if (goose && level && state === 'play') { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } }, randTp: () => { if (goose && level && state === 'play') { const dx = (Math.random() - 0.5) * 900, dy = -Math.random() * 300; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } } }, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
-  window.Account.init({ look: () => ({ skin: save.skin, equip: save.equip, tint: save.tint }), thumb: avatarThumb, where: () => (document.getElementById('h3') && document.getElementById('h3').style.display !== 'none' ? '3D hide' : document.getElementById('crew') && document.getElementById('crew').style.display !== 'none' ? 'Among Us' : document.getElementById('ch') && document.getElementById('ch').style.display !== 'none' ? 'Chameleon' : state === 'play' ? 'level ' + (levelIdx + 1) : state === 'mg' ? 'minigame' : 'menu') });
+  window.Account.init({ rank: () => (save.cheats.admin ? 'admin' : ''), look: () => ({ skin: save.skin, equip: save.equip, tint: save.tint }), thumb: avatarThumb, where: () => (document.getElementById('h3') && document.getElementById('h3').style.display !== 'none' ? '3D hide' : document.getElementById('crew') && document.getElementById('crew').style.display !== 'none' ? 'Among Us' : document.getElementById('ch') && document.getElementById('ch').style.display !== 'none' ? 'Chameleon' : state === 'play' ? 'level ' + (levelIdx + 1) : state === 'mg' ? 'minigame' : 'menu') });
   $('accBtn').addEventListener('click', () => { audio(); window.Account.open(); });
   $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
   // extra game modes: each is a full-screen overlay module with init({save, Skins, award}) and open()
