@@ -92,11 +92,16 @@ You know absolutely everything about the game from THE GUIDE below, and you can 
 You may also act for the player. Reply ONLY as JSON on one line: {"say":"what you tell them","do":[...]} where "do" is optional and each item is one of:
  {"act":"open","what":"shop|codes|multiplayer|hide3d|chameleon|crew|battle|minigames|account"}  (clicks that main-menu button; only works from the main menu)
  {"act":"chungas","cmd":"follow|stay|come|go|egg|jump|honk|dance","dx":number}  (ONLY if you are Chungas: you physically control yourself in the level. go walks dx pixels (negative = left), egg runs to the golden egg, come teleports to the player. You can chain up to 3.)
- {"act":"admin","do":"give","item":"item or skin name"} | {"act":"admin","do":"code","code":"rainbow","on":true} | {"act":"admin","do":"bread","n":number} | {"act":"admin","do":"kick","who":"P2"} | {"act":"admin","do":"say","text":"chat message"}  (ONLY Chungas, and ONLY when the screen state says yourRank is owner = deputy owner (everything), or headadmin/admin = head admin (items, fun codes, up to 500 bread, kick, say). If yourRank is empty, politely refuse. Never ban, reset passwords, delete anything, change ranks or write anything rude; just refuse those.)
+ {"act":"admin","do":"give","item":"item or skin name"} | {"act":"admin","do":"code","code":"rainbow","on":true} | {"act":"admin","do":"bread","n":number} | {"act":"admin","do":"kick","who":"P2"} | {"act":"admin","do":"say","text":"chat message"} | {"act":"admin","do":"tweak","key":"gravity|speed|neck|hue|tint|tintA|title|rain","value":...} (customise the game: gravity 0.5-1.6, speed 0.6-1.8, neck 0.6-1.8, hue 0-360, tint "#rrggbb", tintA 0-0.3 tint strength, title up to 24 characters, rain one of 🍞🪿⭐❄️🌸🎈 or "") | {"act":"admin","do":"reset"} (resets all customisations) | {"act":"admin","do":"undo"}. A second AI, the Guard, reviews every one of these before it runs and can say no; hard limits also apply. Make only ONE small change per request unless asked  (ONLY Chungas, and ONLY when the screen state says yourRank is owner = deputy owner (everything), or headadmin/admin = head admin (items, fun codes, up to 500 bread, kick, say). If yourRank is empty, politely refuse. Never ban, reset passwords, delete anything, change ranks or write anything rude; just refuse those.)
  {"act":"point","id":"buttonId"}  (highlights a visible button, use an id from the button list; do not include the #)
 If you are Chungas the player is giving you orders: obey them with "do" actions and say so in character; if the screen shows you are not in a platformer level, say you can only play in levels (normal, bonus, mega, deep sea). Only add "do" when it truly helps or the player asked you to do/show something.`;
   const clean = (t) => { t = String(t || '').trim(); const m = t.match(/\{[\s\S]*\}/); if (m) { try { const j = JSON.parse(m[0]); if (j && typeof j.say === 'string') return j; } catch (e) { /* fall through */ } } return { say: t.replace(/^```(?:json)?|```$/g, '').trim() || '…' }; };
 
+  // plain call to the worker AI (used by the Guard); returns the model's text
+  async function raw(body) {
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 20000);
+    try { const r = await fetch(url(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal }); if (!r.ok) throw new Error('http' + r.status); const j = await r.json(); if (!j.text) throw new Error('empty'); return j.text; } finally { clearTimeout(t); }
+  }
   async function ask(who, q) {
     const kb = await loadKB();
     const screen = describeScreen(), img = S.look ? snapshot() : '';
@@ -134,7 +139,7 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
       if (!it) continue;
       if (it.act === 'open' && OPEN[it.what]) { const b = $(OPEN[it.what]); if (b && visible(b)) { document.querySelectorAll('.hlpPoint').forEach((e) => e.remove()); b.click(); notes.push('opened ' + it.what); } else notes.push("couldn't open " + it.what + " from here (go to the main menu first)"); }
       else if (it.act === 'chungas' && S.here.chungas && root.Chungas) { notes.push(root.Chungas.command(it) ? 'Chungas: ' + (it.cmd || '') : "Chungas can't do that"); }
-      else if (it.act === 'admin' && S.here.chungas && root.Chungas) { notes.push('Chungas: ' + root.Chungas.admin(it)); }
+      else if (it.act === 'admin' && S.here.chungas && root.Chungas) { const who = S.active; root.Chungas.guarded(it, S.lastQ).then((m) => addMsg(who, 'note', '(Chungas: ' + m + ')')); notes.push('checking with the Guard…'); }
       else if (it.act === 'point' && it.id) { if (point(it.id)) notes.push('pointing at it'); }
     }
     return notes;
@@ -243,7 +248,7 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
   }
   async function send() {
     const n = S.active, q = ui.inp.value.trim(); if (!n || !q || S.busy) return;
-    ui.inp.value = ''; addMsg(n, 'me', q); S.busy = true; render();
+    ui.inp.value = ''; S.lastQ = q; addMsg(n, 'me', q); S.busy = true; render();
     let res;
     try { res = await ask(n, q); }
     catch (e) {
@@ -251,7 +256,8 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
       res = { say: await offline(q), off: why };
     }
     S.ai = res.off ? 'offline (' + res.off + ')' : 'live AI';
-    if (n === 'chungas' && res.off && root.Chungas) res.do = root.Chungas.parse(q).map((c) => Object.assign({ act: 'chungas' }, c));
+    if (n === 'chungas' && res.off && root.Chungas) res.do = root.Chungas.parse(q).map((c) => Object.assign({ act: 'chungas' }, c))
+    if (n === 'chungas' && res.off) { if (/reset.*(custom|tweak|change)/i.test(q)) res.do = (res.do || []).concat([{ act: 'admin', do: 'reset' }]); else if (/\bundo\b/i.test(q)) res.do = (res.do || []).concat([{ act: 'admin', do: 'undo' }]); }
     S.busy = false;
     if (!S.here[n]) return;
     addMsg(n, 'bot', res.say || '…');
@@ -259,5 +265,5 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
     render();
   }
   function init(c) { cfg = Object.assign(cfg, c || {}); build(); }
-  root.Helpers = { init, summon, dismiss, ask: (t) => { if (S.active) { ui.inp.value = t; return send(); } }, _state: S, _describe: describeScreen, _clean: clean, NAMES };
+  root.Helpers = { raw, init, summon, dismiss, ask: (t) => { if (S.active) { ui.inp.value = t; return send(); } }, _state: S, _describe: describeScreen, _clean: clean, NAMES };
 })(window);
