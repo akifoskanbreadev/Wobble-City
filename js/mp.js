@@ -122,6 +122,7 @@
       case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {}, ready: false }; sendRoster(); } break;
       case 'ready': if (isHost && roster[from]) { roster[from].ready = !!m.v; sendRoster(); } break;
       case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {}, ready: !!r.ready }; }); if (m.sel) sel = m.sel; for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
+      case 'b': if (root.Battle) root.Battle.onNet(from, m.d); break;
       case 'p': if (isHost) { m.id = from; toAll(m, from); } setPose(m); break;
       case 'start': begin(m); break;
       case 'stop': if (M.mode) { stopMode(); api.showMenu(); api.toast('The host ended the game.', 3); } break;
@@ -153,6 +154,12 @@
       { name: 'Ice Rink', theme: 'snow', W: 2200, mu: 0.12, plats: [[250, 380, 220], [900, 300, 240], [1600, 380, 220]], pads: [] },
       { name: 'Pillar Park', theme: 'candy', W: 2600, pillars: [[500, 200], [900, 260], [1300, 200], [1700, 260], [2100, 200]], plats: [[250, 400, 160], [1100, 190, 200], [1950, 400, 160]], pads: [[100, G, 70], [2400, G, 70]] },
     ],
+    brawl: [
+      { name: 'Colosseum', theme: 'desert', W: 2400, plats: [[300, 400, 200], [1000, 330, 400], [1900, 400, 200], [700, 210, 200], [1500, 210, 200]], pads: [[1200, G, 70]] },
+      { name: 'Skybridge', theme: 'sunset', W: 2800, plats: [[250, 400, 220], [750, 320, 220], [1250, 240, 300], [1850, 320, 220], [2350, 400, 220], [1250, 120, 300]], pads: [[100, G, 70], [2600, G, 70]] },
+      { name: 'Pond Pit', theme: 'meadow', W: 2600, dip: [1000, 1600], plats: [[300, 400, 200], [1100, 360, 160], [1400, 360, 160], [2200, 400, 220], [1250, 230, 200]], pads: [[600, G, 70], [2000, G, 70]] },
+      { name: 'Frozen Ring', theme: 'snow', W: 2200, mu: 0.15, plats: [[250, 380, 220], [900, 290, 240], [1600, 380, 220], [1200, 170, 200]], pads: [] },
+    ],
     hide: [
       { name: 'Hide & Seek Yard', theme: 'sunset', W: 3200, plats: [[300, 400, 200], [760, 310, 200], [1250, 390, 240], [1700, 290, 200], [2150, 380, 220], [2600, 300, 200], [1350, 170, 260], [550, 190, 160]], pads: [[900, G, 70], [2300, G, 70]],
         bushes: [[520, G - 110, 150, 110], [1000, G - 110, 150, 110], [1500, G - 110, 150, 110], [1950, G - 110, 150, 110], [2450, G - 110, 150, 110], [2850, G - 110, 150, 110]] },
@@ -168,7 +175,7 @@
     const d = (MAPS[kind][map] || MAPS[kind][0]), W = d.W;
     const pts = d.dip ? [[-120, G], [d.dip[0], G], [d.dip[0] + 60, G + 130], [d.dip[1] - 60, G + 130], [d.dip[1], G], [W + 120, G]] : [[-120, G], [W + 120, G]];
     const lv = {
-      name: d.name, hint: '', theme: d.theme, spawn: [300 + (n > 1 ? (idx * (W - 700)) / (n - 1) : 0), G - 45], deathY: 1500,
+      name: d.name, W, hint: '', theme: d.theme, spawn: [300 + (n > 1 ? (idx * (W - 700)) / (n - 1) : 0), G - 45], deathY: 1500,
       terrain: [{ pts, mu: d.mu }],
       solids: [[-120, -600, 120, 1500], [W, -600, 120, 1500]].concat(d.plats.map((p) => [p[0], p[1], p[2], 18]), (d.pillars || []).map((p) => [p[0], G - p[1], 60, p[1]])),
       water: d.dip ? [[d.dip[0] + 20, G + 10, d.dip[1] - d.dip[0] - 40, 200]] : [], hazards: [], pads: d.pads || [], movers: [], checkpoints: [], bread: [], egg: [-9999, -9999],
@@ -184,7 +191,7 @@
     if (!isHost || !connected) return;
     const ids = [0].concat(Array.from(conns.keys())).sort((a, b) => a - b);
     if (ids.length < 2) return status('You need at least one friend in the room first.', true);
-    if ((mode === 'tag' || mode === 'hide') && (arg == null || arg < 0)) arg = (Math.random() * MAPS[mode].length) | 0;
+    if ((mode === 'tag' || mode === 'hide' || mode === 'brawl') && (arg == null || arg < 0)) arg = (Math.random() * MAPS[mode].length) | 0;
     const pickId = () => ids[(Math.random() * ids.length) | 0];
     const o = { t: 'start', mode, arg, seed: (Math.random() * 1e9) | 0, diff: api.save().diff, ids, it: mode === 'tag' ? pickId() : -1, seekers: mode === 'hide' ? [pickId()] : [] };
     Object.keys(roster).forEach((k) => { if (+k) roster[k].ready = false; });
@@ -200,10 +207,13 @@
     if (m.mode === 'race') { M.countdown = 3; if (typeof m.arg === 'string') api.startCustom(root.Levels.race[+m.arg.slice(2)]); else api.startLevel(m.arg); }
     else if (m.mode === 'tag') { M.countdown = 3; M.left = 60; api.startCustom(arenaLevel('tag', m.arg | 0, idx, n)); }
     else if (m.mode === 'hide') { M.countdown = 3; M.phase = 'hide'; M.left = 15; api.startCustom(arenaLevel('hide', m.arg | 0, idx, n)); }
+    else if (m.mode === 'brawl') { M.countdown = 3; const lv = arenaLevel('brawl', m.arg | 0, idx, n); api.startCustom(lv); if (root.Battle) root.Battle.startNet({ kind: 'brawl', ids: M.ids, myId, host: isHost, seed: m.seed, lv }); }
+    else if (m.mode === 'coop') { M.countdown = 3; api.startCustom(arenaLevel('brawl', 0, idx, n)); if (root.Battle) root.Battle.startNet({ kind: 'coop', ids: M.ids, myId, host: isHost, seed: m.seed }); }
     else if (m.mode === 'duel') { M.countdown = 0; M.saveRandom = Math.random; Math.random = mulberry(m.seed); api.startMinigame(m.arg); }
     ui();
   }
   function stopMode(silent) {
+    if ((M.mode === 'brawl' || M.mode === 'coop') && root.Battle && root.Battle.active()) root.Battle.stop();
     if (M.saveRandom) { Math.random = M.saveRandom; M.saveRandom = null; }
     if (M.mode && !silent) api.setDiff(null);
     M.mode = null; M.over = false; M.countdown = 0; M.phase = '';
@@ -288,6 +298,7 @@
     if (M.countdown > 0) t = 'Get ready… ' + Math.ceil(M.countdown);
     else if (M.mode === 'race') t = '🏁 Race to the egg!';
     else if (M.mode === 'tag') t = (M.it === myId ? '🔴 YOU are IT! Tag someone' : '🟢 Run! ' + nm(M.it) + ' is IT') + ' · ' + Math.max(0, M.left).toFixed(0) + 's';
+    else if ((M.mode === 'brawl' || M.mode === 'coop') && root.Battle) t = root.Battle.banner();
     else if (M.mode === 'hide') t = (M.seekers.includes(myId) ? '🔍 Seeker' : '🫣 Hider') + ' · ' + (M.phase === 'hide' ? 'hiding ' : 'seeking ') + Math.max(0, M.left).toFixed(0) + 's';
     b.textContent = t;
   }
@@ -346,10 +357,11 @@
   }
 
   // ------------------------------------------------------------ UI
-  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel']];
+  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel'], ['brawl', '🥊', 'Battle Arena (players + bots)'], ['coop', '🗼', 'Co-op Battle Tower']];
   function mapsFor(mode) {
     if (mode === 'race') return (root.Levels.race || []).map((l, i) => ['r:' + i, '🏁 ' + l.name]).concat(api.levels.map((l, i) => [String(i), (i + 1) + '. ' + l.name]));
     if (mode === 'duel') return (root.Minigames ? root.Minigames.list : []).map((m) => [m.id, m.icon + ' ' + m.name]);
+    if (mode === 'coop') return [['0', '🗼 Floor 1 and up']];
     return [['-1', '🎲 Random map']].concat(MAPS[mode].map((m, i) => [String(i), m.name]));
   }
   function selLabel() {
@@ -449,6 +461,9 @@
     } catch (e) { /* ignore */ }
   }
 
-  root.MP = { init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
+  const peersList = () => Object.keys(ghosts).map(Number).filter((id) => id !== myId && M.ids.includes(id)).map((id) => { const t = ghosts[id].cur || ghosts[id].tgt, n = t.n || []; return { id, c: t.c, hd: n.length ? n[n.length - 1] : t.c, f: t.f }; });
+  root.MP = { bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
+              bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
+              peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };
 })(window);

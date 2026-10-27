@@ -414,7 +414,7 @@
   }
   function tick() {
     if (input.atkQueue) { input.atkQueue = false; if (window.Battle.active()) window.Battle.attack(); }
-    const frz = window.MP && window.MP.frozen();
+    const frz = (window.MP && window.MP.frozen()) || (window.Battle && window.Battle.frozen && window.Battle.frozen());
     const move = (frz ? 0 : (input.left || input.kLeft ? -1 : 0) + (input.right || input.kRight ? 1 : 0)) * (FX().reverse ? -1 : 1);
     const aim = input.padAim || input.mouseAim || null;
     const flap = frz ? false : input.flapQueue;
@@ -1350,6 +1350,7 @@
     sfx: (n) => { try { snd[n](); } catch (e) { /* ignore */ } },
   });
   $('battleBtn').addEventListener('click', () => { audio(); window.Battle.start(); });
+  $('arenaBtn').addEventListener('click', () => { audio(); window.Battle.startBrawl(); });
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });

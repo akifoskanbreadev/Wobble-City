@@ -91,3 +91,13 @@ Type `sync`, pick a secret word (6+ characters). **Sync** merges, **Load** repla
 - Ranks: admin code, head admin (the owner picks people in the panel), akif PIN (owner). Rank shows next to names in the player list.
 - Owner panel: troll / prank screens / locks / bans (with removal time) can target everyone or chosen players. Bans and locks are enforced by the client, so a modified client could bypass them.
 - Re-paste the full `ai-proxy/worker-free.js` into Cloudflare for the account/ban/friend-code ops.
+- Head admins are picked from the player list (with search) in the akif panel; there is no friend code any more.
+
+## Battle Arena, co-op tower and more
+- **🥊 Battle Arena** (menu): fight bots with weapon crates and hearts, first to 8 knockouts in 150 s. Online (lobby mode "Battle Arena") you fight friends and bots together.
+- **🗼 Co-op Battle Tower** (lobby mode): the host simulates monsters, everyone shares floors; downed players come back when the floor is cleared; the run ends when everyone is down.
+- **Random lobby** buttons in every online mode find other players who press it too.
+- **Helper geese** Tot, Cheddar and Bartholamew (bottom-left button): ask anything, they look at a screenshot of your screen and answer using this README; "Conversation done" sends them away. Needs the updated worker.
+- **Among Us**: roles (detective, jester, etc.), typed chat plus phrase buttons, chat log (L), ability button (C), line-of-sight flashlight.
+- **Meccha Chameleon**: 15 big stages.
+- Re-paste the full `ai-proxy/worker-free.js` into Cloudflare to enable helper geese and accounts.

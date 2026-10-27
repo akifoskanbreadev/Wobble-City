@@ -118,7 +118,7 @@ Only add "do" when it truly helps or the player asked you to do/show something.`
   }
 
   // ------------------------------------------------------------------ actions
-  const OPEN = { shop: 'storeBtn', codes: 'codeBtn', multiplayer: 'mpBtn', hide3d: 'h3Btn', chameleon: 'chamBtn', crew: 'crewBtn', battle: 'battleBtn', minigames: 'mgOpenBtn', account: 'accBtn' };
+  const OPEN = { shop: 'storeBtn', codes: 'codeBtn', multiplayer: 'mpBtn', hide3d: 'h3Btn', chameleon: 'chamBtn', crew: 'crewBtn', battle: 'battleBtn', arena: 'arenaBtn', minigames: 'mgOpenBtn', account: 'accBtn' };
   function point(id) {
     const e = $(String(id).replace(/^#/, '')); if (!e || !visible(e)) return false;
     const r = e.getBoundingClientRect(), d = document.createElement('div');
