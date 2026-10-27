@@ -3,7 +3,8 @@
  * He is a real second goose in the same physics world, steered by a tiny autopilot. What he does is decided by commands:
  * the helper chat (real Cloudflare AI) turns your words into commands, and a keyword parser covers the basics offline.
  * Commands: follow, stay, come (teleport to you), go {dx} (walk that far), egg (run to the golden egg), jump, honk, dance, flap, stop.
- * He is a built-in character, not a server account, and his "head admin" is a badge only: he cannot ban, lock or prank anyone.
+ * Deputy powers (give item, codes, bread, kick, announce) only run when the person asking is the owner (full) or a head admin/admin (limited).
+ * He is a built-in character, not a server account: he can never ban, reset passwords, delete anything or change ranks.
  */
 (function (root) {
   'use strict';
@@ -69,6 +70,21 @@
     if (C.sayT > 0 && C.say) { ctx.fillStyle = '#fff'; ctx.strokeText(C.say, h.x, h.y - 50); ctx.fillText(C.say, h.x, h.y - 50); }
     ctx.restore();
   }
+  // ---- deputy powers. Checked here against the rank of the person playing; enforced in this browser only.
+  const HEADCODES = ['rainbow', 'disco', 'zoom', 'speed', 'neck', 'flaps', 'moon', 'lol'];
+  function tierOf() { const r = root.GameAdmin ? root.GameAdmin.rank() : ''; return r === 'owner' ? 'deputy' : (r === 'headadmin' || r === 'admin') ? 'head' : ''; }
+  function admin(it) {
+    const GA = root.GameAdmin, MP = root.MP, tier = tierOf(), kind = String((it && it.do) || '').toLowerCase();
+    if (!GA) return 'not available here';
+    if (!['give', 'code', 'bread', 'kick', 'say'].includes(kind)) return "I won't do that (no bans, password resets, deleting things or rank changes, ever)";
+    if (!tier) return 'only the owner or a head admin/admin can ask me for that';
+    if (kind === 'give') { const f = GA.find(it.item); if (!f) return "couldn't find that item"; if (tier === 'head' && f.kind === 'skin') return 'skins need the owner to ask'; GA.give(f); return 'gave you ' + f.name; }
+    if (kind === 'code') { const c = String(it.code || '').toLowerCase(); if (tier === 'head' && !HEADCODES.includes(c)) return 'that code needs the owner to ask'; const r = GA.code(c, it.on !== false); return r === 'ok' ? 'code ' + c + (it.on === false ? ' off' : ' on') : r; }
+    if (kind === 'bread') { const n = Math.min(+it.n || 0, tier === 'deputy' ? 5000 : 500); if (n <= 0) return 'how much?'; GA.bread(n); return '+' + n + ' bread'; }
+    if (kind === 'kick') { if (!MP || !MP.isHost || !MP.isHost()) return 'I can only kick from a room you host'; const m = String(it.who || '').match(/\d+/); const id = m ? +m[0] - 1 : -1; if (id <= 0 || !MP.others().includes(id)) return 'who? (say P2, P3…)'; return MP.kick(id) ? 'kicked P' + (id + 1) : 'could not kick'; }
+    if (kind === 'say') { return MP && MP.chatSay && MP.chatSay(String(it.text || ''), 'Chungas 👑') ? 'announced' : 'not in a room'; }
+    return 'no';
+  }
   const sayAbove = (t) => { C.say = String(t || '').slice(0, 40); C.sayT = 4; };
-  root.Chungas = { onLevel, summon, dismiss, command, parse, tick, draw, sayAbove, active: () => C.on, inLevel: () => !!C.g, _state: C };
+  root.Chungas = { admin, tierOf, onLevel, summon, dismiss, command, parse, tick, draw, sayAbove, active: () => C.on, inLevel: () => !!C.g, _state: C };
 })(window);

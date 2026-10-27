@@ -122,6 +122,8 @@
       case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {}, ready: false }; sendRoster(); } break;
       case 'ready': if (isHost && roster[from]) { roster[from].ready = !!m.v; sendRoster(); } break;
       case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {}, ready: !!r.ready }; }); if (m.sel) sel = m.sel; for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
+      case 'chat': if (isHost) { m.id = from; toAll(m, from); } chatIn(m); break;
+      case 'kicked': if (!isHost) { api.toast('You were kicked from the room.', 3); disconnect(); } break;
       case 'b': if (root.Battle) root.Battle.onNet(from, m.d); break;
       case 'p': if (isHost) { m.id = from; toAll(m, from); } setPose(m); break;
       case 'start': begin(m); break;
@@ -209,6 +211,7 @@
     else if (m.mode === 'hide') { M.countdown = 3; M.phase = 'hide'; M.left = 15; api.startCustom(arenaLevel('hide', m.arg | 0, idx, n)); }
     else if (m.mode === 'brawl') { M.countdown = 3; const lv = arenaLevel('brawl', m.arg | 0, idx, n); api.startCustom(lv); if (root.Battle) root.Battle.startNet({ kind: 'brawl', ids: M.ids, myId, host: isHost, seed: m.seed, lv }); }
     else if (m.mode === 'coop') { M.countdown = 3; api.startCustom(arenaLevel('brawl', 0, idx, n)); if (root.Battle) root.Battle.startNet({ kind: 'coop', ids: M.ids, myId, host: isHost, seed: m.seed }); }
+    else if (m.mode === 'free') { M.countdown = 0; api.startLevel(m.arg | 0); }
     else if (m.mode === 'duel') { M.countdown = 0; M.saveRandom = Math.random; Math.random = mulberry(m.seed); api.startMinigame(m.arg); }
     ui();
   }
@@ -257,6 +260,7 @@
       const o = { t: 'p', id: myId, c: [r(c.x), r(c.y)], n: pts(goose.neck), hp: pts(goose.hips), ft: pts(goose.feet), f: goose.facing, fl: r(goose.flapT), ho: r(goose.honkT), a: [A.ux, A.uy, A.vx, A.vy].map((v) => Math.round(v * 100) / 100) };
       broadcast(o);
     }
+    if ((M.uiChat = (M.uiChat || 0) + dt) > 0.5) { M.uiChat = 0; chatShow(); }
     if (!M.mode || M.mode === 'duel') return;
     if (M.countdown > 0) { M.countdown -= dt; banner(); return; }
     if (M.over) return;
@@ -299,6 +303,7 @@
     else if (M.mode === 'race') t = '🏁 Race to the egg!';
     else if (M.mode === 'tag') t = (M.it === myId ? '🔴 YOU are IT! Tag someone' : '🟢 Run! ' + nm(M.it) + ' is IT') + ' · ' + Math.max(0, M.left).toFixed(0) + 's';
     else if ((M.mode === 'brawl' || M.mode === 'coop') && root.Battle) t = root.Battle.banner();
+    else if (M.mode === 'free') t = '🌍 Free play · ' + M.ids.length + ' geese · press Enter to chat';
     else if (M.mode === 'hide') t = (M.seekers.includes(myId) ? '🔍 Seeker' : '🫣 Hider') + ' · ' + (M.phase === 'hide' ? 'hiding ' : 'seeking ') + Math.max(0, M.left).toFixed(0) + 's';
     b.textContent = t;
   }
@@ -314,6 +319,44 @@
     if (isHost) { M.scores[0] = score; duelCheck(); } else toHost({ t: 'mg', score });
   }
 
+  // ------------------------------------------------------------ in-game chat (every platformer mode) and kicks
+  const BAD = /\b(f+u+c+k+\w*|sh[i1]+t\w*|b[i1]tch\w*|cunt\w*|n[i1]gg\w*|fag\w*|slut\w*|whore\w*|dick\w*|porn\w*|sex\w*|rape\w*|nazi\w*|kys)\b/gi;
+  const cleanText = (t) => String(t || '').replace(/[<>]/g, '').replace(BAD, (w) => '*'.repeat(w.length)).slice(0, 80);
+  const chatLog = []; let chatLast = 0;
+  const CHAT_PH = ['Hi! 👋', 'Nice one!', 'Follow me!', 'Wait for me!', 'Honk! 🦆', 'GG!', 'Help!', 'This way!'];
+  function chatBox() {
+    let b = $('mpChat'); if (b) return b;
+    const css = document.createElement('style'); css.textContent = '#mpChat{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:6;width:min(92vw,420px);font:700 13px system-ui,sans-serif;display:none;pointer-events:none}#mpChatLog div{background:rgba(0,0,0,.55);color:#fff;border-radius:10px;padding:3px 9px;margin-top:3px;transition:opacity .6s}#mpChatRow{display:none;gap:4px;margin-top:6px;pointer-events:auto;flex-wrap:wrap}#mpChatRow input{flex:1;min-width:140px;border:3px solid #2b2118;border-radius:12px;padding:6px 10px;font:700 14px system-ui}#mpChatRow button{border:2px solid #2b2118;border-radius:10px;background:#fff7d6;font:700 12px system-ui;padding:4px 8px}#mpChatBtn{position:fixed;left:12px;bottom:70px;z-index:6;width:44px;height:44px;border-radius:50%;border:3px solid #2b2118;background:#fff;font-size:20px;display:none}@media (pointer:coarse){#mpChatBtn{bottom:250px}}';
+    document.head.appendChild(css);
+    b = document.createElement('div'); b.id = 'mpChat'; b.innerHTML = '<div id="mpChatLog"></div><div id="mpChatRow"><input id="mpChatIn" maxlength="80" placeholder="Say something nice…" autocomplete="off"><button id="mpChatGo">Send</button>' + CHAT_PH.map((p) => '<button class="ph">' + p + '</button>').join('') + '</div>';
+    document.body.appendChild(b);
+    const btn = document.createElement('button'); btn.id = 'mpChatBtn'; btn.textContent = '💬'; document.body.appendChild(btn);
+    const inp = $('mpChatIn');
+    const go = (t) => { chatSay(t); inp.value = ''; };
+    $('mpChatGo').onclick = () => go(inp.value);
+    b.querySelectorAll('.ph').forEach((x) => { x.onclick = () => go(x.textContent); });
+    inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { go(inp.value); } if (e.key === 'Escape') { $('mpChatRow').style.display = 'none'; inp.blur(); } });
+    inp.addEventListener('keyup', (e) => e.stopPropagation());
+    btn.onclick = () => { const r = $('mpChatRow'); r.style.display = r.style.display === 'flex' ? 'none' : 'flex'; if (r.style.display === 'flex') inp.focus(); };
+    document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && M.mode && connected && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { $('mpChatRow').style.display = 'flex'; $('mpChatIn').focus(); e.preventDefault(); } });
+    return b;
+  }
+  function chatShow() { const b = chatBox(), on = !!(connected && M.mode && M.mode !== 'duel'); b.style.display = on ? 'block' : 'none'; $('mpChatBtn').style.display = on ? 'block' : 'none'; if (!on) $('mpChatRow').style.display = 'none'; }
+  function chatIn(m) {
+    const line = document.createElement('div'); const who = m.id === myId ? 'You' : (cleanText(m.n) || 'P' + (m.id + 1));
+    line.textContent = who + ': ' + cleanText(m.text); chatBox(); const log = $('mpChatLog'); log.appendChild(line); while (log.children.length > 6) log.firstChild.remove();
+    setTimeout(() => { line.style.opacity = '0'; setTimeout(() => line.remove(), 700); }, 9000);
+  }
+  function chatSay(text, asName) {
+    text = cleanText(text).trim(); if (!text || !connected || Date.now() - chatLast < 800) return false; chatLast = Date.now();
+    const m = { t: 'chat', id: myId, n: asName || (root.Account && root.Account.name ? root.Account.name() : ''), text };
+    chatIn(m); if (isHost) toAll(m); else toHost(m); return true;
+  }
+  function kick(id) {
+    if (!isHost || !conns.has(id)) return false;
+    const c = conns.get(id); try { c.send({ t: 'kicked' }); } catch (e) { /* ignore */ }
+    setTimeout(() => { try { c.close(); } catch (e) { /* ignore */ } dropPlayer(id); }, 250); return true;
+  }
   const inBush = (lv, x, y) => (lv.bushes || []).some((b) => x > b[0] && x < b[0] + b[2] && y > b[1] - 25 && y < b[1] + b[3] + 40);
   const lerpPts = (a, b, k) => { for (let i = 0; i < a.length && i < b.length; i++) { a[i][0] += (b[i][0] - a[i][0]) * k; a[i][1] += (b[i][1] - a[i][1]) * k; } };
   function drawWorld(ctx, lv, clock) {
@@ -357,9 +400,10 @@
   }
 
   // ------------------------------------------------------------ UI
-  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel'], ['brawl', '🥊', 'Battle Arena (players + bots)'], ['coop', '🗼', 'Co-op Battle Tower']];
+  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel'], ['brawl', '🥊', 'Battle Arena (players + bots)'], ['coop', '🗼', 'Co-op Battle Tower'], ['free', '🌍', 'Free play (any normal level, together)']];
   function mapsFor(mode) {
     if (mode === 'race') return (root.Levels.race || []).map((l, i) => ['r:' + i, '🏁 ' + l.name]).concat(api.levels.map((l, i) => [String(i), (i + 1) + '. ' + l.name]));
+    if (mode === 'free') return api.levels.map((l, i) => [String(i), (i + 1) + '. ' + l.name]);
     if (mode === 'duel') return (root.Minigames ? root.Minigames.list : []).map((m) => [m.id, m.icon + ' ' + m.name]);
     if (mode === 'coop') return [['0', '🗼 Floor 1 and up']];
     return [['-1', '🎲 Random map']].concat(MAPS[mode].map((m, i) => [String(i), m.name]));
@@ -462,7 +506,7 @@
   }
 
   const peersList = () => Object.keys(ghosts).map(Number).filter((id) => id !== myId && M.ids.includes(id)).map((id) => { const t = ghosts[id].cur || ghosts[id].tgt, n = t.n || []; return { id, c: t.c, hd: n.length ? n[n.length - 1] : t.c, f: t.f }; });
-  root.MP = { bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
+  root.MP = { chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
               bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
               peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };

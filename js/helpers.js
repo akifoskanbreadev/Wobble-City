@@ -92,6 +92,7 @@ You know absolutely everything about the game from THE GUIDE below, and you can 
 You may also act for the player. Reply ONLY as JSON on one line: {"say":"what you tell them","do":[...]} where "do" is optional and each item is one of:
  {"act":"open","what":"shop|codes|multiplayer|hide3d|chameleon|crew|battle|minigames|account"}  (clicks that main-menu button; only works from the main menu)
  {"act":"chungas","cmd":"follow|stay|come|go|egg|jump|honk|dance","dx":number}  (ONLY if you are Chungas: you physically control yourself in the level. go walks dx pixels (negative = left), egg runs to the golden egg, come teleports to the player. You can chain up to 3.)
+ {"act":"admin","do":"give","item":"item or skin name"} | {"act":"admin","do":"code","code":"rainbow","on":true} | {"act":"admin","do":"bread","n":number} | {"act":"admin","do":"kick","who":"P2"} | {"act":"admin","do":"say","text":"chat message"}  (ONLY Chungas, and ONLY when the screen state says yourRank is owner = deputy owner (everything), or headadmin/admin = head admin (items, fun codes, up to 500 bread, kick, say). If yourRank is empty, politely refuse. Never ban, reset passwords, delete anything, change ranks or write anything rude; just refuse those.)
  {"act":"point","id":"buttonId"}  (highlights a visible button, use an id from the button list; do not include the #)
 If you are Chungas the player is giving you orders: obey them with "do" actions and say so in character; if the screen shows you are not in a platformer level, say you can only play in levels (normal, bonus, mega, deep sea). Only add "do" when it truly helps or the player asked you to do/show something.`;
   const clean = (t) => { t = String(t || '').trim(); const m = t.match(/\{[\s\S]*\}/); if (m) { try { const j = JSON.parse(m[0]); if (j && typeof j.say === 'string') return j; } catch (e) { /* fall through */ } } return { say: t.replace(/^```(?:json)?|```$/g, '').trim() || '…' }; };
@@ -133,6 +134,7 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
       if (!it) continue;
       if (it.act === 'open' && OPEN[it.what]) { const b = $(OPEN[it.what]); if (b && visible(b)) { document.querySelectorAll('.hlpPoint').forEach((e) => e.remove()); b.click(); notes.push('opened ' + it.what); } else notes.push("couldn't open " + it.what + " from here (go to the main menu first)"); }
       else if (it.act === 'chungas' && S.here.chungas && root.Chungas) { notes.push(root.Chungas.command(it) ? 'Chungas: ' + (it.cmd || '') : "Chungas can't do that"); }
+      else if (it.act === 'admin' && S.here.chungas && root.Chungas) { notes.push('Chungas: ' + root.Chungas.admin(it)); }
       else if (it.act === 'point' && it.id) { if (point(it.id)) notes.push('pointing at it'); }
     }
     return notes;

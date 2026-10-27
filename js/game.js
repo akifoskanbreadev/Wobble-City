@@ -1330,6 +1330,33 @@
     }
     inp.value = '';
   }
+  // Limited, rank-checked game actions that the Chungas helper can perform (nothing destructive: no bans, resets, deletes or rank changes).
+  window.GameAdmin = {
+    rank() {
+      if (window.Owner && window.Owner.authed && window.Owner.authed()) return 'owner';
+      const r = window.Owner && window.Owner.rank ? window.Owner.rank() : '';
+      if (r === 'headadmin') return 'headadmin';
+      if (r === 'admin' || save.cheats.admin) return 'admin';
+      return '';
+    },
+    find(q) {
+      q = String(q || '').toLowerCase().trim(); if (q.length < 2) return null;
+      const it = ITEMS.find((x) => String(x.name || '').toLowerCase() === q) || ITEMS.find((x) => String(x.name || '').toLowerCase().includes(q));
+      if (it) return { kind: 'item', id: it.id, name: it.name };
+      const sk = SKINS.LIST.filter((k) => !k.hidden).find((k) => k.name.toLowerCase() === q || k.name.toLowerCase().includes(q));
+      return sk ? { kind: 'skin', id: sk.id, name: sk.name } : null;
+    },
+    give(found) { if (!found) return false; if (found.kind === 'item') save.owned[found.id] = true; else save.skins[found.id] = true; persist(); refreshMenu(); try { SKIN_ITEMS = mkSkinItems(); } catch (e) { /* ignore */ } snd.egg(); return true; },
+    code(c, on) {
+      c = String(c || '').toLowerCase(); if (['akif', 'sync', 'admin', 'god', 'codes'].includes(c)) return 'not allowed';
+      if (window.Owner && window.Owner.blocks(c)) return 'locked by the owner';
+      if (GIFTS[c]) { if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true; if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true; if (c === 'bread') save.bread += 500; persist(); refreshMenu(); snd.egg(); return 'ok'; }
+      if (CHEATS[c]) { const want = on !== false; if (want) save.cheats[c] = true; else delete save.cheats[c]; applyCodes(); return 'ok'; }
+      return 'unknown code';
+    },
+    bread(n) { n = Math.max(0, Math.min(5000, Math.round(+n || 0))); save.bread += n; persist(); refreshMenu(); snd.bread(); return n; },
+    codes: () => Object.keys(CHEATS).concat(Object.keys(GIFTS)),
+  };
   $('codeShow').addEventListener('click', () => { const l = $('codeList'); const show = l.classList.contains('hidden'); l.classList.toggle('hidden', !show); renderCodes(); $('codeShow').textContent = show ? 'Hide codes' : 'Active codes'; });
   $('admGod').addEventListener('click', () => { save.cheats.god = !save.cheats.god; persist(); renderCodes(); say(save.cheats.god ? '🛡 God mode ON' : 'God mode off', true); });
   $('admBread').addEventListener('click', () => { save.bread += 1000; persist(); refreshMenu(); say('+1000 🍞', true); snd.bread(); });
@@ -1361,7 +1388,7 @@
   window.Account.init({ rank: () => (save.cheats.admin ? 'admin' : ''), look: () => ({ skin: save.skin, equip: save.equip, tint: save.tint }), thumb: avatarThumb, where: () => (document.getElementById('h3') && document.getElementById('h3').style.display !== 'none' ? '3D hide' : document.getElementById('crew') && document.getElementById('crew').style.display !== 'none' ? 'Among Us' : document.getElementById('ch') && document.getElementById('ch').style.display !== 'none' ? 'Chameleon' : state === 'play' ? 'level ' + (levelIdx + 1) : state === 'mg' ? 'minigame' : 'menu') });
   $('accBtn').addEventListener('click', () => { audio(); window.Account.open(); });
   if (window.Helpers) window.Helpers.init({ ctx: () => {
-    const o = { screen: state, level: level && level.name, levelNumber: levelIdx + 1, bread: save.bread, difficulty: (diff() || {}).name, activeCodes: Object.keys(save.cheats || {}).filter((k) => save.cheats[k]) };
+    const o = { yourRank: (window.GameAdmin && window.GameAdmin.rank()) || '', screen: state, level: level && level.name, levelNumber: levelIdx + 1, bread: save.bread, difficulty: (diff() || {}).name, activeCodes: Object.keys(save.cheats || {}).filter((k) => save.cheats[k]) };
     try { if (window.Battle && window.Battle.active()) { const b = window.Battle._state; o.battleTower = { floor: b.floor, hp: Math.round(b.hp), weapon: b.weapon }; } } catch (e) { /* ignore */ }
     try { const g = window.Crew && window.Crew._state && window.Crew._state(); if (g) o.amongUs = { phase: g.phase, role: g.me.role, tasksDone: g.tasksDone, tasksTotal: g.tasksTotal, lightsOut: g.lights > 0 }; } catch (e) { /* ignore */ }
     try { const g = window.Chameleon && window.Chameleon._state && window.Chameleon._state(); if (g) o.chameleon = { phase: g.ph, role: g.ps[g.me].role }; } catch (e) { /* ignore */ }
