@@ -225,7 +225,7 @@
   function respawn() { const g = api.goose(); g.reset(SPAWNX(), G - 45); S.down = false; S.hp = S.maxHp; S.inv = 2; S.weapon = 'peck'; S.cd = 0; stSend(); hud(); }
   function checkAllDown() {
     if (S.kind !== 'coop' || !S.net || !S.net.host || S.over) return;
-    const everyone = S.net.ids.every((id) => (id === S.myId ? S.down : S.pst[id] && S.pst[id].dead)); if (everyone) coopOver();
+    const here = new Set(peers().map((p) => p.id)); here.add(S.myId); const everyone = S.net.ids.filter((id) => here.has(id)).every((id) => (id === S.myId ? S.down : S.pst[id] && S.pst[id].dead)); if (everyone) coopOver();
   }
   const rewardFor = (f, k) => Math.round(((f - 1) * 12 + k) * api.diffMult());
   function coopOver() {
