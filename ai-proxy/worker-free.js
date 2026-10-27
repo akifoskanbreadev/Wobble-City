@@ -74,12 +74,37 @@ export default {
           for (const t of targets.slice(0, 120)) { const u = await get(t); if (!u) continue; u.fx = (u.fx || []).concat([{ ...fx, at: now }]).slice(-12); await put(t, u); }
           return json({ ok: true, n: targets.length });
         }
-        if (body.op === 'acct-setrank') { const r = ['', 'admin', 'headadmin'].includes(body.rank) ? body.rank : null; if (r === null) return json({ error: 'bad rank' }, 400); for (const t of targets) { const u = await get(t); if (!u) continue; u.rank = r; await put(t, u); } return json({ ok: true }); }
+        if (body.op === 'acct-setrank') { const r = ['', 'admin', 'headadmin', 'mod'].includes(body.rank) ? body.rank : null; if (r === null) return json({ error: 'bad rank' }, 400); for (const t of targets) { const u = await get(t); if (!u) continue; u.rank = r; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-ban') { const until = Number(body.until) || 0; for (const t of targets) { const u = await get(t); if (!u) continue; u.ban = { until, reason: String(body.reason || 'Banned').slice(0, 120), at: now }; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-unban') { for (const t of targets) { const u = await get(t); if (!u) continue; u.ban = null; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-locks') { const list = (Array.isArray(body.locked) ? body.locked : []).filter((c) => typeof c === 'string' && /^[a-z]{2,10}$/.test(c) && !['sync', 'codes', 'akif', 'rainbow', 'disco', 'zoom'].includes(c)).slice(0, 30); for (const t of targets) { const u = await get(t); if (!u) continue; u.locks = list; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-reset') { if (!hex(body.ph)) return json({ error: 'bad hash' }, 400); for (const t of targets) { const u = await get(t); if (!u) continue; u.ph = body.ph; await put(t, u); } return json({ ok: true }); }
         if (body.op === 'acct-delete') { const keep = names.filter((n) => !targets.includes(n)); for (const t of targets) await env.SYNC.delete('u:' + t); await env.SYNC.put('idx:users', JSON.stringify(keep)); return json({ ok: true }); }
+      }
+      // ---- moderator operations: a signed-in account with rank mod (or the owner). Reports, bans up to 30 days, kicks. No pranks, no locks, no resets.
+      const modOps = ['acct-mod-reports', 'acct-mod-resolve', 'acct-mod-ban', 'acct-mod-unban', 'acct-mod-kick', 'acct-mod-players'];
+      const reps = async () => JSON.parse((await env.SYNC.get('rep:list')) || '[]');
+      if (modOps.includes(body.op)) {
+        if (!name || !hex(body.ph)) return json({ error: 'bad name or password' }, 400);
+        const me = await get(id);
+        if (!me || me.ph !== body.ph || !['mod', 'owner'].includes(me.rank)) return json({ error: 'not a moderator' }, 403);
+        if (body.op === 'acct-mod-reports') return json({ reports: (await reps()).slice(-80).reverse() });
+        if (body.op === 'acct-mod-resolve') { const list = await reps(), r = list.find((x) => x.id === body.rid); if (r) { r.status = body.action === 'actioned' ? 'actioned' : 'dismissed'; r.by = me.name; await env.SYNC.put('rep:list', JSON.stringify(list)); } return json({ ok: true }); }
+        const names = await index();
+        if (body.op === 'acct-mod-players') {
+          const out = []; for (const n of names.slice(0, 300)) { const u2 = await get(n); if (u2) out.push({ name: u2.name, rank: u2.rank || '', seen: u2.seen || 0, where: u2.where || '', ban: u2.ban || null }); }
+          return json({ users: out });
+        }
+        const tid = String(body.target || '').toLowerCase(), t = names.includes(tid) ? await get(tid) : null;
+        if (!t) return json({ error: 'no such player' }, 404);
+        if (['owner', 'headadmin', 'mod'].includes(t.rank)) return json({ error: 'cannot act on staff' }, 403);
+        if (body.op === 'acct-mod-ban') {
+          let until = Number(body.until) || 0; const cap = now + 30 * 86400000;
+          if (me.rank !== 'owner') until = Math.max(now + 60000, Math.min(until || now + 86400000, cap));
+          t.ban = { until, reason: String(body.reason || 'Banned by a moderator').slice(0, 120), at: now, by: me.name }; await put(tid, t); return json({ ok: true });
+        }
+        if (body.op === 'acct-mod-unban') { t.ban = null; await put(tid, t); return json({ ok: true }); }
+        if (body.op === 'acct-mod-kick') { t.fx = (t.fx || []).concat([{ k: 'kick', text: 'A moderator removed you from the game.', at: now }]).slice(-12); await put(tid, t); return json({ ok: true }); }
       }
       // ---- player operations
       if (!name || !hex(body.ph)) return json({ error: 'bad name or password' }, 400);
@@ -93,6 +118,19 @@ export default {
       const u = await get(id);
       if (!u || u.ph !== body.ph) return json({ error: 'wrong' }, 403);
       if (body.op === 'acct-friend') return json({ error: 'gone' }, 410);
+      if (body.op === 'acct-report') {                                           // any signed-in player (or the client's auto filter) reports bad behaviour
+        const tn = nm(body.target), text = String(body.text || '').replace(/[<>]/g, '').slice(0, 200);
+        if (!tn || !text) return json({ error: 'bad report' }, 400);
+        if (now - (u.lastRep || 0) < 4000) return json({ error: 'slow down' }, 429);
+        u.lastRep = now; await put(id, u);
+        const list = await reps();
+        if (!list.find((x) => x.target.toLowerCase() === tn.toLowerCase() && x.text === text && now - x.at < 120000)) {
+          list.push({ id: now.toString(36) + Math.random().toString(36).slice(2, 5), at: now, by: u.name, target: tn, text, where: String(body.where || '').slice(0, 20), why: String(body.why || 'chat').slice(0, 20), auto: !!body.auto, status: 'open' });
+          if (list.length > 150) list.splice(0, list.length - 150);
+          await env.SYNC.put('rep:list', JSON.stringify(list));
+        }
+        return json({ ok: true });
+      }
       if (body.op === 'acct-login' || body.op === 'acct-ping') {
         let dirty = false;
         const cp = await env.SYNC.get('cfg:pin');

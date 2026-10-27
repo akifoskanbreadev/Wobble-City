@@ -239,7 +239,7 @@
       G.m.vAt[p.id] = rnd(1.5, 13);
     }
   }
-  function sayNow(p, text) { G.chat.push({ name: p.name, col: p.col, text }); (G.log = G.log || []).push({ name: p.name, col: p.col, text }); reactToChat(p, text); tone(520, 0.05, 'triangle', 0.03); renderChat(); if (G.online && G.host) toGuests({ k: 'chat', name: p.name, col: p.col, text }); }
+  function sayNow(p, text) { if (root.Moderation) text = root.Moderation.scan(text).clean; G.chat.push({ name: p.name, col: p.col, text }); (G.log = G.log || []).push({ name: p.name, col: p.col, text }); reactToChat(p, text); tone(520, 0.05, 'triangle', 0.03); renderChat(); if (G.online && G.host) toGuests({ k: 'chat', name: p.name, col: p.col, text }); }
   function reactToChat(from, text) {
     if (!G || !G.m || G.m.stage === 'result') return; const t = text.toLowerCase();
     const bad = /(sus|vent|kill|fox|liar|lying|saw|caught|faked|fake|suspicious|think it)/.test(t), good = /(vouch|clear|safe|trust|with me|innocent|not the fox)/.test(t), skip = /skip/.test(t);

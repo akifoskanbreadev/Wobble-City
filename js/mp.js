@@ -344,7 +344,10 @@
   function chatShow() { const b = chatBox(), on = !!(connected && M.mode && M.mode !== 'duel'); b.style.display = on ? 'block' : 'none'; $('mpChatBtn').style.display = on ? 'block' : 'none'; if (!on) $('mpChatRow').style.display = 'none'; }
   function chatIn(m) {
     const line = document.createElement('div'); const who = m.id === myId ? 'You' : (cleanText(m.n) || 'P' + (m.id + 1));
-    line.textContent = who + ': ' + cleanText(m.text); chatBox(); const log = $('mpChatLog'); log.appendChild(line); while (log.children.length > 6) log.firstChild.remove();
+    const shown = m.id !== myId && root.Moderation ? root.Moderation.incoming(m.n, m.text, 'mp-chat') : cleanText(m.text);
+    line.textContent = who + ': ' + cleanText(shown) + ' ';
+    if (m.id !== myId && m.n && root.Moderation) { const fl = document.createElement('span'); fl.textContent = '⚑'; fl.title = 'Report this message'; fl.style.cssText = 'cursor:pointer;opacity:.7;pointer-events:auto'; fl.onclick = () => { root.Moderation.report(m.n, m.text, 'mp-chat', 'player', false); fl.textContent = '✓ reported'; fl.onclick = null; }; line.style.pointerEvents = 'auto'; line.appendChild(fl); }
+    chatBox(); const log = $('mpChatLog'); log.appendChild(line); while (log.children.length > 6) log.firstChild.remove();
     setTimeout(() => { line.style.opacity = '0'; setTimeout(() => line.remove(), 700); }, 9000);
   }
   function chatSay(text, asName) {

@@ -110,5 +110,6 @@
     try { const h = await sha('wobble-friend-v1:' + String(code).trim().toLowerCase()); const r = await call({ op: 'acct-friend', name: acct.name, ph: acct.ph, h }); if (root.Owner) root.Owner.setRank(r.rank); return true; } catch (e) { return false; }
   }
   function init(a) { A = a; if (acct) { startBeat(); if (A.onReady) A.onReady(acct.name); } else showGate(); }
-  root.Account = { friend, init, open, name: () => (acct ? acct.name : ''), signedIn: () => !!acct || guest, ping };
+  const cred = () => (acct ? { name: acct.name, ph: acct.ph } : null);
+  root.Account = { cred, friend, init, open, name: () => (acct ? acct.name : ''), signedIn: () => !!acct || guest, ping };
 })(window);

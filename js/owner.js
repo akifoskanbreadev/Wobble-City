@@ -37,7 +37,7 @@
   const blocks = (c) => (isLocked(c) || myLocks.includes(c)) && !authed();   // a locked code is dead for everybody except the PIN-verified owner
   const isOwner = () => authed();
   const setRank = (r) => { myRank = r || ''; syncBtn(); };
-  const rankName = (r) => (r === 'owner' ? 'OWNER' : r === 'headadmin' ? 'HEADADMIN' : r === 'admin' ? 'ADMIN' : '');
+  const rankName = (r) => (r === 'owner' ? 'OWNER' : r === 'headadmin' ? 'HEADADMIN' : r === 'mod' ? 'MOD' : r === 'admin' ? 'ADMIN' : '');
   const setMyLocks = (l) => { myLocks = (l || []).filter((c) => LOCKABLE.includes(c)); if (A) A.applyCodes(); };
 
   // ------------------------------------------------------------------ troll / power effects (on this device; the owner can aim them at other players)
@@ -118,6 +118,7 @@
     else if (f.k === 'msg') note(String(f.text || '').slice(0, 200));
     else if (f.k === 'resetfx') { clearFx(); if (root.Pranks) root.Pranks.close(); }
     else if (f.k === 'menu' && A && A.ctl && A.ctl.toMenu) A.ctl.toMenu();
+    else if (f.k === 'kick') { try { if (root.MP && root.MP.active()) root.MP.stopMode(); } catch (e) { /* ignore */ } if (A && A.ctl && A.ctl.toMenu) A.ctl.toMenu(); note(String(f.text || 'A moderator removed you from the game.').slice(0, 120)); }
   }
 
   async function verifyStored() {
@@ -196,7 +197,7 @@
       '<div id="ownMsg" style="text-align:center;font-weight:700;min-height:20px;margin-top:6px;white-space:pre-wrap"></div>' +
       '<div class="row" style="margin-top:6px;justify-content:center"><button class="big small-btn ghost" id="ownList">All codes</button><button class="big small-btn ghost" id="ownResign">Lock &amp; sign out</button><button class="big small-btn ghost" id="ownClose">Close</button></div></div>';
     document.body.appendChild(box);
-    const tabs = head ? [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks']] : [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['players', '👥 Players'], ['ban', '⛔ Bans'], ['locks', '🔒 Locks'], ['friend', '🧡 Head admins']];
+    const tabs = head ? [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks']] : [['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['players', '👥 Players'], ['ban', '⛔ Bans'], ['locks', '🔒 Locks'], ['friend', '🧡 Head admins'], ['mods', '🛡 Moderators']];
     for (const [id, l] of tabs) { const b = document.createElement('button'); b.className = tab === id ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = l; b.addEventListener('click', () => { tab = id; open(mode); }); el('ownTabs').appendChild(b); }
     if (!head && ['tools', 'troll', 'pranks'].includes(tab)) {
       for (const [v, l] of [['me', 'Just me'], ['sel', 'Selected players (' + sel.size + ')'], ['all', 'Everyone']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownwho'; r.checked = who === v; r.addEventListener('change', () => { who = v; el('ownTgt').textContent = v === 'me' ? 'just me' : v === 'all' ? 'EVERYONE' : sel.size + ' selected'; }); lb.append(r, document.createTextNode(l)); el('ownWho').appendChild(lb); }
@@ -261,19 +262,20 @@
         }
       };
       loadUsers().then(draw);
-    } else if (tab === 'friend') {
-      body.innerHTML = '<div style="font-size:13px;margin:4px 0">🧡 Pick who is a <b>head admin</b>: stronger than the admin code, weaker than akif (only their own screen and goose: tools, troll and pranks; no bans, locks or targeting). They get the orange HEAD button within about 20 seconds.</div><input id="haFind" placeholder="search name" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px;border-radius:8px;border:2px solid #2a2f3a;font-size:15px;margin:4px 0"><div id="haList" style="font-size:14px">Loading players…</div>';
+    } else if (tab === 'friend' || tab === 'mods') {
+      const RK = tab === 'mods' ? 'mod' : 'headadmin';
+      body.innerHTML = (tab === 'mods' ? '<div style="font-size:13px;margin:4px 0">🛡 Pick who is a <b>moderator</b>: they get a 🛡 MOD button with the chat reports, and can kick and ban (up to 30 days) normal players, but never staff, and have no pranks, locks or tools. Takes about 20 seconds to show up for them.</div><input id="haFind" placeholder="search name" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px;border:2px solid #2b2118;border-radius:9px"><div id="haList" style="max-height:220px;overflow:auto;margin-top:6px"></div>' : '') + (tab === 'mods' ? '' : '<div style="font-size:13px;margin:4px 0">🧡 Pick who is a <b>head admin</b>: stronger than the admin code, weaker than akif (only their own screen and goose: tools, troll and pranks; no bans, locks or targeting). They get the orange HEAD button within about 20 seconds.</div><input id="haFind" placeholder="search name" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px;border-radius:8px;border:2px solid #2a2f3a;font-size:15px;margin:4px 0"><div id="haList" style="font-size:14px">Loading players…</div>');
       const draw = () => {
         const box2 = el('haList'); if (!box2) return; box2.innerHTML = ''; const q = (el('haFind').value || '').toLowerCase();
         if (usersErr) { const e = document.createElement('div'); e.style.color = '#c62835'; e.textContent = usersErr; box2.appendChild(e); }
-        const list = (users || []).filter((u) => u.rank !== 'owner' && u.name.toLowerCase().includes(q)).sort((a, b) => (b.rank === 'headadmin') - (a.rank === 'headadmin'));
+        const list = (users || []).filter((u) => u.rank !== 'owner' && u.name.toLowerCase().includes(q)).sort((a, b) => (b.rank === RK) - (a.rank === RK));
         if (!list.length && !usersErr) box2.textContent = 'No players found.';
         for (const u of list) {
           const row = document.createElement('div'); row.className = 'oplayer';
           let thumb = null; try { thumb = A.thumb(u.avatar, 40); } catch (e) { /* ignore */ } if (thumb) row.appendChild(thumb);
           const t = document.createElement('div'); t.style.cssText = 'flex:1;min-width:0'; t.innerHTML = '<b>' + esc(u.name) + '</b> ' + (rankName(u.rank) ? '<span style="font-size:10px;font-weight:800;color:#e8780a">' + rankName(u.rank) + '</span>' : ''); row.appendChild(t);
-          const on = u.rank === 'headadmin'; const b = document.createElement('button'); b.className = on ? 'sec' : 'big small-btn'; b.style.cssText = 'font-size:12px;padding:4px 8px'; b.textContent = on ? 'Remove head admin' : '🧡 Make head admin';
-          b.addEventListener('click', async () => { try { await own('acct-setrank', { targets: [u.name.toLowerCase()], rank: on ? '' : 'headadmin' }); u.rank = on ? '' : 'headadmin'; say(u.name + (on ? ' is no longer head admin.' : ' is now head admin.')); draw(); } catch (e) { say('Failed: ' + e.message, true); } });
+          const on = u.rank === RK; const b = document.createElement('button'); b.className = on ? 'sec' : 'big small-btn'; b.style.cssText = 'font-size:12px;padding:4px 8px'; b.textContent = on ? (RK === 'mod' ? 'Remove moderator' : 'Remove head admin') : (RK === 'mod' ? '🛡 Make moderator' : '🧡 Make head admin');
+          b.addEventListener('click', async () => { try { await own('acct-setrank', { targets: [u.name.toLowerCase()], rank: on ? '' : RK }); u.rank = on ? '' : RK; say(u.name + (on ? ' is no longer ' + (RK === 'mod' ? 'a moderator.' : 'head admin.') : ' is now ' + (RK === 'mod' ? 'a moderator.' : 'head admin.'))); draw(); } catch (e) { say('Failed: ' + e.message, true); } });
           row.appendChild(b); box2.appendChild(row);
         }
       };
