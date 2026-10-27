@@ -1356,6 +1356,21 @@
     },
     bread(n) { n = Math.max(0, Math.min(5000, Math.round(+n || 0))); save.bread += n; persist(); refreshMenu(); snd.bread(); return n; },
     codes: () => Object.keys(CHEATS).concat(Object.keys(GIFTS)),
+    // Chungas -> Build-a-Goose: makes or changes the DRAFT only; saving still costs the normal bread, and only the player can save it
+    async build(prompt, mode) {
+      const B = window.BuildAGoose; if (!B) return 'Build-a-Goose is not available';
+      prompt = String(prompt || '').replace(/[<>]/g, '').slice(0, 140); if (prompt.length < 3 && mode !== 'critique') return 'describe the goose first';
+      const aiOn = B.ai && B.ai.enabled(); let spec = null, msg = '';
+      if (mode === 'critique') { if (!B.draft) return 'there is no goose in the workshop yet'; if (!aiOn) return 'the AI is switched off in Build-a-Goose'; spec = await B.ai.review(B.draft.spec, draftSnapshot(), prompt); msg = 'improved the design'; }
+      else if (mode === 'modify') { if (!B.draft) return 'there is no goose in the workshop yet'; spec = aiOn ? await B.ai.ask(prompt, B.draft.spec) : null; if (!spec) spec = B.modify ? B.modify(B.draft.spec, prompt) : null; msg = 'changed the design'; }
+      else { spec = aiOn ? await B.ai.ask(prompt, null) : null; if (!spec) spec = B.generate(prompt); msg = 'made a new design'; }
+      if (!spec) return 'the AI is busy, try again';
+      const old = B.draft; const sp = spec; if (old && mode !== 'new') { sp.name = old.spec.name; sp.id = old.spec.id; }
+      B.draft = { spec: sp, base: mode === 'new' ? prompt : (old ? old.base : prompt), seed: sp.seed || 1, editId: old && mode !== 'new' ? old.editId : undefined, hist: old && mode !== 'new' ? (old.hist || []).concat([JSON.stringify(old.spec)]) : [] };
+      B.setDraft(sp);
+      try { if (state !== 'store') { const sb = $('storeBtn'); if (sb) sb.click(); } storeCat = 'build'; renderStore(); } catch (e) { /* ignore */ }
+      return msg + ' (open the Store → Build-a-Goose to see it and save it)';
+    },
   };
   $('codeShow').addEventListener('click', () => { const l = $('codeList'); const show = l.classList.contains('hidden'); l.classList.toggle('hidden', !show); renderCodes(); $('codeShow').textContent = show ? 'Hide codes' : 'Active codes'; });
   $('admGod').addEventListener('click', () => { save.cheats.god = !save.cheats.god; persist(); renderCodes(); say(save.cheats.god ? '🛡 God mode ON' : 'God mode off', true); });
@@ -1434,6 +1449,13 @@
     for (const p of fg.feet) maxX = Math.max(maxX, p.x + 16);
     const wide = (maxX - minX) * 1.2, tall = (-minY + 40 + 20) * 1.2;
     return { s: Math.min(1, 220 / wide, 215 / tall), ox: -(minX + maxX) / 2 };
+  }
+  function draftSnapshot() {                    // small JPEG (base64) of the goose being designed, for the AI to look at
+    try {
+      const c = document.createElement('canvas'); c.width = 300; c.height = 260; const x = c.getContext('2d'); x.fillStyle = '#fff7da'; x.fillRect(0, 0, 300, 260);
+      const fg = fakeGoose(0, 'custom_draft'), ft = fitFor(fg, 'custom_draft'); x.translate(150 + ft.ox * ft.s * 1.2, 225); x.scale(1.2 * ft.s, 1.2 * ft.s); drawGoose(x, fg, {}, 'custom_draft');
+      const d = c.toDataURL('image/jpeg', 0.6); return d.slice(d.indexOf(',') + 1);
+    } catch (e) { return ''; }
   }
   function drawStorePreview() {
     sctx.clearRect(0, 0, 260, 300);
@@ -1539,7 +1561,7 @@
       $('storeTools').innerHTML = ''; $('buyBar').classList.add('hidden');
       const grid = $('storeGrid'); grid.style.display = 'block'; grid.style.maxHeight = 'none'; grid.style.overflow = 'visible';
       window.BuildAGoose.panel(grid, { save, persist, rich, snd, toast, rerender: renderStore, refreshSkins: () => { SKIN_ITEMS = mkSkinItems(); },
-        iconFor: (sid) => iconFor({ cat: 'skin', sid }) });
+        snapshot: draftSnapshot, iconFor: (sid) => iconFor({ cat: 'skin', sid }) });
       return;
     }
     { const g0 = $('storeGrid'); g0.style.display = ''; g0.style.maxHeight = ''; g0.style.overflow = ''; }

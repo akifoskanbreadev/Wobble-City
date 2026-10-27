@@ -23,6 +23,15 @@
   ];
 
   // Optional real AI (see bagai.js): resolves to a spec, or null to use the built-in generator
+  const PALETTES = {
+    sunset: { body: '#ff8a4c', wing: '#d9463e', neck: '#ff8a4c', head: '#ffb347', leg: '#8a2c2c', beak: '#ffd23f' },
+    ocean: { body: '#3fa7d6', wing: '#1f6f9c', neck: '#3fa7d6', head: '#7fd4f2', leg: '#1b4f72', beak: '#ffd166' },
+    forest: { body: '#4f9d4a', wing: '#2f6b33', neck: '#4f9d4a', head: '#7cc36e', leg: '#5a3d22', beak: '#f2b632' },
+    candy: { body: '#ff8fc7', wing: '#c77dff', neck: '#ff8fc7', head: '#ffc2e2', leg: '#7bdff2', beak: '#ffe066' },
+    neon: { body: '#18e0a8', wing: '#7a2cff', neck: '#18e0a8', head: '#fff23a', leg: '#ff2fa0', beak: '#ff2fa0' },
+    gold: { body: '#f2b632', wing: '#b8841a', neck: '#f2b632', head: '#ffe27a', leg: '#7b4b12', beak: '#ff7a1a' },
+    mono: { body: '#9aa0aa', wing: '#5d636e', neck: '#9aa0aa', head: '#cfd3da', leg: '#3a3f48', beak: '#e8e8e8' },
+  };
   function remote(prompt, spec) { return B.ai ? B.ai.ask(prompt, spec) : Promise.resolve(null); }
   function panel(host, ctx) {
     const save = ctx.save;
@@ -74,7 +83,30 @@
         if (B.ai && B.ai.enabled()) { ctx.toast('🤖 Asking the AI for a new version…', 30); remote(draft.base + ' (give me a clearly different version, variation ' + draft.seed + ')', null).then((ai) => { ctx.toast(ai ? '🤖 New version!' : 'AI is busy, used the built-in generator', 2.5); done(ai || B.generate(draft.base, draft.seed)); }); }
         else done(B.generate(draft.base, draft.seed));
       }));
-      wrap.appendChild(row);
+      draft.hist = draft.hist || [];
+      const snap = () => { draft.hist.push(JSON.stringify(draft.spec)); if (draft.hist.length > 15) draft.hist.shift(); };
+      const take = (g, msg) => { if (!g) return; snap(); g.name = draft.spec.name; g.id = draft.spec.id; draft.spec = g; B.setDraft(g); ctx.snd.tick(); if (msg) ctx.toast(msg, 2.2); ctx.rerender(); };
+      row.appendChild(btn('↩ Undo' + (draft.hist.length ? ' (' + draft.hist.length + ')' : ''), () => { const p = draft.hist.pop(); if (!p) { ctx.toast('Nothing to undo', 1.4); return; } draft.spec = JSON.parse(p); B.setDraft(draft.spec); ctx.snd.tick(); ctx.rerender(); }, 'small'));
+      if (B.ai && B.ai.enabled()) {
+        row.appendChild(btn('🎲 3 versions', () => {
+          ctx.toast('🤖 Making 3 different versions… (up to 45 seconds)', 45);
+          B.ai.variants(draft.base || sp.name, 3).then((list) => { const ok = list.filter(Boolean); if (!ok.length) { ctx.toast('The AI is busy, try again in a moment', 2.5); return; } draft.variants = ok; take(ok[0], '🤖 Version 1 of ' + ok.length + ' (pick below)'); });
+        }, 'small'));
+        row.appendChild(btn('🔍 AI look & improve', () => {
+          const img = ctx.snapshot ? ctx.snapshot() : ''; ctx.toast('🤖 The AI is looking at your goose…', 45);
+          B.ai.review(draft.spec, img).then((g) => { if (g) take(g, '🤖 Improved! Undo if you liked it better.'); else ctx.toast('The AI is busy, try again in a moment', 2.5); });
+        }, 'small'));
+      }
+      if (draft.variants && draft.variants.length > 1) { const vr = el('div', 'bagrow'); vr.appendChild(el('span', null, 'Versions: ')); draft.variants.forEach((v, i) => vr.appendChild(btn(String(i + 1) + ' · ' + (v.name || '').slice(0, 10), () => take(JSON.parse(JSON.stringify(v)), null), 'small'))); wrap.appendChild(row); wrap.appendChild(vr); } else wrap.appendChild(row);
+      const prow = el('div', 'bagrow'); prow.appendChild(el('span', null, '🎨 Palette: '));
+      for (const k of Object.keys(PALETTES)) prow.appendChild(btn(k, () => { snap(); const g = JSON.parse(JSON.stringify(draft.spec)); g.col = Object.assign({}, g.col || {}, PALETTES[k]); draft.spec = B.fix(g); B.setDraft(draft.spec); ctx.snd.tick(); ctx.rerender(); }, 'small'));
+      wrap.appendChild(prow);
+      if (save.custom.length && B.ai && B.ai.enabled()) {
+        const brow = el('div', 'bagrow'); brow.appendChild(el('span', null, '🧬 Blend with: '));
+        const sel = el('select'); sel.appendChild(new Option('choose a saved goose…', '')); save.custom.forEach((s) => sel.appendChild(new Option(s.name, s.id))); brow.appendChild(sel);
+        brow.appendChild(btn('Blend', () => { const o = save.custom.find((s) => s.id === sel.value); if (!o) return; const copy = JSON.parse(JSON.stringify(o)); delete copy.id; ctx.toast('🤖 Blending…', 45); remote('Blend in the best features of this second goose (keep the first goose as the main creature, borrow colours, parts or body shape from the second): ' + JSON.stringify(copy).slice(0, 1800), draft.spec).then((g) => take(g, g ? '🧬 Blended!' : null)); }, 'small'));
+        wrap.appendChild(brow);
+      }
       const mrow = el('div', 'bagrow');
       const mi = el('input'); mi.type = 'text'; mi.maxLength = 100; mi.placeholder = 'Change it: "make the neck longer", "add a crown", "blue legs"…';
       const apply = () => { const t = mi.value.trim(); if (!t) return; ctx.toast(B.ai && B.ai.enabled() ? '🤖 Asking the AI…' : '✨ Changing…', 30); remote(t, draft.spec).then((ai) => { ctx.toast(ai ? '🤖 Changed!' : (B.ai && B.ai.enabled() ? 'AI is busy, used the built-in changes' : 'Done!'), 2.5); const n = ai || B.modify(draft.spec, t); n.name = sp.name; n.id = sp.id; draft.spec = n; B.setDraft(n); ctx.snd.tick(); ctx.rerender(); }); };

@@ -63,11 +63,11 @@ Example request "a small dragon": {"plan":"green reptile, longer neck, horns, ba
   // ask(prompt, currentSpec?) -> Promise<spec | null>   (null = AI unavailable, use the built-in generator)
   // the older worker only accepts a short prompt: if it says no, retry with the compact version
   const SMALL = () => SYSTEM.replace(/FIRST write a "plan"[\s\S]*?(?=Be creative)/, '').replace(/\nExample request "a glowing jellyfish"[\s\S]*$/, '');
-  function ask(prompt, spec, tries, small) {
+  function ask(prompt, spec, tries, small, image) {
     if (!enabled() || !url()) return Promise.resolve(null);
     const user = spec ? 'Here is the current goose JSON:\n' + JSON.stringify(trim(spec)) + '\nChange it like this (return the FULL updated JSON): ' + prompt : 'Design a goose: ' + prompt;
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(() => { if (ctl) ctl.abort(); }, 45000);
-    return fetch(url(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system: small ? SMALL() : SYSTEM, user, model: 'big' }), signal: ctl ? ctl.signal : undefined })
+    return fetch(url(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(image ? { system: small ? SMALL() : SYSTEM, user, model: 'big', image } : { system: small ? SMALL() : SYSTEM, user, model: 'big' }), signal: ctl ? ctl.signal : undefined })
       .then((r) => (r.ok ? r.json() : r.status === 400 && !small ? { retrySmall: true } : null))
       .then((j) => { clearTimeout(tm); if (j && j.retrySmall) return ask(prompt, spec, tries, true); const raw = j && (j.spec || extractJson(j.text)); const out = raw ? B.sanitize(raw, spec || null) : null; return out || ((tries || 0) < 1 && j ? ask(prompt, spec, 1, small) : null); })
       .catch(() => { clearTimeout(tm); return null; });
@@ -75,5 +75,9 @@ Example request "a small dragon": {"plan":"green reptile, longer neck, horns, ba
   // keep the request small: drop the bookkeeping fields
   function trim(sp) { const o = JSON.parse(JSON.stringify(sp)); delete o.prompt; delete o.seed; delete o.basePrompt; delete o.id; delete o.v; return o; }
 
-  B.ai = { ask, enabled, setEnabled, url, DEFAULT_URL, SYSTEM };
+  // the AI looks at a picture of the current goose (the worker captions it with a vision model) and improves what looks off
+  function review(spec, image, wish) { return ask('You can see a picture of this goose (described below). Fix anything that looks wrong or ugly: proportions, parts that float or overlap oddly, clashing colours, missing details. Keep the idea of the creature. ' + (wish ? 'Also: ' + wish : ''), spec, 0, false, image); }
+  // n different takes on the same idea, in parallel
+  function variants(prompt, n) { const tasks = []; for (let i = 0; i < n; i++) tasks.push(ask(prompt + ' (variation ' + (i + 1) + ' of ' + n + ': make it clearly different from the others in colours, shape and parts)', null)); return Promise.all(tasks); }
+  B.ai = { review, variants, ask, enabled, setEnabled, url, DEFAULT_URL, SYSTEM };
 })(window);

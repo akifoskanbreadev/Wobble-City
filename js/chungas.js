@@ -114,6 +114,13 @@ Reply ONLY JSON on one line: {"ok":true|false,"why":"max 12 words"}`;
       return j && typeof j.ok === 'boolean' ? { ok: j.ok, why: String(j.why || '').slice(0, 100) } : { ok: false, why: 'the Guard gave an unclear answer' };
     } catch (e) { return { ok: false, why: 'the Guard could not be reached' }; }
   }
+  const BADWORDS = /(fuck|shit|bitch|cunt|nigg|fag|slut|whore|dick|porn|sex|rape|nazi|hitler|kys|naked|nude)/i;
+  async function build(it, request) {          // Chungas -> Build-a-Goose (drafts only; the player saves it and pays as usual)
+    const mode = ['new', 'modify', 'critique'].includes(it.mode) ? it.mode : 'new', prompt = String(it.prompt || '');
+    if (BADWORDS.test(prompt)) return 'I will not build that';
+    const v = await guard({ act: 'build', mode, prompt }, request); if (!v.ok) return '🛡 Guard said no: ' + v.why;
+    return '🛡 Guard OK · ' + (root.GameAdmin ? await root.GameAdmin.build(prompt, mode) : 'not available');
+  }
   async function guarded(it, request) {
     const kind = String((it && it.do) || '').toLowerCase();
     if (kind === 'reset' || kind === 'undo') return admin(it);               // these only make things safer, no review needed
@@ -122,5 +129,5 @@ Reply ONLY JSON on one line: {"ok":true|false,"why":"max 12 words"}`;
     return '🛡 Guard OK · ' + admin(it);
   }
   const sayAbove = (t) => { C.say = String(t || '').slice(0, 40); C.sayT = 4; };
-  root.Chungas = { guarded, guard, dry, admin, tierOf, onLevel, summon, dismiss, command, parse, tick, draw, sayAbove, active: () => C.on, inLevel: () => !!C.g, _state: C };
+  root.Chungas = { build, guarded, guard, dry, admin, tierOf, onLevel, summon, dismiss, command, parse, tick, draw, sayAbove, active: () => C.on, inLevel: () => !!C.g, _state: C };
 })(window);
