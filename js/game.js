@@ -196,6 +196,7 @@
     extras = buildLevel(world, level);
     const d = diff();
     goose = new Goose(world, level.spawn[0], level.spawn[1], gooseOpts());
+    if (window.Chungas) window.Chungas.onLevel(world, level, goose, Goose);
     boss = null; bossPhase = null; eggPos = level.egg; wxInfo = { a: 0, warn: 0, dir: 0 };
     if (level.boss && !custom && !mpOn() && !window.Battle.active()) { boss = BOSS.create(level.boss, dKey()); bossPhase = 'door'; }
     mech = MECH.build(world, level);
@@ -423,6 +424,7 @@
     if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); honkText = 0.7; if (boss && bossPhase === 'fight' && state === 'play') { BOSS.honkClear(boss, goose.head); if (BOSS.honkHits(boss, goose.head, goose.facing)) bossHurt(BOSS.hit(boss)); } }
     const wasWet = goose.swimming;
     goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
+    if (window.Chungas) window.Chungas.tick(goose, STEP);
     if (FX().fly && input.flapHeld) for (const q of goose.body.concat(goose.feet, goose.neck || [])) { q.vy = Math.max(-420, q.vy - 55); }
     world.step(STEP);
     if (window.MP) window.MP.tick(goose, STEP);
@@ -681,6 +683,7 @@
     drawChasers(ctx); ENEMIES.draw(ctx, enemies, levelClock, enemyDead); ENEMIES.drawShots(ctx, enemies, levelClock); drawStormWorld(world.time);
     if (boss && bossPhase !== 'door') BOSS.draw(ctx, boss, clock);
     drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
+    if (window.Chungas) window.Chungas.draw(ctx, (c2, g2, e2, s2) => drawGoose(c2, g2, e2, s2));
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
     if (decor) window.Decor.draw(ctx, decor.fore, camX, VW, clock);
     if (window.MP) window.MP.drawWorld(ctx, level, clock);
@@ -1384,7 +1387,7 @@
   function sizeStoreCanvas() { const d = Math.min(window.devicePixelRatio || 1, 2); storeCv.width = 260 * d; storeCv.height = 300 * d; sctx.setTransform(d, 0, 0, d, 0, 0); }
   sizeStoreCanvas();
 
-  const mkSkinItems = () => SKINS.LIST.map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, custom: !!k.custom, shape: !!k.shape && !k.jelly && !k.custom, jelly: !!k.jelly && !k.custom }));
+  const mkSkinItems = () => SKINS.LIST.filter((k) => !k.hidden).map((k) => ({ id: 'skin:' + k.id, sid: k.id, cat: 'skin', name: k.name, price: k.price || 0, custom: !!k.custom, shape: !!k.shape && !k.jelly && !k.custom, jelly: !!k.jelly && !k.custom }));
   let SKIN_ITEMS = mkSkinItems();
   const STORE_CATS = [{ id: 'skin', name: 'Animals' }, { id: 'shapes', name: 'Shapes' }, { id: 'jelly', name: 'Jelly' }, { id: 'build', name: '✨ Build-a-Goose' }].concat(CATS);
   const TINTS = [null, 30, 60, 120, 180, 210, 270, 300, 330, 'gray', 'dark', 'bright'];

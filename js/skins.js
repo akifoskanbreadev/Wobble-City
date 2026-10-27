@@ -50,6 +50,10 @@
       head(c, open) { beak(c, open, '#f5b82e', 16, 4); disc(c, '#fffaf0'); },
       headDeco(c) { for (const [x, y, r] of [[-4, -10, 3.6], [0, -12.5, 4.4], [4, -10.5, 3.4]]) circ(c, x, y, r, '#e63946', 2.5); ell(c, 9, 8, 3, 5, '#e63946', 2.2); } },
 
+    { id: 'chungas', name: 'Chungas', price: 999999, hidden: true, neck: 1.1, body: '#f2b632', wing: '#7b3fc4', neckC: '#7b3fc4', headC: '#f2b632', legC: '#ff7a1a',
+      bodyDeco(c) { ell(c, 4, 4, 22, 14, '#ffe27a', 0); },
+      head(c, open) { beak(c, open, '#ff7a1a', 22, 4); disc(c, '#f2b632'); poly(c, [[-9, -9], [-8, -22], [-3, -13], [1, -25], [5, -13], [10, -22], [10, -9]], '#ffd23f', 2.4); },
+    },
     { id: 'penguin', name: 'Penguin', price: 200, neck: 0.85, body: '#2a3038', wing: '#1c2026', neckC: '#2a3038', headC: '#2a3038', legC: '#ff9b2f',
       tail(c) { poly(c, [[-30, -4], [-46, 8], [-32, 8]], '#2a3038', 3); },
       bodyDeco(c) { ell(c, 8, 7, 30, 22, '#ffffff', 0); },

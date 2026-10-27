@@ -12,10 +12,11 @@
   'use strict';
   const DEFAULT_URL = 'https://workers-playground-rapid-brook-325c.akifoskanbread.workers.dev';
   const url = () => { try { return root.localStorage.wobbleAiUrl || DEFAULT_URL; } catch (e) { return DEFAULT_URL; } };
-  const NAMES = ['tot', 'cheddar', 'bartholamew'];
+  const NAMES = ['tot', 'cheddar', 'bartholamew', 'chungas'];
   const BIO = {
     tot: { label: 'Tot', col: '#ffd84a', hat: 'bow', trait: 'Tot is a tiny, excitable gosling. Cheerful, uses short sentences and the odd "peep!". Loves bread.' },
     cheddar: { label: 'Cheddar', col: '#ff9f3a', hat: 'cheese', trait: 'Cheddar is a cool, laid-back goose with a cheese-wedge hat. Chilled out, a bit punny (cheese puns), but always clear.' },
+    chungas: { label: 'Chungas', col: '#f2b632', hat: 'crown', trait: 'Chungas is a big, confident, golden-and-purple goose with a crown and the HEAD ADMIN badge. He is a player-style companion who really plays beside the player in platformer levels and does whatever he is asked. Bold, friendly, a little cocky, short sentences.' },
     bartholamew: { label: 'Bartholamew', col: '#f4f4f4', hat: 'top', trait: 'Bartholamew is a posh, dignified goose with a top hat and monocle. Polite and slightly pompous, but warm and precise.' },
   };
   let cfg = { ctx: () => ({}) };
@@ -90,8 +91,9 @@ WOBBLE CITY, EXTRA FACTS (the player is playing a mobile-friendly HTML5 goose ga
 You know absolutely everything about the game from THE GUIDE below, and you can see the player's screen through the SCREEN section (a text description, a list of buttons and sometimes a screenshot caption). Use it: say what is actually on their screen, which button to press, what to do next. Be concrete and short (1 to 4 sentences, plain text, no markdown headings). Stay in character but never let personality hide the answer. If the guide does not say, say you are not sure instead of inventing features. Never ask for or reveal passwords or PINs.
 You may also act for the player. Reply ONLY as JSON on one line: {"say":"what you tell them","do":[...]} where "do" is optional and each item is one of:
  {"act":"open","what":"shop|codes|multiplayer|hide3d|chameleon|crew|battle|minigames|account"}  (clicks that main-menu button; only works from the main menu)
+ {"act":"chungas","cmd":"follow|stay|come|go|egg|jump|honk|dance","dx":number}  (ONLY if you are Chungas: you physically control yourself in the level. go walks dx pixels (negative = left), egg runs to the golden egg, come teleports to the player. You can chain up to 3.)
  {"act":"point","id":"buttonId"}  (highlights a visible button, use an id from the button list; do not include the #)
-Only add "do" when it truly helps or the player asked you to do/show something.`;
+If you are Chungas the player is giving you orders: obey them with "do" actions and say so in character; if the screen shows you are not in a platformer level, say you can only play in levels (normal, bonus, mega, deep sea). Only add "do" when it truly helps or the player asked you to do/show something.`;
   const clean = (t) => { t = String(t || '').trim(); const m = t.match(/\{[\s\S]*\}/); if (m) { try { const j = JSON.parse(m[0]); if (j && typeof j.say === 'string') return j; } catch (e) { /* fall through */ } } return { say: t.replace(/^```(?:json)?|```$/g, '').trim() || '…' }; };
 
   async function ask(who, q) {
@@ -130,6 +132,7 @@ Only add "do" when it truly helps or the player asked you to do/show something.`
     for (const it of Array.isArray(items) ? items.slice(0, 3) : []) {
       if (!it) continue;
       if (it.act === 'open' && OPEN[it.what]) { const b = $(OPEN[it.what]); if (b && visible(b)) { document.querySelectorAll('.hlpPoint').forEach((e) => e.remove()); b.click(); notes.push('opened ' + it.what); } else notes.push("couldn't open " + it.what + " from here (go to the main menu first)"); }
+      else if (it.act === 'chungas' && S.here.chungas && root.Chungas) { notes.push(root.Chungas.command(it) ? 'Chungas: ' + (it.cmd || '') : "Chungas can't do that"); }
       else if (it.act === 'point' && it.id) { if (point(it.id)) notes.push('pointing at it'); }
     }
     return notes;
@@ -139,6 +142,7 @@ Only add "do" when it truly helps or the player asked you to do/show something.`
   function gooseSvg(who, talking) {
     const b = BIO[who], body = b.col, belly = who === 'bartholamew' ? '#e6e6e6' : 'rgba(255,255,255,.55)';
     const hat = b.hat === 'top' ? '<rect x="23" y="1" width="15" height="12" rx="2" fill="#2a2a35"/><rect x="19" y="11" width="23" height="4" rx="2" fill="#2a2a35"/><rect x="23" y="9" width="15" height="3" fill="#b3202f"/>'
+      : b.hat === 'crown' ? '<path d="M21 14 L22 3 L27 9 L31 1 L35 9 L40 3 L41 14 Z" fill="#ffd23f" stroke="#9a6a00" stroke-width="1.5"/>'
       : b.hat === 'cheese' ? '<path d="M20 15 L40 15 L38 3 Z" fill="#ffd23f" stroke="#c9972b" stroke-width="1.5"/><circle cx="33" cy="10" r="1.6" fill="#e0a010"/><circle cx="29" cy="12.5" r="1.2" fill="#e0a010"/>'
         : '<path d="M24 12 L31 8 L38 12 L31 15 Z" fill="#ff5c8a" stroke="#c23a63" stroke-width="1.2"/><circle cx="31" cy="11" r="2" fill="#ff8fb0"/>';
     const mono = who === 'bartholamew' ? '<circle cx="39" cy="20" r="4.6" fill="none" stroke="#c9972b" stroke-width="1.4"/><path d="M43 22 Q47 28 44 33" fill="none" stroke="#c9972b" stroke-width="1"/>' : '';
@@ -209,12 +213,13 @@ Only add "do" when it truly helps or the player asked you to do/show something.`
   }
   function summon(n) {
     build(); if (!NAMES.includes(n) || !avail(n)) return false;
+    if (n === 'chungas' && root.Chungas) { root.Chungas.summon(); if (document.getElementById('game') && root.Chungas.inLevel && !root.Chungas.inLevel()) { /* spawns on the next level start */ } }
     S.here[n] = true; S.active = n; S.open = true; S.hist[n] = S.hist[n] || [];
-    const greet = { tot: 'Peep! I\'m Tot! Ask me anything about the game!', cheddar: 'Cheddar here. Ask away, I\'ll help you grate this game. 🧀', bartholamew: 'Good day. Bartholamew at your service. What would you like to know?' }[n];
+    const greet = { tot: 'Peep! I\'m Tot! Ask me anything about the game!', cheddar: 'Cheddar here. Ask away, I\'ll help you grate this game. 🧀', chungas: 'Chungas is here! 👑 Head Admin reporting. Tell me what to do: follow, wait, go left, run to the egg, honk, dance… Or ask me anything.', bartholamew: 'Good day. Bartholamew at your service. What would you like to know?' }[n];
     addMsg(n, 'bot', greet); render(); setTimeout(() => ui.inp.focus(), 50); loadKB(); return true;
   }
   function dismiss(n) {
-    if (!n || !S.here[n]) return; delete S.here[n]; S.rest[n] = Date.now() + 15000; S.hist[n] = [];
+    if (!n || !S.here[n]) return; if (n === 'chungas' && root.Chungas) root.Chungas.dismiss(); delete S.here[n]; S.rest[n] = Date.now() + 15000; S.hist[n] = [];
     const left = Object.keys(S.here); S.active = left[0] || ''; if (!left.length) S.open = false;
     S.logs = S.logs || {}; delete S.logs[n]; render();
   }
@@ -232,14 +237,19 @@ Only add "do" when it truly helps or the player asked you to do/show something.`
     ui.geese.querySelectorAll('.hlpG').forEach((g) => g.addEventListener('click', () => { if (S.active === g.dataset.n && S.open) S.open = false; else { S.active = g.dataset.n; S.open = true; } render(); if (S.open) ui.inp.focus(); }));
     $('hlpBtn').classList.toggle('on', here.length > 0);
     ui.panel.style.display = S.open && here.length ? 'flex' : 'none';
-    if (S.active) { $('hlpTitle').textContent = BIO[S.active].label + (S.busy ? ' is thinking…' : ''); drawLog(); }
+    if (S.active) { $('hlpTitle').textContent = BIO[S.active].label + (S.busy ? ' is thinking…' : S.ai ? (S.ai === 'live AI' ? ' · 🟢 live AI' : ' · 🔴 ' + S.ai) : '') + (S.active === 'chungas' ? ' · 👑 HEAD' : ''); drawLog(); }
   }
   async function send() {
     const n = S.active, q = ui.inp.value.trim(); if (!n || !q || S.busy) return;
     ui.inp.value = ''; addMsg(n, 'me', q); S.busy = true; render();
     let res;
     try { res = await ask(n, q); }
-    catch (e) { res = { say: await offline(q) }; }
+    catch (e) {
+      const why = e && e.name === 'AbortError' ? 'timed out' : String((e && e.message) || e).slice(0, 40);
+      res = { say: await offline(q), off: why };
+    }
+    S.ai = res.off ? 'offline (' + res.off + ')' : 'live AI';
+    if (n === 'chungas' && res.off && root.Chungas) res.do = root.Chungas.parse(q).map((c) => Object.assign({ act: 'chungas' }, c));
     S.busy = false;
     if (!S.here[n]) return;
     addMsg(n, 'bot', res.say || '…');

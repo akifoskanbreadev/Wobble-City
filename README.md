@@ -101,3 +101,4 @@ Type `sync`, pick a secret word (6+ characters). **Sync** merges, **Load** repla
 - **Among Us**: roles (detective, jester, etc.), typed chat plus phrase buttons, chat log (L), ability button (C), line-of-sight flashlight.
 - **Meccha Chameleon**: 15 big stages.
 - Re-paste the full `ai-proxy/worker-free.js` into Cloudflare to enable helper geese and accounts.
+- **Chungas** (4th helper goose, gold and purple, 👑 HEAD badge): a real second goose that plays beside you in platformer levels and obeys the helper chat (follow, stay, come, go left/right, run to the egg, honk, jump, dance). The helper panel shows 🟢 live AI (Cloudflare Workers AI) or 🔴 offline with the reason. He is a built-in character, not a server account, and his HEAD badge cannot ban or lock anyone.
