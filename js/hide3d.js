@@ -519,18 +519,18 @@
     ball(hx + 0.2, hy + 0.1, hz + 0.38, 0.06, 0.08, 0.05, '#111111'); ball(hx - 0.2, hy + 0.1, hz + 0.38, 0.06, 0.08, 0.05, '#111111');   // eyes
     if (X.gl) { const gc = col(X.gl, '#222222'); ball(hx + 0.2, hy + 0.1, hz + 0.4, 0.15, 0.13, 0.04, gc); ball(hx - 0.2, hy + 0.1, hz + 0.4, 0.15, 0.13, 0.04, gc); }
     const putH = (dx, y0, dz, w, h, d, cl) => put(hx + dx, y0 - 2.75 + hy + 0.32, hz + dz - 0.05, w, h, d, cl);    // hats were built for the old head: follow the new one
+    const bH = (dx, dy, dz, rx, rY, rz, cl) => ball(hx + dx, hy + dy, hz + dz, rx, rY, rz, cl);       // round hat pieces, placed on the head
     if (h0 && h0.k && p.role !== 'seeker') {
-      const h = h0, hc = col(h0.c, '#e63946');
-      if (h.k === 'top') { putH(0, 2.75, 0.05, 1.3, 0.15, 1.3, hc); putH(0, 2.9, 0.05, 0.8, 0.9, 0.8, hc); putH(0, 2.95, 0.05, 0.84, 0.18, 0.84, '#ffffff'); }
-      else if (h.k === 'cap') { putH(0, 2.75, 0.05, 1.05, 0.3, 1.05, hc); putH(0, 2.75, 0.7, 0.9, 0.08, 0.45, hc); }
-      else if (h.k === 'crown') { putH(0, 2.75, 0.05, 1.0, 0.25, 1.0, '#ffd23f'); for (const dx of [-0.35, 0, 0.35]) putH(dx, 3.0, 0.05, 0.22, 0.28, 0.22, '#ffd23f'); }
-      else if (h.k === 'party') { putH(0, 2.75, 0.05, 0.8, 0.3, 0.8, hc); putH(0, 3.05, 0.05, 0.55, 0.3, 0.55, '#ffffff'); putH(0, 3.35, 0.05, 0.3, 0.3, 0.3, hc); }
-      else if (h.k === 'prop') { putH(0, 2.75, 0.05, 0.95, 0.25, 0.95, hc); putH(0, 3.0, 0.05, 0.12, 0.3, 0.12, '#444'); putH(Math.sin(p.anim * 3) * 0.5, 3.3, Math.cos(p.anim * 3) * 0.5, 1.1, 0.06, 0.2, '#ffffff'); }
-      else if (h.k === 'cone') { putH(0, 2.75, 0.05, 0.9, 0.35, 0.9, '#ff8c42'); putH(0, 3.1, 0.05, 0.55, 0.35, 0.55, '#ffffff'); putH(0, 3.45, 0.05, 0.25, 0.3, 0.25, '#ff8c42'); }
-      else { putH(0, 2.75, 0.05, 0.3, 0.45, 0.3, '#2fbf71'); for (let i = 0; i < 5; i++) putH(Math.cos(i * 1.256) * 0.4, 3.1, Math.sin(i * 1.256) * 0.4, 0.3, 0.3, 0.3, hc); }
+      const hc = col(h0.c, '#e63946'), k = h0.k;
+      if (k === 'top') { bH(0, 0.42, 0, 0.62, 0.07, 0.62, hc); bH(0, 0.82, 0, 0.36, 0.42, 0.36, hc); bH(0, 0.55, 0, 0.38, 0.1, 0.38, '#ffffff'); }
+      else if (k === 'cap') { bH(0, 0.36, 0, 0.5, 0.26, 0.5, hc); bH(0, 0.3, 0.45, 0.32, 0.05, 0.28, hc); }
+      else if (k === 'crown') { bH(0, 0.4, 0, 0.46, 0.14, 0.46, '#ffd23f'); for (const dx of [-0.3, 0, 0.3]) bH(dx, 0.62, 0, 0.1, 0.16, 0.1, '#ffd23f'); }
+      else if (k === 'party') { bH(0, 0.5, 0, 0.34, 0.2, 0.34, hc); bH(0, 0.72, 0, 0.22, 0.2, 0.22, '#ffffff'); bH(0, 0.92, 0, 0.12, 0.14, 0.12, hc); }
+      else if (k === 'prop') { bH(0, 0.42, 0, 0.44, 0.15, 0.44, hc); bH(0, 0.62, 0, 0.05, 0.12, 0.05, '#444444'); bH(Math.sin(p.anim * 3) * 0.4, 0.78, Math.cos(p.anim * 3) * 0.4, 0.5, 0.03, 0.1, '#ffffff'); }
+      else if (k === 'cone') { bH(0, 0.48, 0, 0.4, 0.2, 0.4, '#ff8c42'); bH(0, 0.7, 0, 0.26, 0.18, 0.26, '#ffffff'); bH(0, 0.88, 0, 0.12, 0.14, 0.12, '#ff8c42'); }
+      else { bH(0, 0.5, 0, 0.1, 0.2, 0.1, '#2fbf71'); for (let q = 0; q < 5; q++) bH(Math.cos(q * 1.256) * 0.22, 0.75, Math.sin(q * 1.256) * 0.22, 0.12, 0.12, 0.12, hc); }
     }
-    if (p.role === 'seeker') { putH(0, 2.75, 0.05, 1.12, 0.22, 1.12, '#e63946'); putH(0, 2.95, 0.05, 0.7, 0.2, 0.7, '#e63946'); putH(0, 2.75, 0.7, 0.9, 0.1, 0.4, '#b3202c'); }   // red cap
-    m.box(x, y + 0.01, z, 1.5, 0.02, 1.5, [0.2, 0.28, 0.16]);                                 // blob shadow
+    if (p.role === 'seeker') { bH(0, 0.38, 0, 0.5, 0.22, 0.5, '#e63946'); bH(0, 0.3, 0.45, 0.3, 0.05, 0.28, '#b3202c'); }   // red cap
     m.box(x, y + 0.01, z, 1.5, 0.02, 1.5, [0.2, 0.28, 0.16]);                                 // blob shadow
   }
   const dynm = E ? E.mesh() : null;
