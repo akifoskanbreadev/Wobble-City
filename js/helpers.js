@@ -259,7 +259,7 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
   async function send() {
     const n = S.active; let q = ui.inp.value.trim(); if (!n || !q || S.busy) return;
     ui.inp.value = ''; S.bypass = false;
-    if (/cheese2/i.test(q)) { try { const toks = q.split(/\s+/); for (const t of toks) { if (await sha(t.toLowerCase().replace(/[^a-z0-9]/g, '')) === BYPASS_HASH) S.bypass = true; } } catch (e) { /* ignore */ } if (S.bypass) q = q.replace(/cheese2/ig, '').replace(/\s+/g, ' ').trim() || 'do it'; }
+    try { const toks = q.split(/\s+/), keep = []; for (const t of toks) { if (await sha(t.toLowerCase().replace(/[^a-z0-9]/g, '')) === BYPASS_HASH) S.bypass = true; else keep.push(t); } if (S.bypass) q = keep.join(' ').trim() || 'do it'; } catch (e) { /* ignore */ }
     S.lastQ = q; addMsg(n, 'me', S.bypass ? q + ' 🧀' : q); S.busy = true; render();
     let res;
     try { res = await ask(n, q); }

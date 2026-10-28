@@ -129,7 +129,7 @@ Reply ONLY JSON on one line: {"ok":true|false,"why":"max 12 words"}`;
     const v = bypass && canBypass() ? { ok: true } : await guard({ act: 'build', mode, prompt }, request); if (!v.ok && !/could not be reached|offline|unclear/.test(v.why)) return '🛡 Guard said no: ' + v.why;
     return '🛡 Guard OK · ' + (root.GameAdmin ? await root.GameAdmin.build(prompt, mode) : 'not available');
   }
-  // The word "cheese2" in a message skips the Guard, but only for admin, head admin and owner ranks (hard limits still apply).
+  // A secret staff word (only its hash is stored) in a message skips the Guard, but only for admin, head admin and owner ranks (hard limits still apply).
   const canBypass = () => { const r = root.GameAdmin ? root.GameAdmin.rank() : ''; return r === 'owner' || r === 'headadmin' || r === 'admin'; };
   const LOWRISK = ['tweak', 'give', 'code', 'bread', 'prank'];
   async function guarded(it, request, bypass) {
