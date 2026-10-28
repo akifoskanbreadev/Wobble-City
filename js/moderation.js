@@ -73,7 +73,7 @@
   const isMod = () => !!(root.Owner && (root.Owner.rank() === 'mod' || (root.Owner.authed && root.Owner.authed())));
   function build() {
     if (btn) return;
-    btn = document.createElement('button'); btn.textContent = '🛡 MOD'; btn.style.cssText = 'position:fixed;left:82px;top:calc(max(6px,env(safe-area-inset-top)) + 44px);z-index:2147482400;display:none;border:3px solid #1c3a63;border-radius:10px;background:#9cc7ff;font:800 10px system-ui;padding:4px 6px;cursor:pointer';
+    btn = document.createElement('button'); btn.textContent = '🛡 MOD'; btn.style.cssText = 'position:fixed;right:82px;top:calc(max(6px,env(safe-area-inset-top)) + 88px);z-index:2147482400;display:none;border:3px solid #1c3a63;border-radius:10px;background:#9cc7ff;font:800 10px system-ui;padding:4px 6px;cursor:pointer';
     btn.addEventListener('click', () => { if (panel) { close(); } else open(); }); document.body.appendChild(btn);
     setInterval(() => { btn.style.display = isMod() && cred() ? 'block' : 'none'; if (!isMod()) close(); }, 3000);
   }
@@ -82,7 +82,7 @@
   const say = (t, bad) => { if (msgEl) { msgEl.textContent = t; msgEl.style.color = bad ? '#c62835' : '#1c6b2f'; } };
   async function open() {
     close(); panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed;left:6px;top:calc(max(6px,env(safe-area-inset-top)) + 82px);z-index:2147482400;width:min(420px,94vw);max-height:70vh;overflow:auto;background:#f4f9ff;border:3px solid #1c3a63;border-radius:14px;padding:10px;font:600 13px system-ui;box-shadow:0 5px 0 rgba(0,0,0,.3)';
+    panel.style.cssText = 'position:fixed;right:6px;top:calc(max(6px,env(safe-area-inset-top)) + 126px);z-index:2147482400;width:min(420px,94vw);max-height:70vh;overflow:auto;background:#f4f9ff;border:3px solid #1c3a63;border-radius:14px;padding:10px;font:600 13px system-ui;box-shadow:0 5px 0 rgba(0,0,0,.3)';
     document.body.appendChild(panel); for (const ev of ['pointerdown', 'keydown', 'keyup']) panel.addEventListener(ev, (e) => e.stopPropagation()); await refresh(); draw();
   }
   async function refresh() {

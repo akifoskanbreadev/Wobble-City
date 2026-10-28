@@ -166,7 +166,7 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
     return `<svg viewBox="0 0 64 64" width="52" height="52" class="hlpSvg"><ellipse cx="26" cy="46" rx="19" ry="13" fill="${body}" stroke="#2b2118" stroke-width="2.4"/><ellipse cx="22" cy="48" rx="10" ry="6.5" fill="${belly}"/><path d="M40 40 Q46 30 36 20" stroke="${body}" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M40 40 Q46 30 36 20" stroke="#2b2118" stroke-width="2" fill="none" stroke-linecap="round" opacity=".25"/><circle cx="35" cy="20" r="9" fill="${body}" stroke="#2b2118" stroke-width="2.4"/>${hat}<circle cx="38" cy="19" r="2.2" fill="#2b2118" class="hlpEye"/><circle cx="38.7" cy="18.2" r=".7" fill="#fff"/>${mono}<path class="hlpBeak${talking ? ' talk' : ''}" d="M42 21 L53 24 L42 27 Z" fill="#ff9b2f" stroke="#2b2118" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 56 L11 61 M24 57 L22 62" stroke="#ff9b2f" stroke-width="3" stroke-linecap="round"/></svg>`;
   }
   const STYLE = `
-#hlpRoot{position:fixed;left:6px;top:calc(max(6px,env(safe-area-inset-top)) + 44px);z-index:2147482500;font-family:system-ui,sans-serif;display:flex;flex-direction:column-reverse;align-items:flex-start;gap:6px;pointer-events:none}
+#hlpRoot{position:fixed;right:6px;top:calc(max(6px,env(safe-area-inset-top)) + 88px);z-index:2147482500;font-family:system-ui,sans-serif;display:flex;flex-direction:column-reverse;align-items:flex-end;gap:6px;pointer-events:none}
 #hlpRoot>*{pointer-events:auto}
 #hlpBtn{width:32px;height:32px;border-radius:50%;border:2px solid #2b2118;background:#fff7d6;font-size:16px;box-shadow:0 3px 0 rgba(0,0,0,.35);cursor:pointer;padding:0;line-height:1}
 #hlpBtn.on{background:#ffd84a}
