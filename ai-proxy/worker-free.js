@@ -3,6 +3,8 @@
 //  2) Game sync + lock:  KV namespace binding named SYNC (Settings -> Bindings -> Add -> KV namespace)
 //  3) Accounts: name + password (stored only as a hash), bans, per-player locks and owner pranks. Uses the same SYNC binding.
 // The game sends everything it needs, so improving the game never needs a new copy of this file.
+// VERSION goes up whenever the game needs new worker features; the owner/head admin panel warns when this copy is older.
+const VERSION = 8;
 const ALLOW_ORIGIN = 'https://akifoskanbreadev.github.io';
 const BIG = '@cf/meta/llama-3.3-70b-instruct-fp8-fast', SMALL = '@cf/meta/llama-3.1-8b-instruct';
 export default {
@@ -12,6 +14,7 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (req.method !== 'POST') return new Response('POST only', { status: 405, headers: cors });
     const body = await req.json().catch(() => ({}));
+    if (body.op === 'ver') return json({ ver: VERSION, ai: !!env.AI, kv: !!env.SYNC });     // lets the game tell whether this worker is up to date and fully set up
 
     if (typeof body.op === 'string' && body.op.startsWith('sync-')) {
       if (!env.SYNC) return json({ error: 'no SYNC binding' }, 501);

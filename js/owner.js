@@ -176,6 +176,10 @@
   const creds = () => { const c = root.Account && root.Account.cred ? root.Account.cred() : null; return c ? { hname: c.name, hph: c.ph } : {}; };   // a head admin signs in with their account instead of the PIN
   const own = (op, extra) => call(Object.assign({ op, pin: get(LS.pin) || '' }, creds(), extra || {}));
   let pf = { q: '', f: 'all' };
+  const WORKER_EXPECTED = 8;
+  async function serverCheck() {            // { state: 'ok'|'old'|'down', ver, ai, kv }
+    try { const r = await call({ op: 'ver' }); if (!r || typeof r.ver !== 'number') return { state: 'old' }; return { state: r.ver >= WORKER_EXPECTED && r.ai && r.kv ? 'ok' : 'old', ver: r.ver, ai: !!r.ai, kv: !!r.kv }; } catch (e) { return { state: /http400|http404|http405/.test(e.message) ? 'old' : 'down' }; }
+  }
   async function loadUsers() { try { const r = await own('acct-list'); users = r.users || []; usersErr = ''; } catch (e) { users = users || []; usersErr = e.message === 'nokv' ? 'Server storage not set up.' : e.message === 'http400' || e.message === 'http404' ? 'The worker has no accounts yet. Paste the new worker code.' : 'Could not load players.'; } }
   async function send(f) {   // apply an effect to the chosen target
     if (who === 'me') { receive(f); return 'Applied to you.'; }
@@ -214,11 +218,12 @@
     const hint = (t) => { const n = document.createElement('div'); n.style.cssText = 'font-size:12px;opacity:.75;margin-top:8px'; n.textContent = t; body.appendChild(n); };
     if (tab === 'dash') {
       body.innerHTML = '<div id="dashBox" style="font-size:14px">Loading…</div>';
-      Promise.all([loadUsers(), own('acct-log').then((r) => r.log || []).catch(() => [])]).then(([, log]) => {
+      Promise.all([loadUsers(), own('acct-log').then((r) => r.log || []).catch(() => []), serverCheck()]).then(([, log, srv]) => {
         const b = el('dashBox'); if (!b) return; const us = users || [], now = Date.now(), on = us.filter((u) => now - u.seen < 300000);
         const cnt = (r) => us.filter((u) => u.rank === r).length, banned = us.filter((u) => u.ban && (!u.ban.until || u.ban.until > now)).length;
         const card = (n, l, c) => '<div style="flex:1;min-width:84px;background:' + c + ';border:2px solid #2a2f3a;border-radius:12px;padding:8px;text-align:center"><div style="font:900 24px system-ui">' + n + '</div><div style="font-size:11px">' + l + '</div></div>';
-        b.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">' + card(us.length, 'accounts', '#fff7da') + card(on.length, 'online now', '#dff7df') + card(banned, 'banned', '#ffe0e0') + card(cnt('headadmin'), 'head admins', '#ffe9cc') + card(cnt('mod'), 'moderators', '#dbe9ff') + '</div>' +
+        const srvTxt = srv.state === 'ok' ? '✅ Server is up to date (version ' + srv.ver + ', AI and storage connected)' : srv.state === 'down' ? '⚠️ Could not reach the server right now' : '⚠️ The Cloudflare worker is out of date or missing a binding' + (srv.ver != null ? ' (version ' + srv.ver + ', needs ' + WORKER_EXPECTED + (srv.ai ? '' : ', AI binding missing') + (srv.kv ? '' : ', storage binding missing') + ')' : '') + '. Re-paste the full ai-proxy/worker-free.js from the repo into Cloudflare and Deploy.';
+        b.innerHTML = '<div style="background:' + (srv.state === 'ok' ? '#dff7df' : '#fff0c9') + ';border:2px solid #2a2f3a;border-radius:10px;padding:6px 8px;margin-bottom:8px;font-size:13px;font-weight:700">' + srvTxt + '</div><div style="display:flex;gap:6px;flex-wrap:wrap">' + card(us.length, 'accounts', '#fff7da') + card(on.length, 'online now', '#dff7df') + card(banned, 'banned', '#ffe0e0') + card(cnt('headadmin'), 'head admins', '#ffe9cc') + card(cnt('mod'), 'moderators', '#dbe9ff') + '</div>' +
           '<h4 style="margin:10px 0 3px">Online now</h4><div>' + (on.length ? on.map((u) => '<span class="chip" style="display:inline-block;background:#fff;border:2px solid #2a2f3a;border-radius:999px;padding:1px 8px;margin:2px;font-size:12px">' + esc(u.name) + (u.where ? ' · ' + esc(u.where) : '') + '</span>').join('') : '<i>nobody</i>') + '</div>' +
           '<h4 style="margin:10px 0 3px">Quick actions</h4><div id="dashQ" style="display:flex;gap:6px;flex-wrap:wrap"></div>' +
           '<h4 style="margin:10px 0 3px">Latest staff actions</h4><div style="font-size:12px">' + (log.slice(0, 6).map((l) => '<div>' + new Date(l.at).toLocaleTimeString() + ' · <b>' + esc(l.by) + '</b> ' + esc(l.op) + (l.what ? ' ' + esc(l.what) : '') + (l.to ? ' → ' + esc(l.to) : '') + '</div>').join('') || '<i>nothing yet</i>') + '</div>';
@@ -277,6 +282,8 @@
           const t = document.createElement('div'); t.style.cssText = 'flex:1;min-width:0'; const online = Date.now() - u.seen < 300000;
           t.innerHTML = '<b>' + esc(u.name) + '</b> ' + (rankName(u.rank) ? '<span style="background:' + (u.rank === 'owner' ? '#c9162b' : u.rank === 'headadmin' ? '#e8780a' : '#3a86ff') + ';color:#fff;border-radius:6px;padding:0 5px;font-size:10px;font-weight:800">' + rankName(u.rank) + '</span> ' : '') + '<span style="color:' + (online ? '#1a9d3a' : '#888') + '">● ' + ago(u.seen) + (online && u.where ? ' · ' + esc(u.where) : '') + '</span>' + (u.ban && (!u.ban.until || u.ban.until > Date.now()) ? ' <span style="color:#c62835;font-weight:800">BANNED</span>' : '') + (u.locks && u.locks.length ? '<br><span style="font-size:11px;opacity:.7">locked: ' + esc(u.locks.join(', ')) + '</span>' : '');
           row.appendChild(t);
+          const locked = myRank === 'headadmin' && !authed() && (u.rank === 'owner' || u.rank === 'headadmin') && u.name.toLowerCase() !== (root.Account && root.Account.name ? root.Account.name().toLowerCase() : '');
+          if (locked) { const n = document.createElement('i'); n.style.cssText = 'font-size:11px;opacity:.6'; n.textContent = 'protected'; row.appendChild(n); box2.appendChild(row); continue; }
           const mb = (lab, fn) => { const b = document.createElement('button'); b.className = 'sec'; b.style.cssText = 'font-size:11px;padding:3px 6px'; b.textContent = lab; b.addEventListener('click', async () => { try { await fn(); } catch (e) { say('Failed: ' + e.message, true); } }); row.appendChild(b); };
           if (u.rank !== 'owner') { const sl = document.createElement('select'); sl.style.cssText = 'font-size:11px;padding:2px'; [['', 'no rank'], ['admin', 'admin'], ['mod', 'mod'], ['headadmin', 'headadmin']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; if ((u.rank || '') === v) o.selected = true; sl.appendChild(o); }); sl.addEventListener('change', async () => { try { await own('acct-setrank', { targets: [u.name.toLowerCase()], rank: sl.value }); u.rank = sl.value; say(u.name + ' is now ' + (sl.value || 'unranked') + '.'); draw(); } catch (e) { say('Failed: ' + e.message, true); } }); row.appendChild(sl); }
           mb('💬', async () => { const t = root.prompt('Message for ' + u.name + ' (max 120 characters):'); if (!t) return; await own('acct-fx', { targets: [u.name.toLowerCase()], fx: { k: 'msg', text: t.slice(0, 120) } }); say('Sent to ' + u.name + '.'); });
@@ -349,5 +356,5 @@
     el('ownList').addEventListener('click', () => say('All codes:\n' + Object.keys(A.CHEATS).map((k) => k + ' = ' + A.CHEATS[k]).concat(Object.keys(A.GIFTS).map((k) => k + ' = ' + A.GIFTS[k] + ' (one-time)'), ['codes = your active codes', 'sync = save sync + lock', 'akif = this panel']).join('\n')));
   }
   function init(a) { A = a; refresh(); verifyStored(); setInterval(refresh, 600000); syncBtn(); recalc(); }
-  root.Owner = { rank: () => myRank, setRank, pinHash: () => get(LS.pin), init, open, become, isLocked, blocks, isOwner, authed, refresh, LOCKABLE, fx, call, setMyLocks, receive, hashPin };
+  root.Owner = { serverCheck, rank: () => myRank, setRank, pinHash: () => get(LS.pin), init, open, become, isLocked, blocks, isOwner, authed, refresh, LOCKABLE, fx, call, setMyLocks, receive, hashPin };
 })(window);
