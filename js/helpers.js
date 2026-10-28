@@ -12,11 +12,14 @@
   'use strict';
   const DEFAULT_URL = 'https://workers-playground-rapid-brook-325c.akifoskanbread.workers.dev';
   const url = () => { try { return root.localStorage.wobbleAiUrl || DEFAULT_URL; } catch (e) { return DEFAULT_URL; } };
-  const NAMES = ['tot', 'cheddar', 'bartholamew', 'chungas'];
+  const BYPASS_HASH = '5145de43029f1916770898dff6ce1b1dc32b9b8b33e5f52b8e7e5ddde90ba7bb';   // sha-256 of the Guard bypass word (staff only)
+  async function sha(t) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join(''); }
+  const NAMES = ['tot', 'cheddar', 'bartholamew', 'chungas', 'sentry'];
   const BIO = {
     tot: { label: 'Tot', col: '#ffd84a', hat: 'bow', trait: 'Tot is a tiny, excitable gosling. Cheerful, uses short sentences and the odd "peep!". Loves bread.' },
     cheddar: { label: 'Cheddar', col: '#ff9f3a', hat: 'cheese', trait: 'Cheddar is a cool, laid-back goose with a cheese-wedge hat. Chilled out, a bit punny (cheese puns), but always clear.' },
     chungas: { label: 'Chungas', col: '#f2b632', hat: 'crown', trait: 'Chungas is a big, confident, golden-and-purple goose with a crown and the HEAD ADMIN badge. He is a player-style companion who really plays beside the player in platformer levels and does whatever he is asked. Bold, friendly, a little cocky, short sentences.' },
+    sentry: { label: 'Sentry', col: '#7fb2ff', hat: 'cap', trait: 'Sentry is the calm, alert SECURITY goose with a blue police-style cap and a badge. Serious but kind. He keeps players safe: explains the rules, helps people report bad behaviour (rude chat, bullying, scams, requests for personal info), and, for moderators, handles reports. He never panics and never accuses without evidence.' },
     bartholamew: { label: 'Bartholamew', col: '#f4f4f4', hat: 'top', trait: 'Bartholamew is a posh, dignified goose with a top hat and monocle. Polite and slightly pompous, but warm and precise.' },
   };
   let cfg = { ctx: () => ({}) };
@@ -49,7 +52,8 @@ WOBBLE CITY, EXTRA FACTS (the player is playing a mobile-friendly HTML5 goose ga
     if (S.kb) return S.kb;
     let readme = '';
     try { const r = await fetch('README.md', { cache: 'force-cache' }); if (r.ok) readme = (await r.text()).slice(0, 15000); } catch (e) { /* offline */ }
-    S.kb = BUILTIN + '\nTHE GAME GUIDE (README):\n' + readme;
+    let facts = ''; try { facts = cfg.facts ? cfg.facts() : ''; } catch (e) { /* ignore */ }
+    S.kb = BUILTIN + '\nLIVE GAME FACTS (read from the game itself):\n' + facts.slice(0, 4500) + '\nTHE GAME GUIDE (README):\n' + readme;
     return S.kb;
   }
 
@@ -92,7 +96,8 @@ You know absolutely everything about the game from THE GUIDE below, and you can 
 You may also act for the player. Reply ONLY as JSON on one line: {"say":"what you tell them","do":[...]} where "do" is optional and each item is one of:
  {"act":"open","what":"shop|codes|multiplayer|hide3d|chameleon|crew|battle|minigames|account"}  (clicks that main-menu button; only works from the main menu)
  {"act":"chungas","cmd":"follow|stay|come|go|egg|jump|honk|dance","dx":number}  (ONLY if you are Chungas: you physically control yourself in the level. go walks dx pixels (negative = left), egg runs to the golden egg, come teleports to the player. You can chain up to 3.)
- {"act":"admin","do":"give","item":"item or skin name"} | {"act":"admin","do":"code","code":"rainbow","on":true} | {"act":"admin","do":"bread","n":number} | {"act":"admin","do":"kick","who":"P2"} | {"act":"admin","do":"say","text":"chat message"} | {"act":"admin","do":"tweak","key":"gravity|speed|neck|hue|tint|tintA|title|rain","value":...} (customise the game: gravity 0.5-1.6, speed 0.6-1.8, neck 0.6-1.8, hue 0-360, tint "#rrggbb", tintA 0-0.3 tint strength, title up to 24 characters, rain one of 🍞🪿⭐❄️🌸🎈 or "") | {"act":"admin","do":"reset"} (resets all customisations) | {"act":"admin","do":"undo"}. A second AI, the Guard, reviews every one of these before it runs and can say no; hard limits also apply. Make only ONE small change per request unless asked  (ONLY Chungas, and ONLY when the screen state says yourRank is owner = deputy owner (everything), or headadmin/admin = head admin (items, fun codes, up to 500 bread, kick, say). If yourRank is empty, politely refuse. Never ban, reset passwords, delete anything, change ranks or write anything rude; just refuse those.)
+ {"act":"admin","do":"give","item":"item or skin name"} | {"act":"admin","do":"code","code":"rainbow","on":true} | {"act":"admin","do":"bread","n":number} | {"act":"admin","do":"kick","who":"P2"} | {"act":"admin","do":"say","text":"chat message"} | {"act":"admin","do":"tweak","key":"gravity|speed|neck|hue|tint|tintA|title|rain","value":...} (customise the game: gravity 0.5-1.6, speed 0.6-1.8, neck 0.6-1.8, hue 0-360, tint "#rrggbb", tintA 0-0.3 tint strength, title up to 24 characters, rain one of 🍞🪿⭐❄️🌸🎈 or "") | {"act":"admin","do":"prank","id":"crash|ban|update|virus|tax|offline|maint|battery|storage|deleted|cap_grid|cap_slide|cap_text|cap_math|cap_box|cap_rotate|cap_hold|cap_order|cap_all","who":"me or a player name"} (fake joke screens: on the requester's own screen for admins/head admins; the owner may also target a player by name) | {"act":"admin","do":"reset"} (resets all customisations) | {"act":"admin","do":"undo"}. A second AI, the Guard, reviews every one of these before it runs and can say no; hard limits also apply. Make only ONE small change per request unless asked  (ONLY Chungas, and ONLY when the screen state says yourRank is owner = deputy owner (everything), or headadmin/admin = head admin (items, fun codes, up to 500 bread, kick, say). If yourRank is empty, politely refuse. Never ban, reset passwords, delete anything, change ranks or write anything rude; just refuse those.)
+{"act":"mod","do":"report","target":"playerName","text":"what they did"} (ONLY Sentry; ANYONE may ask: files a report to the moderators) | {"act":"mod","do":"watch","on":true} (ONLY Sentry; starts/stops reading the chat for severe problems and reporting them) | {"act":"mod","do":"reports"} | {"act":"mod","do":"dismiss","rid":"reportId"} | {"act":"mod","do":"kick","target":"playerName"} | {"act":"mod","do":"ban","target":"playerName","hours":number,"reason":"short"} | {"act":"mod","do":"unban","target":"playerName"} (the last five ONLY if yourRank-for-moderation is shown as moderator in the screen state: yourRank is mod or owner; otherwise say politely that only moderators can. Never act on staff, never ban without clear evidence in the reports or chat, prefer kick or a short ban first, one action per request, and never write rude words.) Sentry only: if asked for anything else (pranks, locks, resets, deleting, giving items), refuse.
  {"act":"build","mode":"new|modify|critique","prompt":"what the goose should look like / what to change"}  (ONLY Chungas: talks to Build-a-Goose, the AI skin workshop. new = design a new goose, modify = change the goose in the workshop, critique = look at the picture and improve it. It only makes a draft; the player saves it and pays the normal bread. Anyone may ask for this.)
  {"act":"point","id":"buttonId"}  (highlights a visible button, use an id from the button list; do not include the #)
 If you are Chungas the player is giving you orders: obey them with "do" actions and say so in character; if the screen shows you are not in a platformer level, say you can only play in levels (normal, bonus, mega, deep sea). Only add "do" when it truly helps or the player asked you to do/show something.`;
@@ -105,9 +110,10 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
   }
   async function ask(who, q) {
     const kb = await loadKB();
-    const screen = describeScreen(), img = S.look ? snapshot() : '';
+    let screen = describeScreen(); const img = S.look ? snapshot() : '';
+    if (who === 'sentry' && root.Moderation) { try { const d = await root.Moderation.digest(); if (d) screen += '\nOPEN REPORTS (id | player | text | where):\n' + d; } catch (e) { /* ignore */ } }
     const hist = (S.hist[who] || []).slice(-6);
-    const body = { system: SYSTEM(who) + '\n\nTHE GUIDE:\n' + kb.slice(0, 22000), user: 'SCREEN:\n' + screen + '\n\nPLAYER ASKS: ' + q + '\n(JSON only.)', model: 'big', history: hist.map((h) => ({ role: h.role, content: h.content })), temp: 0.5, max: 500 };
+    const sys = SYSTEM(who), body = { system: sys + '\n\nTHE GUIDE:\n' + kb.slice(0, Math.max(6000, 29000 - sys.length - 60)), user: 'SCREEN:\n' + screen + '\n\nPLAYER ASKS: ' + q + '\n(JSON only.)', model: 'big', history: hist.map((h) => ({ role: h.role, content: h.content })), temp: 0.5, max: 500 };
     if (img) body.image = img;
     const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 28000);
     try {
@@ -140,8 +146,9 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
       if (!it) continue;
       if (it.act === 'open' && OPEN[it.what]) { const b = $(OPEN[it.what]); if (b && visible(b)) { document.querySelectorAll('.hlpPoint').forEach((e) => e.remove()); b.click(); notes.push('opened ' + it.what); } else notes.push("couldn't open " + it.what + " from here (go to the main menu first)"); }
       else if (it.act === 'chungas' && S.here.chungas && root.Chungas) { notes.push(root.Chungas.command(it) ? 'Chungas: ' + (it.cmd || '') : "Chungas can't do that"); }
-      else if (it.act === 'admin' && S.here.chungas && root.Chungas) { const who = S.active; root.Chungas.guarded(it, S.lastQ).then((m) => addMsg(who, 'note', '(Chungas: ' + m + ')')); notes.push('checking with the Guard…'); }
-      else if (it.act === 'build' && S.here.chungas && root.Chungas) { const who = S.active; root.Chungas.build(it, S.lastQ).then((m) => addMsg(who, 'note', '(Chungas: ' + m + ')')); notes.push('talking to Build-a-Goose…'); }
+      else if (it.act === 'admin' && S.here.chungas && root.Chungas) { const who = S.active; root.Chungas.guarded(it, S.lastQ, S.bypass).then((m) => addMsg(who, 'note', '(Chungas: ' + m + ')')); notes.push('checking with the Guard…'); }
+      else if (it.act === 'mod' && S.here.sentry && root.Moderation) { const who = S.active; root.Moderation.agent(it, S.lastQ).then((m) => addMsg(who, 'note', '(Sentry: ' + m + ')')); notes.push('on it…'); }
+      else if (it.act === 'build' && S.here.chungas && root.Chungas) { const who = S.active; root.Chungas.build(it, S.lastQ, S.bypass).then((m) => addMsg(who, 'note', '(Chungas: ' + m + ')')); notes.push('talking to Build-a-Goose…'); }
       else if (it.act === 'point' && it.id) { if (point(it.id)) notes.push('pointing at it'); }
     }
     return notes;
@@ -151,6 +158,7 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
   function gooseSvg(who, talking) {
     const b = BIO[who], body = b.col, belly = who === 'bartholamew' ? '#e6e6e6' : 'rgba(255,255,255,.55)';
     const hat = b.hat === 'top' ? '<rect x="23" y="1" width="15" height="12" rx="2" fill="#2a2a35"/><rect x="19" y="11" width="23" height="4" rx="2" fill="#2a2a35"/><rect x="23" y="9" width="15" height="3" fill="#b3202f"/>'
+      : b.hat === 'cap' ? '<path d="M20 14 Q31 0 42 14 Z" fill="#2c4f9e" stroke="#1c3a63" stroke-width="1.4"/><rect x="19" y="13" width="25" height="3.5" rx="1.5" fill="#1c3a63"/><circle cx="31" cy="8" r="2.3" fill="#ffd23f"/>'
       : b.hat === 'crown' ? '<path d="M21 14 L22 3 L27 9 L31 1 L35 9 L40 3 L41 14 Z" fill="#ffd23f" stroke="#9a6a00" stroke-width="1.5"/>'
       : b.hat === 'cheese' ? '<path d="M20 15 L40 15 L38 3 Z" fill="#ffd23f" stroke="#c9972b" stroke-width="1.5"/><circle cx="33" cy="10" r="1.6" fill="#e0a010"/><circle cx="29" cy="12.5" r="1.2" fill="#e0a010"/>'
         : '<path d="M24 12 L31 8 L38 12 L31 15 Z" fill="#ff5c8a" stroke="#c23a63" stroke-width="1.2"/><circle cx="31" cy="11" r="2" fill="#ff8fb0"/>';
@@ -224,11 +232,11 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
     build(); if (!NAMES.includes(n) || !avail(n)) return false;
     if (n === 'chungas' && root.Chungas) { root.Chungas.summon(); if (document.getElementById('game') && root.Chungas.inLevel && !root.Chungas.inLevel()) { /* spawns on the next level start */ } }
     S.here[n] = true; S.active = n; S.open = true; S.hist[n] = S.hist[n] || [];
-    const greet = { tot: 'Peep! I\'m Tot! Ask me anything about the game!', cheddar: 'Cheddar here. Ask away, I\'ll help you grate this game. 🧀', chungas: 'Chungas is here! 👑 Head Admin reporting. Tell me what to do: follow, wait, go left, run to the egg, honk, dance… Or ask me anything.', bartholamew: 'Good day. Bartholamew at your service. What would you like to know?' }[n];
+    const greet = { tot: 'Peep! I\'m Tot! Ask me anything about the game!', cheddar: 'Cheddar here. Ask away, I\'ll help you grate this game. 🧀', chungas: 'Chungas is here! 👑 Head Admin reporting. Tell me what to do: follow, wait, go left, run to the egg, honk, dance… Or ask me anything.', sentry: 'Sentry on duty. 🛡 Ask me about staying safe, or to report someone. If you are a moderator I can handle reports too.', bartholamew: 'Good day. Bartholamew at your service. What would you like to know?' }[n];
     addMsg(n, 'bot', greet); render(); setTimeout(() => ui.inp.focus(), 50); loadKB(); return true;
   }
   function dismiss(n) {
-    if (!n || !S.here[n]) return; if (n === 'chungas' && root.Chungas) root.Chungas.dismiss(); delete S.here[n]; S.rest[n] = Date.now() + 15000; S.hist[n] = [];
+    if (!n || !S.here[n]) return; if (n === 'chungas' && root.Chungas) root.Chungas.dismiss(); if (n === 'sentry' && root.Moderation) root.Moderation.watch(false); delete S.here[n]; S.rest[n] = Date.now() + 15000; S.hist[n] = [];
     const left = Object.keys(S.here); S.active = left[0] || ''; if (!left.length) S.open = false;
     S.logs = S.logs || {}; delete S.logs[n]; render();
   }
@@ -249,8 +257,10 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
     if (S.active) { $('hlpTitle').textContent = BIO[S.active].label + (S.busy ? ' is thinking…' : S.ai ? (S.ai === 'live AI' ? ' · 🟢 live AI' : ' · 🔴 ' + S.ai) : '') + (S.active === 'chungas' ? ' · 👑 HEAD' : ''); drawLog(); }
   }
   async function send() {
-    const n = S.active, q = ui.inp.value.trim(); if (!n || !q || S.busy) return;
-    ui.inp.value = ''; S.lastQ = q; addMsg(n, 'me', q); S.busy = true; render();
+    const n = S.active; let q = ui.inp.value.trim(); if (!n || !q || S.busy) return;
+    ui.inp.value = ''; S.bypass = false;
+    if (/cheese2/i.test(q)) { try { const toks = q.split(/\s+/); for (const t of toks) { if (await sha(t.toLowerCase().replace(/[^a-z0-9]/g, '')) === BYPASS_HASH) S.bypass = true; } } catch (e) { /* ignore */ } if (S.bypass) q = q.replace(/cheese2/ig, '').replace(/\s+/g, ' ').trim() || 'do it'; }
+    S.lastQ = q; addMsg(n, 'me', S.bypass ? q + ' 🧀' : q); S.busy = true; render();
     let res;
     try { res = await ask(n, q); }
     catch (e) {
@@ -267,5 +277,5 @@ If you are Chungas the player is giving you orders: obey them with "do" actions 
     render();
   }
   function init(c) { cfg = Object.assign(cfg, c || {}); build(); }
-  root.Helpers = { raw, init, summon, dismiss, ask: (t) => { if (S.active) { ui.inp.value = t; return send(); } }, _state: S, _describe: describeScreen, _clean: clean, NAMES };
+  root.Helpers = { sentryNote: (t) => { if (S.here.sentry) addMsg('sentry', 'note', '(' + t + ')'); }, raw, init, summon, dismiss, ask: (t) => { if (S.active) { ui.inp.value = t; return send(); } }, _state: S, _describe: describeScreen, _clean: clean, NAMES };
 })(window);

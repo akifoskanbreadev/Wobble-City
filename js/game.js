@@ -1403,7 +1403,20 @@
   window.Account.init({ rank: () => (save.cheats.admin ? 'admin' : ''), look: () => ({ skin: save.skin, equip: save.equip, tint: save.tint }), thumb: avatarThumb, where: () => (document.getElementById('h3') && document.getElementById('h3').style.display !== 'none' ? '3D hide' : document.getElementById('crew') && document.getElementById('crew').style.display !== 'none' ? 'Among Us' : document.getElementById('ch') && document.getElementById('ch').style.display !== 'none' ? 'Chameleon' : state === 'play' ? 'level ' + (levelIdx + 1) : state === 'mg' ? 'minigame' : 'menu') });
   $('accBtn').addEventListener('click', () => { audio(); window.Account.open(); });
   if (window.Tweaks) window.Tweaks.onChange = () => { try { applyPhys(); } catch (e) { /* ignore */ } };
-  if (window.Helpers) window.Helpers.init({ ctx: () => {
+  function gameFacts() {                       // everything the helper geese should know, read live from the game's own data
+    const o = [], T = (f) => { try { return f(); } catch (e) { return ''; } };
+    o.push('CODES (type in the Code box): ' + Object.keys(CHEATS).map((k) => k + '=' + CHEATS[k]).join('; ') + '; gifts: ' + Object.keys(GIFTS).map((k) => k + '=' + GIFTS[k]).join('; ') + '; special: akif (owner panel), sync (cross-device save), codes (list).');
+    o.push('STORE CATEGORIES: ' + STORE_CATS.map((c) => c.name).join(', ') + '. Skins: ' + T(() => SKINS.LIST.filter((k) => !k.hidden).map((k) => k.name).slice(0, 90).join(', ')) + '. Cosmetic items total: ' + ITEMS.length + ', examples: ' + T(() => ITEMS.slice(0, 40).map((i) => i.name).join(', ')));
+    o.push('LEVELS: ' + LEVELS.length + ' total. Difficulties: ' + T(() => Object.values(DIFFS).map((d) => d.name).join(', ')) + '.');
+    o.push('MINIGAMES: ' + T(() => window.Minigames.list.map((m) => m.name).join(', ')) + '.');
+    o.push('MULTIPLAYER MODES: Race, Tag, Hide & Seek, Minigame duel, Battle Arena (players + bots), Co-op Battle Tower, Free play (any normal level together); maps: ' + T(() => Object.keys(window.MP._maps).map((k) => k + ': ' + window.MP._maps[k].map((m) => m.name).join('/')).join('; ')) + '. In-game chat: Enter or the speech bubble.');
+    o.push('BATTLE WEAPONS: ' + T(() => Object.values(window.Battle._WEAPONS).map((w) => w.name).join(', ')) + '. Bots: Brawler Bot, Archer Bot.');
+    o.push('PRANK SCREENS (staff joke screens): ' + T(() => window.Pranks.LIST.map((p) => p.id + '=' + p.label).join('; ')) + '.');
+    o.push('TWEAKS (customisation): gravity 0.5-1.6, speed 0.6-1.8, neck 0.6-1.8, hue 0-360, tint colour + strength 0-0.3, menu title, falling emoji rain. Reset or undo any time.');
+    o.push('RANKS: player < admin (admin code) < head admin (owner picks) < owner (akif PIN); moderator (owner picks) handles reports, kicks and bans up to 30 days. Chungas = deputy owner (owner asks) / head admin (head admin or admin asks). Sentry = security goose. Tot, Cheddar, Bartholamew = friendly helper geese.');
+    return o.join('\n');
+  }
+  if (window.Helpers) window.Helpers.init({ facts: gameFacts, ctx: () => {
     const o = { yourRank: (window.GameAdmin && window.GameAdmin.rank()) || '', screen: state, level: level && level.name, levelNumber: levelIdx + 1, bread: save.bread, difficulty: (diff() || {}).name, activeCodes: Object.keys(save.cheats || {}).filter((k) => save.cheats[k]) };
     try { if (window.Battle && window.Battle.active()) { const b = window.Battle._state; o.battleTower = { floor: b.floor, hp: Math.round(b.hp), weapon: b.weapon }; } } catch (e) { /* ignore */ }
     try { const g = window.Crew && window.Crew._state && window.Crew._state(); if (g) o.amongUs = { phase: g.phase, role: g.me.role, tasksDone: g.tasksDone, tasksTotal: g.tasksTotal, lightsOut: g.lights > 0 }; } catch (e) { /* ignore */ }

@@ -27,7 +27,46 @@
     try { await call({ op: 'acct-report', name: c.name, ph: c.ph, target, text: String(text).slice(0, 200), where: where || '', why: why || 'chat', auto: !!auto }); return true; } catch (e) { sent.delete(key); return false; }
   }
   // call this for every chat line that arrives from another player
-  function incoming(name, text, where) { const r = scan(text); if (r.level === 2 && name) report(name, text, where, 'severe', true); return r.clean; }
+  function incoming(name, text, where) { const r = scan(text); if (r.level === 2 && name) report(name, text, where, 'severe', true); else if (watching && name && text) { buf.push({ name, text: String(text).slice(0, 120), where }); if (buf.length > 20) buf.shift(); } return r.clean; }
+
+  // ---- Sentry (the security helper goose): AI that reads chat while he is summoned, and acts for moderators
+  let watching = false, buf = [], wt = 0, digestAt = 0, digestTxt = '';
+  function watch(on) {
+    watching = !!on; clearInterval(wt); buf = [];
+    if (!watching) return;
+    wt = setInterval(async () => {
+      if (!buf.length || !(root.Helpers && root.Helpers.raw)) return; const batch = buf.splice(0, 12);
+      try {
+        const t = await root.Helpers.raw({ system: 'You watch a kids-friendly game chat for safety. For each numbered line decide severity: 0 fine (jokes, banter and game talk are fine), 1 rude, 2 severe (slurs, sexual content, threats, bullying, hate, self-harm talk, asking for personal info like address/phone/passwords, scams or links to other sites). Reply ONLY JSON: {"flag":[{"i":number,"sev":1|2,"why":"max 8 words"}]} listing only lines with sev 1 or 2.', user: batch.map((b, i) => i + ': ' + b.text).join('\n'), model: 'big', temp: 0, max: 300 });
+        const j = JSON.parse((String(t).match(/\{[\s\S]*\}/) || ['{}'])[0]);
+        for (const f of j.flag || []) { const b = batch[f.i | 0]; if (b && f.sev === 2) { report(b.name, b.text, b.where, 'ai:' + String(f.why || '').slice(0, 14), true); if (root.Helpers && root.Helpers.sentryNote) root.Helpers.sentryNote('Flagged ' + b.name + ': ' + String(f.why || 'inappropriate')); } }
+      } catch (e) { /* the filter still works without the AI */ }
+    }, 6000);
+  }
+  async function digest() {                      // a short list of open reports for Sentry to reason about (moderators only)
+    if (!isMod() || !cred()) return ''; if (Date.now() - digestAt < 20000) return digestTxt; digestAt = Date.now();
+    try { const r = (await mod('acct-mod-reports')).reports || []; digestTxt = r.filter((x) => x.status === 'open').slice(0, 10).map((x) => x.id + ' | ' + x.target + ' | ' + x.text.slice(0, 90) + ' | ' + x.where + (x.auto ? ' | auto' : '')).join('\n') || 'none'; } catch (e) { digestTxt = ''; }
+    return digestTxt;
+  }
+  const NAMEOK = /^[A-Za-z0-9_ .-]{3,16}$/;
+  // an action decided by the Sentry AI; everything is re-checked here and again by the server
+  async function agent(it, request) {
+    const kind = String((it && it.do) || '').toLowerCase(), target = String(it.target || '').trim();
+    if (!['reports', 'kick', 'ban', 'unban', 'dismiss', 'report', 'watch'].includes(kind)) return "I can't do that (no pranks, locks, resets or deleting things)";
+    if (kind === 'watch') { watch(it.on !== false); return it.on === false ? 'stopped watching the chat' : 'watching the chat for trouble'; }
+    if (kind === 'report') { if (!cred()) return 'sign in first'; if (!NAMEOK.test(target)) return 'which player?'; const ok = await report(target, String(it.text || it.reason || 'reported by player').slice(0, 200), 'sentry', 'player', false); return ok ? 'reported ' + target + ' to the moderators' : 'could not send the report'; }
+    if (!isMod() || !cred()) return 'only moderators and the owner can ask me to do that';
+    if (kind === 'reports') { await digest(); digestAt = 0; const d = await digest(); return d && d !== 'none' ? 'open reports:\n' + d : 'no open reports'; }
+    if (kind === 'dismiss') { try { await mod('acct-mod-resolve', { rid: String(it.rid || ''), action: 'dismiss' }); return 'dismissed ' + it.rid; } catch (e) { return 'failed: ' + e.message; } }
+    if (!NAMEOK.test(target)) return 'which player?';
+    const g = root.Chungas && root.Chungas.guard ? await root.Chungas.guard({ act: 'mod', do: kind, target, hours: it.hours, reason: it.reason }, request) : { ok: false, why: 'the Guard is offline' };
+    if (!g.ok) return '🛡 Guard said no: ' + g.why;
+    try {
+      if (kind === 'kick') { await mod('acct-mod-kick', { target }); return '🛡 Guard OK · kicked ' + target; }
+      if (kind === 'unban') { await mod('acct-mod-unban', { target }); return '🛡 Guard OK · unbanned ' + target; }
+      const h = Math.max(1, Math.min(720, Math.round(+it.hours || 24))); await mod('acct-mod-ban', { target, until: hours(h), reason: String(it.reason || 'Banned by a moderator').replace(/[<>]/g, '').slice(0, 100) }); return '🛡 Guard OK · banned ' + target + ' for ' + h + 'h';
+    } catch (e) { return 'failed: ' + e.message; }
+  }
 
   // ------------------------------------------------------------------ the moderator panel
   let btn = null, panel = null, tab = 'reports', data = { reports: [], users: [] }, msgEl = null;
@@ -95,5 +134,5 @@
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
-  root.Moderation = { scan, report, incoming, open, isMod };
+  root.Moderation = { agent, digest, watch, scan, report, incoming, open, isMod };
 })(window);
