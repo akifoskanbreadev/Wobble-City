@@ -67,8 +67,8 @@
   function clearFx() { fx.on = {}; fx.until = {}; recalc(); }
   const css = document.createElement('style');
   css.textContent = `
-  #ownBtn{position:fixed;top:max(6px,env(safe-area-inset-top));left:62px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#d6192b;color:#fff;font:800 9px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
-  #headBtn{position:fixed;top:max(6px,env(safe-area-inset-top));left:62px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#e8780a;color:#fff;font:800 9px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
+  #ownBtn{position:fixed;top:calc(max(6px,env(safe-area-inset-top)) + 44px);left:44px;z-index:2147483000;width:32px;height:32px;border-radius:50%;border:2px solid #fff;background:#d6192b;color:#fff;font:800 8px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
+  #headBtn{position:fixed;top:calc(max(6px,env(safe-area-inset-top)) + 44px);left:44px;z-index:2147483000;width:32px;height:32px;border-radius:50%;border:2px solid #fff;background:#e8780a;color:#fff;font:800 8px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;padding:0;display:none;line-height:1}
   #ownBtn:active{transform:scale(.93)}
   #ownerModal{z-index:2147483001}
   .ofx-flip canvas,.ofx-flip #h3,.ofx-flip #ch,.ofx-flip #crew{transform:rotate(180deg)}
