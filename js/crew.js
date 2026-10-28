@@ -134,13 +134,16 @@
   function taskDone(p) { if (counts(p)) G.tasksDone++; }
 
   // ------------------------------------------------------------------ game setup
+  const myLookNow = () => { try { return root.GooseArt ? root.GooseArt.myLook() : null; } catch (e) { return null; } };
+  const cleanLook = (l) => { try { return root.GooseArt ? root.GooseArt.clean(l) : null; } catch (e) { return null; } };
+  const randLook = () => { try { return root.GooseArt ? root.GooseArt.randomLook() : null; } catch (e) { return null; } };
   function newGame(o) {
     const hum = o.humans || null, n = hum ? Math.max(5, Math.min(10, o.n || 8), hum.length) : Math.max(5, Math.min(9, o.n || 7)), nImp = o.nImp ? Math.min(o.nImp, Math.max(1, Math.floor((n - 1) / 3) + (n >= 7 ? 0 : 0))) : (n >= 7 ? 2 : 1);
     const sk = opts && opts.Skins && opts.save ? opts.Skins.BY_ID[opts.save().skin] : null;
     const names = shuffle(NAMES).slice(0, n), cols = shuffle(COLS.slice(1));
     const meCol = sk && /^#[0-9a-f]{6}$/i.test(sk.body || '') ? sk.body : COLS[0];
     const P = [];
-    for (let i = 0; i < n; i++) P.push({ id: i, name: hum && hum[i] ? hum[i].name : (hum ? names[i] : (i ? names[i - 1] : 'You')), col: i ? cols[(i - 1) % cols.length] : meCol, net: hum && hum[i] ? hum[i].net : -1, remote: !!(hum && hum[i] && hum[i].net > 0), x: 0, y: 0, face: 1, alive: true, role: 'crew', bot: hum ? !(hum[i]) : !!(i || o.auto), tasks: [], cd: 12, seen: {}, susp: {}, vent: null, path: null, pt: null, mode: 'idle', timer: rnd(0.2, 2), walked: 0, stuck: 0, emerg: false, anim: Math.random() * 6, moving: false });
+    for (let i = 0; i < n; i++) P.push({ id: i, name: hum && hum[i] ? hum[i].name : (hum ? names[i] : (i ? names[i - 1] : 'You')), col: i ? cols[(i - 1) % cols.length] : meCol, net: hum && hum[i] ? hum[i].net : -1, remote: !!(hum && hum[i] && hum[i].net > 0), x: 0, y: 0, face: 1, alive: true, role: 'crew', bot: hum ? !(hum[i]) : !!(i || o.auto), tasks: [], cd: 12, seen: {}, susp: {}, vent: null, path: null, pt: null, mode: 'idle', timer: rnd(0.2, 2), walked: 0, stuck: 0, emerg: false, anim: Math.random() * 6, moving: false, look: i === 0 ? myLookNow() : (hum && hum[i] && hum[i].look ? cleanLook(hum[i].look) : randLook()) });
     if (hum) { const used = new Set([meCol]); hum.forEach((h, i) => { if (i && h.col && /^#[0-9a-f]{6}$/i.test(h.col) && !used.has(h.col)) P[i].col = h.col; used.add(P[i].col); }); }
     let role = o.role === 'imp' || (o.role === 'random' || !o.role ? Math.random() < nImp / n : false) ? 'imp' : 'crew';
     const impIds = []; if (hum) { shuffle(P.map((q, i) => i)).slice(0, nImp).forEach((k) => impIds.push(k)); role = impIds.includes(0) ? 'imp' : 'crew'; } else if (role === 'imp') impIds.push(0);
@@ -500,7 +503,18 @@
 
   // ------------------------------------------------------------------ drawing
   const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.max(0, Math.min(255, Math.round(v * k))); return 'rgb(' + f(n >> 16) + ',' + f((n >> 8) & 255) + ',' + f(n & 255) + ')'; };
-  function goose(c, x, y, col, face, t, moving, ghost, dead, fox) {
+  function gooseArtDraw(c, x, y, face, t, moving, ghost, fox, look) {      // the player's real avatar; false when it can't be drawn
+    if (!look || !root.GooseArt) return false;
+    try {
+      c.save(); if (ghost) c.globalAlpha = 0.45;
+      c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath(); c.ellipse(x, y + 15, 15, 5, 0, 0, 7); c.fill();
+      const h = root.GooseArt.draw(c, x, y + 17, look, { w: 24, face, t, moving });
+      if (fox) { c.translate(h.x, h.y - 2); c.scale(face, 1); c.fillStyle = '#e8541f'; c.strokeStyle = '#222'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-5, -4); c.lineTo(-3, -13); c.lineTo(1, -6); c.fill(); c.stroke(); c.beginPath(); c.moveTo(2, -6); c.lineTo(6, -13); c.lineTo(6, -4); c.fill(); c.stroke(); }
+      c.restore(); return true;
+    } catch (e) { try { c.restore(); } catch (e2) { /* ignore */ } return false; }
+  }
+  function goose(c, x, y, col, face, t, moving, ghost, dead, fox, look) {
+    if (!dead && gooseArtDraw(c, x, y, face, t, moving, ghost, fox, look)) return;
     c.save(); c.translate(x, y); c.scale(face, 1); if (ghost) c.globalAlpha = 0.45;
     c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath(); c.ellipse(0, 15, 15, 5, 0, 0, 7); c.fill();
     c.strokeStyle = '#222'; c.lineWidth = 2.4;
@@ -560,9 +574,9 @@
     for (const p of draw) {
       const lk = lookOf(p), ghostly = p.invis; if (ghostly) c.globalAlpha = 0.38;
       if (p.shield && (p === me || me.sub === 'medic')) { c.strokeStyle = 'rgba(120,200,255,.9)'; c.lineWidth = 3; c.beginPath(); c.arc(p.x, p.y - 4, 34, 0, 7); c.stroke(); }
-      goose(c, p.x, p.y, lk.col, p.face, p.anim, p.moving, !p.alive, false, p.role === 'imp' && (p === me || (me.role === 'imp') || owner() && ownS.xray));
-      c.font = '800 13px system-ui'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#000'; c.fillStyle = p.role === 'imp' && (me.role === 'imp' || (owner() && ownS.xray)) ? '#ff6a4a' : '#fff'; c.strokeText(lk.name, p.x, p.y - 40); c.fillText(lk.name, p.x, p.y - 40);
-      if (p.disg != null && p === me) { c.font = '700 11px system-ui'; c.fillStyle = '#ffd23f'; c.fillText('(really you)', p.x, p.y - 54); }
+      goose(c, p.x, p.y, lk.col, p.face, p.anim, p.moving, !p.alive, false, p.role === 'imp' && (p === me || (me.role === 'imp') || owner() && ownS.xray), lk.look);
+      c.font = '800 13px system-ui'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = '#000'; c.fillStyle = p.role === 'imp' && (me.role === 'imp' || (owner() && ownS.xray)) ? '#ff6a4a' : '#fff'; c.strokeText(lk.name, p.x, p.y + 34); c.fillText(lk.name, p.x, p.y + 34);
+      if (p.disg != null && p === me) { c.font = '700 11px system-ui'; c.fillStyle = '#ffd23f'; c.fillText('(really you)', p.x, p.y + 47); }
       if (ghostly) c.globalAlpha = 1;
     }
     if (meGhost) for (const p of G.players) if (!p.alive && !p.ejected && p !== me) { /* other ghosts stay hidden */ }
@@ -592,7 +606,7 @@
     }
     if (G.phase === 'meeting' && G.m.stage === 'result') {
       const m = G.m, e = m.res.ej; c.fillStyle = '#05070d'; c.fillRect(0, 0, cw, ch);
-      const px = ((m.rt / 3.5) % 1.4) * cw * 0.9 - cw * 0.1; if (e) { c.save(); c.translate(px, ch / 2 - 30 + Math.sin(m.rt * 4) * 14); c.rotate(m.rt * 3); c.scale(2.6, 2.6); goose(c, 0, 0, e.col, 1, m.rt, false, false, false); c.restore(); }
+      const px = ((m.rt / 3.5) % 1.4) * cw * 0.9 - cw * 0.1; if (e) { c.save(); c.translate(px, ch / 2 - 30 + Math.sin(m.rt * 4) * 14); c.rotate(m.rt * 3); c.scale(2.6, 2.6); goose(c, 0, 0, e.col, 1, m.rt, false, false, false, false, e.look); c.restore(); }
       c.fillStyle = '#fff'; c.font = '800 ' + Math.round(26 * f) + 'px system-ui'; c.textAlign = 'center';
       c.fillText(e ? e.name + (e.role === 'imp' ? ' WAS a Fox.' : ' was not a Fox.') : 'Nobody was ejected. (Skipped or tied.)', cw / 2, ch / 2 + 100);
       if (e) { c.font = '700 16px system-ui'; c.fillStyle = '#aab'; c.fillText(imps().length + ' Fox' + (imps().length === 1 ? '' : 'es') + ' remain', cw / 2, ch / 2 + 128); }
@@ -794,7 +808,7 @@
   function setupRoom() {
     if (room || !root.Room) return;
     room = root.Room.create({
-      prefix: PREFIX, max: 10, hello: () => ({ name: (root.Account && root.Account.name()) || 'Goose' + (100 + ((Math.random() * 900) | 0)), col: myColor() }),
+      prefix: PREFIX, max: 10, hello: () => ({ look: myLookNow(), name: (root.Account && root.Account.name()) || 'Goose' + (100 + ((Math.random() * 900) | 0)), col: myColor() }),
       onRoster: renderRoster, onMsg: onNet, onStatus: status, onDrop,
       onLost: (why) => { if (G && G.online) { G = null; closeTask(); showPanel('lobby'); } renderRoster([]); status(why, true); },
       canJoin: () => (G && G.online ? 'A game is already running in that room.' : null)
@@ -816,7 +830,7 @@
   function startOnline() {
     if (!room || !room.isHost() || (G && G.online)) return;
     ensureDom();
-    const list = room.list(); const hum = list.map((e) => ({ net: e.id, name: String(e.name || 'Goose').slice(0, 14), col: e.col }));
+    const list = room.list(); const hum = list.map((e) => ({ net: e.id, name: String(e.name || 'Goose').slice(0, 14), col: e.col, look: e.look }));
     const n = Math.max(osel.n, hum.length);
     newGame({ humans: hum, n, nImp: osel.imp });
     showPanel(null); closeTask(); renderChat(); G.players.forEach((q) => { if (q.role === 'imp') q.cd = 10; });
@@ -825,7 +839,7 @@
     if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
   }
   function startMsg(q) {
-    return { k: 'start', sub: q.sub || '', i: q.id, ps: G.players.map((x) => ({ name: x.name, col: x.col })), role: q.role, mates: q.role === 'imp' ? G.players.filter((x) => x.role === 'imp' && x !== q).map((x) => x.id) : [], tasks: q.tasks.map((t) => t.id), tt: G.tasksTotal, ni: G.nImp, pos: G.players.map((x) => [Math.round(x.x), Math.round(x.y)]) };
+    return { k: 'start', sub: q.sub || '', i: q.id, ps: G.players.map((x) => ({ name: x.name, col: x.col, look: x.look || null })), role: q.role, mates: q.role === 'imp' ? G.players.filter((x) => x.role === 'imp' && x !== q).map((x) => x.id) : [], tasks: q.tasks.map((t) => t.id), tt: G.tasksTotal, ni: G.nImp, pos: G.players.map((x) => [Math.round(x.x), Math.round(x.y)]) };
   }
   function remoteStep(p, dt) {
     p.cd -= dt; p.anim += dt;
@@ -877,7 +891,7 @@
     switch (m.k) {
       case 'start': {
         ensureDom();
-        const ps = m.ps.map((x, i) => ({ id: i, name: x.name, col: x.col, x: m.pos[i][0], y: m.pos[i][1], tx: m.pos[i][0], ty: m.pos[i][1], face: 1, alive: true, role: 'crew', bot: false, tasks: [], cd: 10, seen: {}, susp: {}, vent: null, anim: Math.random() * 6, moving: false }));
+        const ps = m.ps.map((x, i) => ({ id: i, name: x.name, col: x.col, look: cleanLook(x.look), x: m.pos[i][0], y: m.pos[i][1], tx: m.pos[i][0], ty: m.pos[i][1], face: 1, alive: true, role: 'crew', bot: false, tasks: [], cd: 10, seen: {}, susp: {}, vent: null, anim: Math.random() * 6, moving: false }));
         const me0 = ps[m.i]; me0.role = m.role; me0.sub = m.sub || ''; me0.ab = me0.sub ? { cd: 0, uses: me0.sub === 'detective' ? 3 : me0.sub === 'medic' ? 1 : me0.sub === 'engineer' ? 4 : 99 } : null; me0.tasks = m.tasks.map((id) => ({ id, done: false })); m.mates.forEach((k) => { ps[k].role = 'imp'; });
         G = { online: true, host: false, nImp: m.ni, phase: 'intro', t: 0, introT: 3.2, players: ps, me: me0, bodies: [], chat: [], m: null, task: null, lights: 0, overload: null, sabCd: 40, tasksTotal: m.tt, tasksDone: 0, result: null, meetings: 0, kills: 0, auto: false, intel: 0, toasts: [], emergLeft: 1, sabMenu: false, posT: 0 };
         showPanel(null); closeTask(); renderChat(); break;

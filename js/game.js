@@ -1492,6 +1492,61 @@
     try { drawGoose(c, fg, eq, sk); } catch (e) { /* ignore */ }
     return cv;
   }
+  // GooseArt: draws the player's real avatar (skin + clothes) anywhere, sized to fit, for the other game modes
+  const GooseArt = (() => {
+    const colCache = {}, KEEP = ['hat', 'eyes', 'neck', 'body', 'shoes', 'back', 'face', 'beak', 'tail', 'legs'];
+    function itemColor(id) {                        // the main colour of a clothing item (used by the 3D mode)
+      if (colCache[id] !== undefined) return colCache[id];
+      let out = null;
+      try {
+        const it = BY_ID[id];
+        if (it && it.draw) {
+          const cv = document.createElement('canvas'); cv.width = cv.height = 48; const c = cv.getContext('2d');
+          c.translate(24, 30); it.draw(c, 0, 0);
+          const d = c.getImageData(0, 0, 48, 48).data, bins = {};
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 200 || d[i] + d[i + 1] + d[i + 2] < 150) continue;       // skip see-through and the dark outline
+            const k = (d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5), b = bins[k] || (bins[k] = { n: 0, r: 0, g: 0, b: 0 });
+            b.n++; b.r += d[i]; b.g += d[i + 1]; b.b += d[i + 2];
+          }
+          let best = null; for (const k in bins) if (!best || bins[k].n > best.n) best = bins[k];
+          if (best) out = '#' + [best.r, best.g, best.b].map((v) => ('0' + Math.round(v / best.n).toString(16)).slice(-2)).join('');
+        }
+      } catch (e) { /* ignore */ }
+      return (colCache[id] = out);
+    }
+    function myLook() {
+      const eq = {}; for (const k of KEEP) if (save.equip && save.equip[k] && BY_ID[save.equip[k]]) eq[k] = save.equip[k];
+      return { skin: save.skin, equip: eq, tint: save.tint || null };
+    }
+    function clean(l) {                              // a look that came from somewhere else: keep only ids that exist
+      if (!l || typeof l !== 'object') return null;
+      const eq = {}; for (const k of KEEP) if (l.equip && typeof l.equip[k] === 'string' && BY_ID[l.equip[k]]) eq[k] = l.equip[k];
+      return { skin: SKINS.BY_ID[l.skin] ? l.skin : 'goose', equip: eq, tint: l.tint && typeof l.tint === 'object' ? l.tint : null };
+    }
+    function randomLook() {
+      const sk = SKINS.LIST.filter((s) => !s.hidden), pickOf = (a) => a[(Math.random() * a.length) | 0], eq = {};
+      const by = (cat) => Object.keys(BY_ID).filter((i) => BY_ID[i].cat === cat && !BY_ID[i].hidden);
+      for (const [cat, p] of [['hat', 0.6], ['eyes', 0.3], ['neck', 0.3], ['body', 0.25], ['shoes', 0.3]]) if (Math.random() < p) { const l = by(cat); if (l.length) eq[cat] = pickOf(l); }
+      return { skin: pickOf(sk).id, equip: eq, tint: null };
+    }
+    // x,y = the goose's feet. o: { h: pixel height, face: 1|-1, t: seconds, moving }. Returns where the head ended up.
+    function draw(c, x, y, look, o) {
+      o = o || {}; look = look || { skin: 'goose', equip: {} };
+      const sid = SKINS.BY_ID[look.skin] ? look.skin : 'goose', t = o.t || 0, fg = fakeGoose(t, sid);
+      let minY = 0; for (const p of fg.neck) minY = Math.min(minY, p.y); minY -= 24;
+      let bottom = 0; for (const p of fg.feet) bottom = Math.max(bottom, p.y); bottom += 6;
+      const sw = ((SKINS.BY_ID[sid].shape || {}).w) || 1, k = o.w ? Math.min(2, Math.max(0.2, o.w / (56 * sw))) : Math.min(3, (o.h || 46) / (bottom - minY));
+      if (o.moving) fg.feet.forEach((p, i) => { const s = Math.sin(t * 14 + i * Math.PI); p.x += s * 6; p.y -= Math.max(0, Math.cos(t * 14 + i * Math.PI)) * 4; });
+      const eq = Object.assign({}, look.equip || {}); delete eq.skin; if (look.tint) eq._tint = look.tint;
+      c.save(); c.translate(x, y); c.scale((o.face || 1) * k, k); c.translate(0, -bottom + (o.moving ? Math.abs(Math.sin(t * 14)) * -2 : 0));
+      try { drawGoose(c, fg, eq, sid); } catch (e) { /* ignore */ }
+      c.restore();
+      return { x: x + (o.face || 1) * k * fg.head.x, y: y + k * (fg.head.y - bottom), k };
+    }
+    return { draw, myLook, randomLook, clean, itemColor };
+  })();
+  window.GooseArt = GooseArt;
   function iconFor(item) {
     if (item.cat === 'skin') {
       const cv = document.createElement('canvas'); cv.width = cv.height = 96;

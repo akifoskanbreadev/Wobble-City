@@ -671,7 +671,18 @@
   function toLobby() { G = null; paused = false; I.l = I.r = false; if (room && room.connected()) { renderRoster(room.list()); } layoutUI(); }
 
   // ================================================================== drawing
-  function drawHuman(p, x, y) { gooseArt(c, x, y, GW, GH, p.col, p.face, p.role === 'seeker'); }
+  function drawHuman(p, x, y) {            // seekers wear a real avatar (yours for you); hiders stay painted so camouflage still works
+    try {
+      const GA = window.GooseArt;
+      if (GA) {
+        if (!p.look) p.look = isMe(p) ? GA.myLook() : GA.randomLook();
+        const cx = x + GW / 2; c.save(); c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(cx, y - 2, 24, 6, 0, 0, 7); c.fill(); c.restore();
+        GA.draw(c, cx, y - 2, p.look, { w: 46, face: p.face < 0 ? -1 : 1, t: performance.now() / 1000, moving: !!p.mv });
+        return;
+      }
+    } catch (e) { /* fall back to the plain goose */ }
+    gooseArt(c, x, y, GW, GH, p.col, p.face, p.role === 'seeker');
+  }
   function drawScene() {
     const g = G, cam = g.cam | 0; c.drawImage(stageOf(g.stage), cam, 0, W, H, 0, 0, W, H);
     c.save(); c.translate(-cam, 0);
