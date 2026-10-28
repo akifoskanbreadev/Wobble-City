@@ -42,6 +42,25 @@
         m.i.push(base, base + 1, base + 2, base, base + 2, base + 3); m.n += 4;
       }
     };
+    // a smooth ellipsoid (real round shape): centre cx,cy,cz, radii rx,ry,rz, turned about Y by yaw. Smooth-shaded, so no blocky edges.
+    m.ball = (cx, cy, cz, rx, ry, rz, col, yaw, seg, ring) => {
+      const c = rgb(col), S = seg || 12, Rg = ring || 8, co = yaw ? Math.cos(yaw) : 1, si = yaw ? Math.sin(yaw) : 0, base0 = m.n;
+      for (let i = 0; i <= Rg; i++) {
+        const ph = -Math.PI / 2 + (Math.PI * i) / Rg, cp = Math.cos(ph), sp = Math.sin(ph);
+        for (let j = 0; j <= S; j++) {
+          const th = (2 * Math.PI * j) / S, ux = cp * Math.cos(th), uz = cp * Math.sin(th);
+          let px = ux * rx, pz = uz * rz, nx = ux / rx, nz = uz / rz; const ny = sp / ry, nl = Math.hypot(nx, ny, nz) || 1;
+          nx /= nl; nz /= nl;
+          if (yaw) { let t = px * co + pz * si; pz = -px * si + pz * co; px = t; t = nx * co + nz * si; nz = -nx * si + nz * co; nx = t; }
+          m.v.push(cx + px, cy + sp * ry, cz + pz, nx, ny / nl, nz, c[0], c[1], c[2]);
+        }
+      }
+      for (let i = 0; i < Rg; i++) for (let j = 0; j < S; j++) {
+        const a = base0 + i * (S + 1) + j, b = a + 1, d = a + S + 1, cc = d + 1;
+        m.i.push(a, d, cc, a, cc, b);
+      }
+      m.n += (Rg + 1) * (S + 1);
+    };
     m.clear = () => { m.v.length = 0; m.i.length = 0; m.n = 0; };
     return m;
   }

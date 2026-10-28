@@ -495,34 +495,30 @@
     const c = p.cols, x = p.x, z = p.z, y = p.y, ry = p.ry, mv = Math.hypot(p.mx, p.mz) > 0.3 ? 1 : 0, s = Math.sin(p.anim) * (p.ground ? 0.35 : 0.1) * mv, air = p.ground ? 0 : 0.3;
     const h0 = p.hat && typeof p.hat === 'object' ? p.hat : null, X = h0 || {};
     const co = Math.cos(ry), si = Math.sin(ry), put = (dx, y0, dz, w, h, d, cl, tw) => m.box(x + dx * co + dz * si, y + y0, z - dx * si + dz * co, w, h, d, cl, ry + (tw || 0));
-    // a rounded blob: stacked slices that narrow like an egg, each drawn twice (one turned 45 degrees) so it reads as round, not blocky
-    const blob = (cx, cy, cz, rx, rY, rz, cl, n, a, b) => {
-      n = n || 5; a = a == null ? 0 : a; b = b == null ? n : b;
-      for (let k = a; k < b; k++) { const t = ((k + 0.5) / n) * 2 - 1, sc = Math.sqrt(Math.max(0.05, 1 - t * t)), hh = (2 * rY) / n + 0.02, yy = cy - rY + (k * 2 * rY) / n;
-        put(cx, yy, cz, 2 * rx * sc, hh, 2 * rz * sc, cl); put(cx, yy + 0.006, cz, 2 * rx * sc, hh - 0.012, 2 * rz * sc, cl, 0.785); }
-    };
+    // everything is built from smooth ellipsoids, so the goose is actually round
+    const ball = (dx, cy, dz, rx, rY, rz, cl) => m.ball(x + dx * co + dz * si, y + cy, z - dx * si + dz * co, rx, rY, rz, cl, ry);
     const sh = col(X.sh, c.leg);
-    put(0.3, 0, s * 0.8, 0.2, 0.5, 0.2, c.leg); put(-0.3, 0, -s * 0.8, 0.2, 0.5, 0.2, c.leg);                    // legs
-    blob(0.3, 0.07, s * 0.8 + 0.2, 0.28, 0.08, 0.4, sh, 2); blob(-0.3, 0.07, -s * 0.8 + 0.2, 0.28, 0.08, 0.4, sh, 2);   // webbed feet
+    ball(0.3, 0.27, s * 0.8, 0.09, 0.27, 0.09, c.leg); ball(-0.3, 0.27, -s * 0.8, 0.09, 0.27, 0.09, c.leg);          // legs
+    ball(0.3, 0.06, s * 0.8 + 0.18, 0.2, 0.07, 0.3, sh); ball(-0.3, 0.06, -s * 0.8 + 0.18, 0.2, 0.07, 0.3, sh);   // webbed feet
     const bob = mv ? Math.abs(Math.sin(p.anim)) * 0.06 : 0, by = 1.0 + bob;
-    blob(0, by, 0, 0.78, 0.58, 0.98, c.body, 5);                                                                  // round body
-    if (X.vs) blob(0, by, 0, 0.82, 0.6, 0.82, col(X.vs, '#3a86ff'), 5, 1, 4);                                      // clothes: a belly band in the outfit colour
-    blob(0.76, by + 0.08 + air, 0, 0.13, 0.34, 0.6, c.wing, 3); blob(-0.76, by + 0.08 + air, 0, 0.13, 0.34, 0.6, c.wing, 3);   // rounded wings
-    blob(0, by + 0.12, -0.95, 0.3, 0.26, 0.34, c.body, 3);                                                        // tail
-    // short, wobbly neck: three little segments that sway with the walk cycle and a slow idle wobble
+    ball(0, by, 0, 0.78, 0.6, 0.98, c.body);                                                                      // round body
+    if (X.vs) ball(0, by - 0.02, 0.02, 0.83, 0.34, 0.9, col(X.vs, '#3a86ff'));                                       // clothes: a belly band in the outfit colour
+    ball(0.8, by + 0.08 + air, 0, 0.12, 0.36, 0.62, c.wing); ball(-0.8, by + 0.08 + air, 0, 0.12, 0.36, 0.62, c.wing);   // rounded wings
+    ball(0, by + 0.14, -0.95, 0.28, 0.22, 0.4, c.body);                                                            // tail
+    // short, wobbly neck: a chain of little balls that sway with the walk cycle and a slow idle wobble
     const t2 = p.anim * (mv ? 1 : 0.35), amp = mv ? 0.1 : 0.05;
-    let nx = 0, nz = 0.52; const NS = 3;
+    let nx = 0, nz = 0.52; const NS = 8;
     for (let k = 0; k < NS; k++) {
-      nx = Math.sin(t2 * 1.3 + k * 1.1) * amp * (k + 1) / NS; nz = 0.52 + k * 0.05 + Math.cos(t2 * 1.1 + k) * 0.03 * (k + 1);
-      blob(nx, by + 0.4 + k * 0.24 + 0.14, nz, 0.2, 0.16, 0.2, c.head, 2);
+      nx = Math.sin(t2 * 1.3 + k * 0.55) * amp * (k + 1) / NS; nz = 0.52 + k * 0.02 + Math.cos(t2 * 1.1 + k * 0.5) * 0.03 * (k + 1) / 2;
+      ball(nx, by + 0.45 + k * 0.085, nz, 0.21, 0.13, 0.21, c.head);
     }
-    const hx = nx, hz = nz + 0.12, hy = by + 0.4 + NS * 0.24 + 0.34;                                                  // head centre
-    if (X.sc) blob(nx * 0.4, by + 0.62, 0.55, 0.32, 0.1, 0.32, col(X.sc, '#e63946'), 2);                              // scarf
-    blob(hx, hy, hz, 0.46, 0.42, 0.46, c.head, 5);                                                                // round head
-    put(hx, hy - 0.1, hz + 0.5, 0.36, 0.14, 0.34, c.beak); put(hx, hy - 0.2, hz + 0.54, 0.34, 0.07, 0.3, c.beak);     // beak
-    put(hx + 0.2, hy + 0.1, hz + 0.38, 0.12, 0.16, 0.06, '#111111'); put(hx - 0.2, hy + 0.1, hz + 0.38, 0.12, 0.16, 0.06, '#111111');   // eyes
-    if (X.gl) { const gc = col(X.gl, '#222222'); put(hx + 0.2, hy + 0.04, hz + 0.43, 0.28, 0.26, 0.05, gc); put(hx - 0.2, hy + 0.04, hz + 0.43, 0.28, 0.26, 0.05, gc); put(hx, hy + 0.1, hz + 0.43, 0.14, 0.05, 0.05, gc); put(hx + 0.2, hy + 0.1, hz + 0.46, 0.12, 0.16, 0.05, '#111111'); put(hx - 0.2, hy + 0.1, hz + 0.46, 0.12, 0.16, 0.05, '#111111'); }
-    const putH = (dx, y0, dz, w, h, d, cl) => put(hx + dx, y0 - 2.75 + hy + 0.45, hz + dz - 0.05, w, h, d, cl);    // hats were built for the old head: follow the new one
+    const hx = nx, hz = nz + 0.1, hy = by + 0.45 + NS * 0.085 + 0.3;                                                  // head centre
+    if (X.sc) ball(nx * 0.5, by + 0.62, 0.55, 0.3, 0.1, 0.3, col(X.sc, '#e63946'));                                    // scarf
+    ball(hx, hy, hz, 0.45, 0.42, 0.45, c.head);                                                                   // round head
+    ball(hx, hy - 0.08, hz + 0.5, 0.17, 0.09, 0.28, c.beak);                                                       // beak
+    ball(hx + 0.2, hy + 0.1, hz + 0.38, 0.06, 0.08, 0.05, '#111111'); ball(hx - 0.2, hy + 0.1, hz + 0.38, 0.06, 0.08, 0.05, '#111111');   // eyes
+    if (X.gl) { const gc = col(X.gl, '#222222'); ball(hx + 0.2, hy + 0.1, hz + 0.4, 0.15, 0.13, 0.04, gc); ball(hx - 0.2, hy + 0.1, hz + 0.4, 0.15, 0.13, 0.04, gc); }
+    const putH = (dx, y0, dz, w, h, d, cl) => put(hx + dx, y0 - 2.75 + hy + 0.32, hz + dz - 0.05, w, h, d, cl);    // hats were built for the old head: follow the new one
     if (h0 && h0.k && p.role !== 'seeker') {
       const h = h0, hc = col(h0.c, '#e63946');
       if (h.k === 'top') { putH(0, 2.75, 0.05, 1.3, 0.15, 1.3, hc); putH(0, 2.9, 0.05, 0.8, 0.9, 0.8, hc); putH(0, 2.95, 0.05, 0.84, 0.18, 0.84, '#ffffff'); }
