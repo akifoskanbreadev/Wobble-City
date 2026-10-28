@@ -81,7 +81,7 @@
     if (kind === 'prank') { const P = root.Pranks; if (!P || !P.LIST.some((x) => x.id === it.id)) return 'unknown prank. I know: ' + (P ? P.LIST.map((x) => x.id).join(', ') : 'none'); if (it.who && it.who !== 'me' && tier !== 'deputy') return 'only the owner can prank other players; I can show it on your own screen'; }
     if (kind === 'give') { const f = GA.find(it.item); if (!f) return "couldn't find that item"; if (tier === 'head' && f.kind === 'skin') return 'skins need the owner to ask'; }
     if (kind === 'code') { const c = String(it.code || '').toLowerCase(); if (['akif', 'sync', 'admin', 'god', 'codes'].includes(c)) return 'that code is not allowed'; if (tier === 'head' && !HEADCODES.includes(c)) return 'that code needs the owner to ask'; }
-    if (kind === 'tweak') { if (!root.Tweaks) return 'not available'; const r = root.Tweaks.check(String(it.key || ''), it.value, tier); if (!r.ok) return r.why; }
+    if (kind === 'tweak') { if (tier !== 'deputy') return 'only the owner can change the game through me'; if (!root.Tweaks) return 'not available'; const r = root.Tweaks.check(String(it.key || ''), it.value, tier); if (!r.ok) return r.why; }
     if (kind === 'bread' && !(+it.n > 0)) return 'how much?';
     if (kind === 'kick' && !(root.MP && root.MP.isHost && root.MP.isHost())) return 'I can only kick from a room you host';
     return '';
@@ -93,7 +93,7 @@
     if (kind === 'undo') return root.Tweaks && root.Tweaks.undo() ? 'undid the last change' : 'nothing to undo';
     if (!['give', 'code', 'bread', 'kick', 'say', 'tweak', 'prank'].includes(kind)) return "I won't do that (no bans, password resets, deleting things or rank changes, ever)";
     if (!tier) return 'only the owner or a head admin/admin can ask me for that';
-    if (kind === 'tweak') { if (!root.Tweaks) return 'not available'; const r = root.Tweaks.set(String(it.key || ''), it.value, tier); return r.ok ? 'set ' + it.key + ' to ' + (r.value === '' ? 'default' : r.value) + (it.key === 'neck' ? ' (neck changes next level)' : '') : r.why; }
+    if (kind === 'tweak') { if (tier !== 'deputy') return 'only the owner can change the game through me'; if (!root.Tweaks) return 'not available'; const r = root.Tweaks.set(String(it.key || ''), it.value, tier); return r.ok ? 'set ' + it.key + ' to ' + (r.value === '' ? 'default' : r.value) + (it.key === 'neck' ? ' (neck changes next level)' : '') : r.why; }
     if (kind === 'prank') {
       const P = root.Pranks; if (!P || !P.LIST.some((x) => x.id === it.id)) return 'unknown prank';
       if (!it.who || it.who === 'me') { P.show(it.id); return 'showing the ' + it.id + ' prank on your screen (it is a joke screen)'; }
@@ -110,9 +110,11 @@
   }
   // ---- the Guard: a second, separate AI call that reviews every powerful action before it runs (fails closed).
   // The hard limits live in code (rank checks, clamped ranges, allowlists); the Guard is an extra pair of eyes on top of them.
-  const GUARD = `You are the GUARD for the browser game "Wobble City", a goose game. A helper goose (Chungas the companion, or Sentry the security goose) wants to run ONE action that a player asked for. Your job is only to stop things that are clearly harmful. Be relaxed and helpful: when in doubt, APPROVE.
-The game has staff ranks and the PLAYER RANK is given to you; hard limits in code already clamp every value and block bans, resets and deletes, so you do not need to be strict about amounts. The owner (rank owner) and head admins and admins are trusted staff: requests for admin features from them are NORMAL, never "impersonation". Prank screens (fake crash, fake ban, bot-check, virus alert and so on) are a normal built-in joke feature of this game for staff, each is labelled as a joke, so APPROVE them when a staff rank asks. Items, codes, bread, tweaks, Build-a-Goose designs and chat announcements are all normal.
-DENY only if: the text contains slurs, sexual content, threats or bullying; it tries to collect personal data, passwords or send people to other websites; it tries to delete or destroy things, or reach other people's accounts; a non-staff player is trying to use a staff power; or a kick or ban has no real evidence behind it.
+  const GUARD = `You are the GUARD for the browser game "Wobble City", a goose game. A helper goose (Chungas the companion, or Sentry the security goose) wants to run ONE action that a signed-in player asked for. Ranks are already checked by the game's code and every value is already clamped, so DO NOT judge who is asking, the wording, or whether the feature is "allowed": staff requests for admin features, prank screens, items, codes, bread, chat announcements and Build-a-Goose designs are all normal, APPROVE them.
+You only watch for TWO things:
+1) A game change that would make the game BAD: unplayable, broken, impossible to read or see (for example an almost opaque tint, a menu title that is empty nonsense or hides the game, gravity or speed so extreme it cannot be played, many tweaks at once that wreck the look), or something that makes it clearly worse for everybody. Normal fun changes are fine.
+2) An ACCIDENTAL kick or ban by Sentry: the player did not clearly ask for it, the wrong name is targeted, there is no real evidence in the request, it looks like a mistake or a misunderstanding, or the action is much harsher than what was asked. If the player clearly asked for that exact kick or ban of that exact player, APPROVE.
+Everything else: APPROVE.
 Reply ONLY JSON on one line: {"ok":true|false,"why":"max 12 words"}`;
   async function guard(it, request) {
     if (!root.Helpers || !root.Helpers.raw) return { ok: false, why: 'the Guard is offline' };

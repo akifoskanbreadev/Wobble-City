@@ -35,7 +35,9 @@ export default {
       const cur = await env.SYNC.get('cfg:pin'), pin = hex(body.pin) ? body.pin : '';
       if (body.op === 'cfg-get') return json({ locked: JSON.parse((await env.SYNC.get('cfg:locked')) || '[]'), pinSet: !!cur });
       if (body.op === 'cfg-pin') { if (cur || !pin) return json({ error: 'pin' }, 403); await env.SYNC.put('cfg:pin', pin); return json({ ok: true }); }
-      if (!cur || cur !== pin) return json({ error: 'bad pin' }, 403);
+      let okHead = false;
+      if (cur && cur !== pin && body.op === 'cfg-set' && typeof body.hname === 'string' && hex(body.hph)) { const nid = body.hname.trim().toLowerCase(), me = nid ? JSON.parse((await env.SYNC.get('u:' + nid)) || 'null') : null; okHead = !!me && me.ph === body.hph && me.rank === 'headadmin'; }   // head admins may lock/unlock codes
+      if (!okHead && (!cur || cur !== pin)) return json({ error: 'bad pin' }, 403);
       if (body.op === 'cfg-auth') return json({ ok: true });
       if (body.op === 'cfg-friend') { if (body.h === '') { await env.SYNC.delete('cfg:friend'); return json({ ok: true }); } if (!hex(body.h)) return json({ error: 'bad hash' }, 400); await env.SYNC.put('cfg:friend', body.h); return json({ ok: true }); }
       if (body.op === 'cfg-get-friend') return json({ set: !!(await env.SYNC.get('cfg:friend')) });
@@ -58,17 +60,30 @@ export default {
       const small = (a) => { const t = JSON.stringify(a || null); return t && t.length < 6000 ? a : null; };
       const view = (u) => ({ rank: u.rank || '', ban: u.ban && (!u.ban.until || u.ban.until > now) ? u.ban : null, locks: u.locks || [], note: u.note || '' });
       // ---- owner operations (need the owner PIN hash)
-      const ownerOps = ['acct-list', 'acct-fx', 'acct-ban', 'acct-unban', 'acct-locks', 'acct-reset', 'acct-delete', 'acct-setrank'];
+      const ownerOps = ['acct-list', 'acct-fx', 'acct-ban', 'acct-unban', 'acct-locks', 'acct-reset', 'acct-delete', 'acct-setrank', 'acct-log'];
       if (ownerOps.includes(body.op)) {
-        const cur = await env.SYNC.get('cfg:pin');
-        if (!cur || !hex(body.pin) || cur !== body.pin) return json({ error: 'bad pin' }, 403);
+        // the owner (PIN) can do everything; a head admin (signed-in account with that rank) can do everything except bans and unbans
+        const cur = await env.SYNC.get('cfg:pin'); let level = '', actor = 'owner', headId = '';
+        if (cur && hex(body.pin) && cur === body.pin) level = 'owner';
+        else if (nm(body.hname) && hex(body.hph)) { const hid = nm(body.hname).toLowerCase(), me = await get(hid); if (me && me.ph === body.hph && me.rank === 'headadmin') { level = 'head'; actor = me.name; headId = hid; } }
+        if (!level) return json({ error: 'bad pin' }, 403);
+        if (level === 'head' && (body.op === 'acct-ban' || body.op === 'acct-unban')) return json({ error: 'only the owner can ban' }, 403);
         const names = await index();
+        const staff = async (n) => { const u2 = await get(n); return !!u2 && (u2.rank === 'owner' || u2.rank === 'headadmin'); };
+        if (body.op === 'acct-log') return json({ log: JSON.parse((await env.SYNC.get('log:list')) || '[]').slice(-100).reverse() });
+        if (body.op !== 'acct-list') {                                          // keep an audit log of staff actions
+          const lg = JSON.parse((await env.SYNC.get('log:list')) || '[]');
+          lg.push({ at: now, by: actor, lvl: level, op: body.op.replace('acct-', ''), to: body.targets === '*' ? 'everyone' : (Array.isArray(body.targets) ? body.targets.slice(0, 4).join(', ') + (body.targets.length > 4 ? ' +' + (body.targets.length - 4) : '') : ''), what: String((body.fx && (body.fx.id || body.fx.k)) || body.rank || '').slice(0, 24) });
+          if (lg.length > 200) lg.splice(0, lg.length - 200);
+          await env.SYNC.put('log:list', JSON.stringify(lg));
+        }
         if (body.op === 'acct-list') {
           const out = [];
           for (const n of names.slice(0, 300)) { const u = await get(n); if (u) out.push({ name: u.name, avatar: u.avatar || null, seen: u.seen || 0, where: u.where || '', created: u.created || 0, rank: u.rank || '', ban: u.ban || null, locks: u.locks || [] }); }
           return json({ users: out });
         }
-        const targets = body.targets === '*' ? names : (Array.isArray(body.targets) ? body.targets : []).map((t) => String(t).toLowerCase()).filter((t) => names.includes(t));
+        let targets = body.targets === '*' ? names : (Array.isArray(body.targets) ? body.targets : []).map((t) => String(t).toLowerCase()).filter((t) => names.includes(t));
+        if (level === 'head') { const ok = []; for (const t of targets) { if (t === headId || !(await staff(t))) ok.push(t); } targets = ok; }   // a head admin cannot touch the owner or other head admins
         if (body.op === 'acct-fx') {
           const fx = small(body.fx); if (!fx || !fx.k) return json({ error: 'bad fx' }, 400);
           for (const t of targets.slice(0, 120)) { const u = await get(t); if (!u) continue; u.fx = (u.fx || []).concat([{ ...fx, at: now }]).slice(-12); await put(t, u); }
