@@ -120,3 +120,6 @@ The 🥊 Battle Arena button now asks how you want to play: fight real players o
 
 ### More to wear
 15 new skins (Galaxy, Rainbow, Lava, Cow, Tiger, Zebra, Strawberry, Banana, Neon, Crystal, Golden, Mint, Plum, Candy, Spooky) and 18 new clothes: hats (Pirate, Wizard, Viking, Chef, Halo, Devil Horns, Cowboy, Traffic Cone), eyewear (Heart Glasses, Monocle, 3D Glasses, Cyber Visor), neckwear (Bandana, Gold Medal, Bling Chain) and shoes (Roller Skates, Flippers, Bunny Slippers).
+
+### Owner / head admin: more fun
+New 🎉 Fun tab (works on yourself, selected players or everyone): emoji rains (confetti, snow, hearts, pizza, geese, stars, fire, money, bread), party starters (full party, disco, movie night, neon, VHS, matrix), on-screen shows (countdowns, scrolling announcement banner, fake achievement popups), gifts, a bread raffle and chaos roulette. Seven new screen effects and two new time speeds in Troll. Overview has Party, Countdown and Announce quick buttons.

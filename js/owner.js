@@ -46,13 +46,14 @@
     ['flip', '🙃 Upside-down screen'], ['mirror', '🪞 Mirror screen'], ['spin', '🌀 Spinning screen'], ['drunk', '🍺 Drunk screen'], ['invert', '🌗 Invert colours'],
     ['gray', '⚫ Black & white'], ['hue', '🌈 Colour party'], ['blur', '😵 Blurry'], ['shake', '📳 Earthquake'], ['zoomin', '🔍 Zoomed way in'], ['tiny', '🔬 Tiny screen'], ['dark', '🕶 Lights out'], ['pixel', '🟦 Pixelated'], ['sepia', '📜 Old photo'],
     ['reverse', '↔️ Reverse controls'], ['fly', '🕊 Jetpack (hold flap)'], ['autohonk', '📣 Auto-honk'], ['breadrain', '🍞 Bread rain'], ['bounce', '🏀 Super bouncy'],
-    ['slow', '🐢 Slow motion', 'time'], ['fast', '⏩ Fast forward', 'time'],
+    ['disco', '🪩 Disco lights'], ['neon', '✨ Neon glow'], ['wave', '🌊 Wavy screen'], ['vhs', '📼 Old VHS tape'], ['matrix', '💚 Matrix green'], ['cinema', '🎬 Cinema bars'], ['sat', '🍭 Super saturated'],
+    ['slow', '🐢 Slow motion', 'time'], ['fast', '⏩ Fast forward', 'time'], ['ultraslow', '🐌 Ultra slow-mo', 'time'], ['turbo', '🏎 Turbo time', 'time'],
     ['superflap', '🚀 Mega flaps', 'power'], ['megaspeed', '💨 Mega speed', 'power'], ['nospeed', '🧊 Frozen feet', 'power'],
     ['invgrav', '🙃 Gravity up!', 'grav'], ['lowgrav', '🌙 Tiny gravity', 'grav'], ['heavy', '⚓ Crushing gravity', 'grav']
   ];
   function recalc() {
     const o = fx.on;
-    fx.time = o.slow ? 0.35 : o.fast ? 2 : 1; fx.speed = o.megaspeed ? 3 : o.nospeed ? 0.08 : 1; fx.flap = o.superflap ? 3 : 1;
+    fx.time = o.ultraslow ? 0.12 : o.slow ? 0.35 : o.turbo ? 3 : o.fast ? 2 : 1; fx.speed = o.megaspeed ? 3 : o.nospeed ? 0.08 : 1; fx.flap = o.superflap ? 3 : 1;
     fx.grav = o.invgrav ? -0.5 : o.lowgrav ? 0.12 : o.heavy ? 3 : 1; fx.bounce = o.bounce ? 1.1 : 0;
     fx.reverse = !!o.reverse; fx.fly = !!o.fly; fx.autohonk = !!o.autohonk; fx.breadrain = !!o.breadrain;
     const h = document.documentElement; for (const d of FXD) h.classList.toggle('ofx-' + d[0], !!o[d[0]]);
@@ -85,6 +86,20 @@
   .ofx-pixel canvas,.ofx-pixel #h3,.ofx-pixel #ch,.ofx-pixel #crew{image-rendering:pixelated;filter:contrast(1.6) saturate(1.8)}
   .ofx-hue canvas,.ofx-hue #h3,.ofx-hue #ch,.ofx-hue #crew{animation:ofxhue 2.5s linear infinite}
   .ofx-blur canvas,.ofx-blur #h3,.ofx-blur #ch,.ofx-blur #crew{filter:blur(3px)}
+  .ofx-disco canvas,.ofx-disco #h3,.ofx-disco #ch,.ofx-disco #crew{animation:ofxdisco .9s steps(1) infinite}
+  .ofx-neon canvas,.ofx-neon #h3,.ofx-neon #ch,.ofx-neon #crew{filter:saturate(2.4) contrast(1.25) brightness(1.1) drop-shadow(0 0 6px #19d6ff)}
+  .ofx-wave canvas,.ofx-wave #h3,.ofx-wave #ch,.ofx-wave #crew{animation:ofxwave 2.4s ease-in-out infinite}
+  .ofx-vhs canvas,.ofx-vhs #h3,.ofx-vhs #ch,.ofx-vhs #crew{filter:sepia(.5) contrast(1.3) saturate(1.5) blur(.6px) drop-shadow(3px 0 0 rgba(255,0,0,.45)) drop-shadow(-3px 0 0 rgba(0,160,255,.45))}
+  .ofx-matrix canvas,.ofx-matrix #h3,.ofx-matrix #ch,.ofx-matrix #crew{filter:grayscale(1) sepia(1) hue-rotate(60deg) saturate(4) contrast(1.3)}
+  .ofx-sat canvas,.ofx-sat #h3,.ofx-sat #ch,.ofx-sat #crew{filter:saturate(3.5) contrast(1.15)}
+  .ofx-cinema::before,.ofx-cinema::after{content:"";position:fixed;left:0;right:0;height:13vh;background:#000;z-index:2147482100;pointer-events:none}
+  .ofx-cinema::before{top:0}.ofx-cinema::after{bottom:0}
+  @keyframes ofxdisco{0%{filter:hue-rotate(0) saturate(2.2) brightness(1.1)}25%{filter:hue-rotate(90deg) saturate(2.2) brightness(.8)}50%{filter:hue-rotate(180deg) saturate(2.2) brightness(1.2)}75%{filter:hue-rotate(270deg) saturate(2.2) brightness(.9)}}
+  @keyframes ofxwave{0%,100%{transform:skewX(-4deg) scaleY(1.02)}50%{transform:skewX(4deg) scaleY(.98)}}
+  @keyframes ofxfall{from{transform:translateY(-50px) rotate(0)}to{transform:translateY(112vh) rotate(360deg)}}
+  @keyframes ofxslide{from{transform:translateX(100vw)}to{transform:translateX(-110%)}}
+  @keyframes ofxpop{0%{transform:translate(-50%,40px) scale(.6);opacity:0}15%{transform:translate(-50%,0) scale(1);opacity:1}85%{opacity:1}100%{transform:translate(-50%,-20px);opacity:0}}
+  @keyframes ofxcount{0%{transform:scale(2.2);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.7);opacity:0}}
   @keyframes ofxspin{to{transform:rotate(360deg)}}
   @keyframes ofxdrunk{0%,100%{transform:rotate(-3deg) scale(1.06) translateX(-12px);filter:blur(1px)}50%{transform:rotate(3deg) scale(1.06) translateX(12px);filter:blur(2.5px)}}
   @keyframes ofxshake{0%{transform:translate(4px,3px)}25%{transform:translate(-5px,2px)}50%{transform:translate(3px,-4px)}75%{transform:translate(-3px,-3px)}100%{transform:translate(4px,3px)}}
@@ -105,6 +120,26 @@
     const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:2147483002;background:#fff;color:#222;border:3px solid #2a2f3a;border-radius:14px;padding:14px 18px;max-width:86vw;font:700 16px system-ui;text-align:center;box-shadow:0 6px 0 #2a2f3a';
     d.textContent = text; d.addEventListener('click', () => d.remove()); document.body.appendChild(d); setTimeout(() => d.remove(), 9000);
   }
+  const RAINS = { confetti: ['🎉', '🎊', '✨', '🟡', '🔴', '🔵'], snow: ['❄️', '☃️', '❄️'], hearts: ['❤️', '💖', '💕', '💗'], pizza: ['🍕', '🍔', '🌭', '🍟'], geese: ['🪿', '🪿', '🥚'], stars: ['⭐', '🌟', '✨', '💫'], fire: ['🔥', '💥', '🧨'], money: ['💰', '🪙', '💵', '🍞'], bread: ['🍞', '🥖', '🥐', '🥯'] };
+  function rain(set, secs) {
+    const L = RAINS[set] || RAINS.confetti, T = Math.max(3, Math.min(30, +secs || 8)), b = document.createElement('div');
+    b.style.cssText = 'position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:2147482000'; document.body.appendChild(b);
+    for (let i = 0; i < 48; i++) { const e = document.createElement('span'); e.textContent = L[i % L.length]; e.style.cssText = 'position:absolute;top:-50px;left:' + Math.random() * 100 + '%;font-size:' + (18 + Math.random() * 26) + 'px;animation:ofxfall ' + (3 + Math.random() * 3) + 's linear ' + Math.random() * Math.min(T, 8) + 's infinite'; b.appendChild(e); }
+    setTimeout(() => b.remove(), (T + 6) * 1000);
+  }
+  function banner(text) {
+    const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:calc(max(6px,env(safe-area-inset-top)) + 86px);z-index:2147482600;white-space:nowrap;pointer-events:none;background:#ffd23f;color:#1b1b1b;border-top:3px solid #1b1b1b;border-bottom:3px solid #1b1b1b;padding:6px 18px;font:900 20px system-ui;animation:ofxslide 11s linear forwards';
+    d.textContent = '📢 ' + String(text || '').slice(0, 120); document.body.appendChild(d); setTimeout(() => d.remove(), 11500);
+  }
+  function countdown(n) {
+    let i = Math.max(1, Math.min(10, +n || 3)); const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:50%;top:38%;z-index:2147482700;pointer-events:none;font:900 120px system-ui;color:#fff;-webkit-text-stroke:6px #1b1b1b;paint-order:stroke fill;transform:translate(-50%,-50%)'; document.body.appendChild(d);
+    const step = () => { if (i < 0) { d.remove(); return; } d.textContent = i > 0 ? String(i) : 'GO!'; d.style.animation = 'none'; void d.offsetWidth; d.style.animation = 'ofxcount .95s ease-out forwards'; i--; setTimeout(step, 1000); };
+    step();
+  }
+  function achievement(text) {
+    const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:50%;bottom:90px;z-index:2147482700;pointer-events:none;background:#1f2430;color:#fff;border:3px solid #ffd23f;border-radius:14px;padding:8px 16px;font:800 15px system-ui;display:flex;gap:10px;align-items:center;animation:ofxpop 5s ease forwards';
+    d.innerHTML = '<span style="font-size:28px">🏆</span><span><small style="opacity:.7;font-weight:700">Achievement unlocked!</small><br></span>'; d.lastChild.append(String(text || '').slice(0, 60)); document.body.appendChild(d); setTimeout(() => d.remove(), 5200);
+  }
   // something the owner sent to this device (or applied to themselves)
   function receive(f) {
     if (!f || !f.k) return;
@@ -116,6 +151,10 @@
     else if (f.k === 'win' && A && A.ctl) A.ctl.win();
     else if (f.k === 'respawn' && A && A.ctl) A.ctl.respawn();
     else if (f.k === 'msg') note(String(f.text || '').slice(0, 200));
+    else if (f.k === 'rain') rain(f.set, f.dur);
+    else if (f.k === 'banner') banner(f.text);
+    else if (f.k === 'count') countdown(f.n);
+    else if (f.k === 'ach') achievement(f.text);
     else if (f.k === 'resetfx') { clearFx(); if (root.Pranks) root.Pranks.close(); }
     else if (f.k === 'menu' && A && A.ctl && A.ctl.toMenu) A.ctl.toMenu();
     else if (f.k === 'kick') { try { if (root.MP && root.MP.active()) root.MP.stopMode(); } catch (e) { /* ignore */ } if (A && A.ctl && A.ctl.toMenu) A.ctl.toMenu(); note(String(f.text || 'A moderator removed you from the game.').slice(0, 120)); }
@@ -205,9 +244,9 @@
       '<div id="ownMsg" style="text-align:center;font-weight:700;min-height:20px;margin-top:6px;white-space:pre-wrap"></div>' +
       '<div class="row" style="margin-top:6px;justify-content:center"><button class="big small-btn ghost" id="ownList">All codes</button><button class="big small-btn ghost" id="ownResign">Lock &amp; sign out</button><button class="big small-btn ghost" id="ownClose">Close</button></div></div>';
     document.body.appendChild(box);
-    const tabs = [['dash', '📊 Overview'], ['players', '👥 Players'], ['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['locks', '🔒 Locks']].concat(head ? [] : [['ban', '⛔ Bans']], [['friend', '🧡 Head admins'], ['mods', '🛡 Moderators'], ['log', '📜 Log']]);
+    const tabs = [['dash', '📊 Overview'], ['players', '👥 Players'], ['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['fun', '🎉 Fun'], ['locks', '🔒 Locks']].concat(head ? [] : [['ban', '⛔ Bans']], [['friend', '🧡 Head admins'], ['mods', '🛡 Moderators'], ['log', '📜 Log']]);
     for (const [id, l] of tabs) { const b = document.createElement('button'); b.className = tab === id ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = l; b.addEventListener('click', () => { tab = id; open(mode); }); el('ownTabs').appendChild(b); }
-    if (['tools', 'troll', 'pranks'].includes(tab)) {
+    if (['tools', 'troll', 'pranks', 'fun'].includes(tab)) {
       for (const [v, l] of [['me', 'Just me'], ['sel', 'Selected players (' + sel.size + ')'], ['all', 'Everyone']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownwho'; r.checked = who === v; r.addEventListener('change', () => { who = v; el('ownTgt').textContent = v === 'me' ? 'just me' : v === 'all' ? 'EVERYONE' : sel.size + ' selected'; }); lb.append(r, document.createTextNode(l)); el('ownWho').appendChild(lb); }
     }
     const body = el('ownBody'), grid = () => { const g = document.createElement('div'); g.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px'; body.appendChild(g); return g; };
@@ -230,6 +269,9 @@
         const q = el('dashQ'); const qb = (l, fn) => { const x = document.createElement('button'); x.className = 'sec'; x.style.cssText = 'font-size:12px;padding:4px 8px'; x.textContent = l; x.addEventListener('click', async () => { try { say(await fn()); } catch (e) { say('Failed: ' + e.message, true); } }); q.appendChild(x); };
         qb('🧹 Clear everyone\'s effects', async () => { await own('acct-fx', { targets: '*', fx: { k: 'resetfx' } }); return 'Cleared for everyone.'; });
         qb('📣 Message everyone', async () => { const t = root.prompt('Message for everyone (max 120 characters):'); if (!t) return 'Cancelled'; await own('acct-fx', { targets: '*', fx: { k: 'msg', text: t.slice(0, 120) } }); return 'Sent.'; });
+        qb('🎉 Party for everyone', async () => { await own('acct-fx', { targets: '*', fx: { k: 'toggle', id: 'disco', on: true, dur: 30 } }); await own('acct-fx', { targets: '*', fx: { k: 'rain', set: 'confetti', dur: 15 } }); return 'Party started!'; });
+        qb('⏱ Countdown', async () => { await own('acct-fx', { targets: '*', fx: { k: 'count', n: 5 } }); return 'Counting down for everyone.'; });
+        qb('📢 Announce', async () => { const t = root.prompt('Announcement for everyone (max 120 characters):'); if (!t) return 'Cancelled'; await own('acct-fx', { targets: '*', fx: { k: 'banner', text: t.slice(0, 120) } }); return 'Announced.'; });
         qb('↻ Refresh', async () => { open(mode); return ''; });
       });
     } else if (tab === 'log') {
@@ -263,6 +305,39 @@
       h4('Effects'); g = grid();
       for (const d of FXD) tb(g, d[1], () => sendSay({ k: 'toggle', id: d[0], on: who !== 'me' || !fx.on[d[0]], dur }).then(() => { if (who === 'me') open(mode); }), who === 'me' && fx.on[d[0]]);
       tb(g, '🧹 Reset all effects', () => sendSay({ k: 'resetfx' }).then(() => { if (who === 'me') open(mode); }));
+    } else if (tab === 'fun') {
+      h4('Rain on their screen'); let g = grid();
+      for (const [k, l] of [['confetti', '🎉 Confetti'], ['snow', '❄️ Snow'], ['hearts', '💖 Hearts'], ['pizza', '🍕 Pizza'], ['geese', '🪿 Geese'], ['stars', '⭐ Stars'], ['fire', '🔥 Fire'], ['money', '💰 Money'], ['bread', '🍞 Bread']]) tb(g, l, () => sendSay({ k: 'rain', set: k, dur: 10 }));
+      h4('Party starters'); g = grid();
+      tb(g, '🎉 Full party (30 s)', async () => { await send({ k: 'toggle', id: 'hue', on: true, dur: 30 }); await send({ k: 'rain', set: 'confetti', dur: 15 }); say(await send({ k: 'honk', n: 10 })); });
+      tb(g, '🪩 Disco (30 s)', () => sendSay({ k: 'toggle', id: 'disco', on: true, dur: 30 }));
+      tb(g, '🎬 Movie night (cinema bars)', () => sendSay({ k: 'toggle', id: 'cinema', on: true, dur: 60 }));
+      tb(g, '✨ Neon (30 s)', () => sendSay({ k: 'toggle', id: 'neon', on: true, dur: 30 }));
+      tb(g, '📼 Retro VHS (30 s)', () => sendSay({ k: 'toggle', id: 'vhs', on: true, dur: 30 }));
+      tb(g, '💚 Matrix (30 s)', () => sendSay({ k: 'toggle', id: 'matrix', on: true, dur: 30 }));
+      h4('On-screen shows'); g = grid();
+      tb(g, '⏱ Countdown 3-2-1-GO', () => sendSay({ k: 'count', n: 3 }));
+      tb(g, '⏱ Countdown from 10', () => sendSay({ k: 'count', n: 10 }));
+      tb(g, '📢 Scrolling announcement…', () => { const t = root.prompt('Announcement (max 120 characters):'); if (!t) return say('Cancelled'); return sendSay({ k: 'banner', text: t.slice(0, 120) }); });
+      for (const a of ['Professional Honker', 'Bread Millionaire', 'Neck Wobbler', 'Certified Goose', 'Banned From Ponds', 'Honorary Duck']) tb(g, '🏆 ' + a, () => sendSay({ k: 'ach', text: a }));
+      tb(g, '🏆 Custom achievement…', () => { const t = root.prompt('Achievement text (max 60 characters):'); if (!t) return say('Cancelled'); return sendSay({ k: 'ach', text: t.slice(0, 60) }); });
+      h4('Gifts'); g = grid();
+      for (const n of [100, 500, 5000]) tb(g, '🎁 +' + n + ' 🍞', () => sendSay({ k: 'bread', n }));
+      tb(g, '🎲 Random gift (1 to 2000)', () => sendSay({ k: 'bread', n: 1 + Math.floor(Math.random() * 2000) }));
+      h4('Games for the whole lobby (online players)'); g = grid();
+      tb(g, '🎰 Bread raffle (+500 to one random player)', async () => {
+        await loadUsers(); const on = (users || []).filter((u) => Date.now() - u.seen < 300000 && !(u.ban && (!u.ban.until || u.ban.until > Date.now())));
+        if (!on.length) return say('Nobody is online right now.'); const w = on[(Math.random() * on.length) | 0];
+        await own('acct-fx', { targets: [w.name.toLowerCase()], fx: { k: 'bread', n: 500 } }); await own('acct-fx', { targets: '*', fx: { k: 'banner', text: w.name + ' won the bread raffle! 🍞 +500' } }); await own('acct-fx', { targets: [w.name.toLowerCase()], fx: { k: 'rain', set: 'money', dur: 8 } }); say('🎰 ' + w.name + ' won!');
+      });
+      tb(g, '🎲 Chaos roulette (a random effect each, 20 s)', async () => {
+        await loadUsers(); const on = (users || []).filter((u) => Date.now() - u.seen < 300000 && !u.rank).slice(0, 30);
+        if (!on.length) return say('No regular players online right now.');
+        const ids = FXD.filter((d) => !['dark', 'zoomin', 'tiny', 'nospeed', 'reverse'].includes(d[0])).map((d) => d[0]);
+        for (const u of on) await own('acct-fx', { targets: [u.name.toLowerCase()], fx: { k: 'toggle', id: ids[(Math.random() * ids.length) | 0], on: true, dur: 20 } });
+        say('🎲 Chaos sent to ' + on.length + ' players!');
+      });
+      tb(g, '🧹 Stop everything', () => sendSay({ k: 'resetfx' }));
     } else if (tab === 'pranks') {
       const grp = {}; for (const p of root.Pranks.LIST) (grp[p.group] = grp[p.group] || []).push(p);
       for (const gname of Object.keys(grp)) { h4(gname); const g = grid(); for (const p of grp[gname]) tb(g, p.label, async () => { if (who === 'me') close(); await sendSay({ k: 'prank', id: p.id }); }); }
