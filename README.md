@@ -114,3 +114,9 @@ Type `sync`, pick a secret word (6+ characters). **Sync** merges, **Load** repla
 
 ### Your avatar in every mode
 Among Us (Foxes) now draws your real goose: your skin, hat, glasses, scarf, clothes and shoes, all fitted to the goose. Online players send their look too; bots get random outfits. Chameleon seekers wear your avatar (hiders stay painted so camouflage still works). In 3D Hide & Seek the goose is now rounded with a short wobbly neck, and it wears your hat, glasses, scarf, clothes colour and shoe colour.
+
+### Arena update
+The 🥊 Battle Arena button now asks how you want to play: fight real players online (quick match: the first player hosts, and the match auto-starts 8 seconds after someone joins, bots fill empty slots), play with friends via a room word, or solo vs bots. New weapons: Battle Axe, Quick Dagger, Slingshot, Bread Cannon, Flame Staff. New arenas: Lava Bridge, Night Market, Broken Ruins.
+
+### More to wear
+15 new skins (Galaxy, Rainbow, Lava, Cow, Tiger, Zebra, Strawberry, Banana, Neon, Crystal, Golden, Mint, Plum, Candy, Spooky) and 18 new clothes: hats (Pirate, Wizard, Viking, Chef, Halo, Devil Horns, Cowboy, Traffic Cone), eyewear (Heart Glasses, Monocle, 3D Glasses, Cyber Visor), neckwear (Bandana, Gold Medal, Bling Chain) and shoes (Roller Skates, Flippers, Bunny Slippers).

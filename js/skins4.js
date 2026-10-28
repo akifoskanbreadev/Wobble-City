@@ -1,0 +1,24 @@
+/* More colourful skins: patterns and themes. Same fields as skins.js. */
+(function (root) {
+  'use strict';
+  const S = root.Skins, { INK } = S.H;
+  const add = (o) => { S.LIST.push(Object.assign({ legC: '#ff9b2f' }, o)); S.BY_ID[o.id] = S.LIST[S.LIST.length - 1]; };
+  const stripes = (c, col, w, gap, ang) => { c.save(); c.rotate(ang || 0); c.fillStyle = col; for (let x = -60; x < 60; x += gap) c.fillRect(x, -40, w, 80); c.restore(); };
+  const dots = (c, col, r, gx, gy) => { c.fillStyle = col; for (let x = -36; x < 40; x += gx) for (let y = -22; y < 26; y += gy) { c.beginPath(); c.arc(x + ((y / gy) & 1 ? gx / 2 : 0), y, r, 0, 7); c.fill(); } };
+  const clipBody = (c, fn) => { c.save(); c.beginPath(); c.ellipse(0, 0, 36, 22, 0, 0, 7); c.clip(); fn(); c.restore(); };
+  add({ id: 'galaxy', name: 'Galaxy Goose', price: 500, body: '#1b1740', wing: '#2d2670', neckC: '#1b1740', headC: '#2d2670', legC: '#b48cff', bodyDeco(c) { clipBody(c, () => { dots(c, '#ffffff', 1.4, 11, 9); dots(c, '#ffd23f', 1, 17, 13); }); } });
+  add({ id: 'rainbowg', name: 'Rainbow Goose', price: 550, body: '#ffffff', wing: '#fff0f8', neckC: '#ffffff', headC: '#ffffff', bodyDeco(c) { clipBody(c, () => { ['#ff4d4d', '#ffa63a', '#ffe14a', '#4cd964', '#3a86ff', '#9b5de5'].forEach((col, i) => { c.fillStyle = col; c.fillRect(-40, -22 + i * 7.4, 80, 7.6); }); }); } });
+  add({ id: 'lavag', name: 'Lava Goose', price: 480, body: '#3a1a14', wing: '#5a2a1c', neckC: '#3a1a14', headC: '#5a2a1c', legC: '#ff6a1a', bodyDeco(c) { clipBody(c, () => { c.strokeStyle = '#ff7a1a'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(-26, -8); c.lineTo(-10, 2); c.lineTo(-18, 14); c.moveTo(6, -18); c.lineTo(14, -2); c.lineTo(28, 6); c.stroke(); }); } });
+  add({ id: 'cowg', name: 'Cow Goose', price: 360, body: '#ffffff', wing: '#f1f1f1', neckC: '#ffffff', headC: '#ffffff', bodyDeco(c) { clipBody(c, () => { c.fillStyle = '#2a2a2a'; for (const [x, y, r] of [[-18, -6, 8], [6, 8, 9], [22, -8, 6], [-4, -14, 5]]) { c.beginPath(); c.ellipse(x, y, r, r * 0.8, 0.4, 0, 7); c.fill(); } }); } });
+  add({ id: 'tigerg', name: 'Tiger Goose', price: 400, body: '#ff9a2a', wing: '#e07a14', neckC: '#ff9a2a', headC: '#ff9a2a', bodyDeco(c) { clipBody(c, () => stripes(c, '#3a2410', 3.5, 13, 0.25)); } });
+  add({ id: 'zebrag', name: 'Zebra Goose', price: 380, body: '#ffffff', wing: '#eeeeee', neckC: '#ffffff', headC: '#ffffff', bodyDeco(c) { clipBody(c, () => stripes(c, '#1a1a1a', 4, 11, -0.2)); } });
+  add({ id: 'berryg', name: 'Strawberry Goose', price: 420, body: '#e8283c', wing: '#c41a2c', neckC: '#e8283c', headC: '#e8283c', bodyDeco(c) { clipBody(c, () => dots(c, '#ffe27a', 1.5, 10, 9)); } });
+  add({ id: 'bananag', name: 'Banana Goose', price: 400, body: '#ffe14a', wing: '#f1c81a', neckC: '#ffe14a', headC: '#ffe14a', legC: '#8a5a1a', bodyDeco(c) { clipBody(c, () => { c.fillStyle = 'rgba(120,80,20,.5)'; dots(c, 'rgba(120,80,20,.5)', 1.2, 14, 12); }); } });
+  add({ id: 'neong', name: 'Neon Goose', price: 520, body: '#10131f', wing: '#1b2236', neckC: '#10131f', headC: '#1b2236', legC: '#19d6ff', bodyDeco(c) { clipBody(c, () => { c.strokeStyle = '#19d6ff'; c.lineWidth = 1.4; for (let x = -36; x < 40; x += 10) { c.beginPath(); c.moveTo(x, -22); c.lineTo(x, 22); c.stroke(); } for (let y = -22; y < 26; y += 9) { c.beginPath(); c.moveTo(-40, y); c.lineTo(40, y); c.stroke(); } }); } });
+  add({ id: 'iceg', name: 'Crystal Goose', price: 470, body: '#bfeaff', wing: '#8fd2f5', neckC: '#bfeaff', headC: '#dff6ff', legC: '#5fb8e8', bodyDeco(c) { clipBody(c, () => { c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-30, 4); c.lineTo(-8, -12); c.lineTo(10, 6); c.lineTo(30, -8); c.stroke(); }); } });
+  add({ id: 'goldg', name: 'Golden Goose', price: 900, body: '#ffd23f', wing: '#e8a91a', neckC: '#ffd23f', headC: '#ffe27a', legC: '#c98a10', bodyDeco(c) { clipBody(c, () => { c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(-8, -8, 14, 4, -0.4, 0, 7); c.fill(); }); } });
+  add({ id: 'mintg', name: 'Mint Goose', price: 300, body: '#b8f5d8', wing: '#8fe6bb', neckC: '#b8f5d8', headC: '#b8f5d8', bodyDeco(c) { clipBody(c, () => dots(c, '#ffffff', 2, 12, 10)); } });
+  add({ id: 'plumg', name: 'Plum Goose', price: 300, body: '#7a3a9a', wing: '#5a2a78', neckC: '#7a3a9a', headC: '#8a4aaa' });
+  add({ id: 'candyg', name: 'Candy Goose', price: 440, body: '#ffd6ea', wing: '#ffb3d6', neckC: '#ffd6ea', headC: '#ffd6ea', bodyDeco(c) { clipBody(c, () => stripes(c, '#ff4d8d', 5, 14, 0.7)); } });
+  add({ id: 'ghostg', name: 'Spooky Goose', price: 460, body: '#e8e8f5', wing: '#cfcfe8', neckC: '#e8e8f5', headC: '#e8e8f5', legC: '#9a9ac8', bodyDeco(c) { clipBody(c, () => { c.fillStyle = INK; c.beginPath(); c.arc(-6, -2, 3, 0, 7); c.arc(8, -2, 3, 0, 7); c.fill(); c.beginPath(); c.ellipse(1, 8, 4, 5, 0, 0, 7); c.fill(); }); } });
+})(window);
