@@ -26,6 +26,7 @@
   const broadcast = (o) => (isHost ? toAll(o) : toHost(o));
 
   function disconnect() {
+    arenaAuto = false; if (autoTm) { clearInterval(autoTm); autoTm = null; }
     if (M.mode) stopMode();
     try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
     peer = null; hostConn = null; conns.clear(); connected = false; isHost = false;
@@ -34,7 +35,11 @@
   }
   function fail(msg) { disconnect(); status(msg, true); }
 
-  function joinQuick() { qSlot = 1; join('q-play-1', true); }
+  let qPre = 'q-play-', arenaAuto = false, autoTm = null;
+  function joinQuick(pre) { qPre = typeof pre === 'string' ? pre : 'q-play-'; qSlot = 1; join(qPre + '1', true); }
+  function arenaQuick() {                    // find real players for the Battle Arena: the host starts it a few seconds after someone joins
+    open(); arenaAuto = true; joinQuick('q-arena-'); sel = { mode: 'brawl', arg: null }; fillMaps(); ui();
+  }
   function join(w, quick) {
     if (!quick) qSlot = 0;
     word = slug(w);
@@ -90,7 +95,7 @@
   function lost() {
     if (!connected && !hostConn) return;
     const wasGame = !!M.mode; const msg = busyMsg; busyMsg = '';
-    if (msg && qSlot && qSlot < 10) { disconnect(); qSlot++; join('q-play-' + qSlot, true); return; }
+    if (msg && qSlot && qSlot < 10) { const keepA = arenaAuto; disconnect(); arenaAuto = keepA; qSlot++; join(qPre + qSlot, true); return; }
     disconnect();
     if (msg) { status(msg, true); return; }
     if (wasGame) api.showMenu();
@@ -161,6 +166,9 @@
       { name: 'Skybridge', theme: 'sunset', W: 2800, plats: [[250, 400, 220], [750, 320, 220], [1250, 240, 300], [1850, 320, 220], [2350, 400, 220], [1250, 120, 300]], pads: [[100, G, 70], [2600, G, 70]] },
       { name: 'Pond Pit', theme: 'meadow', W: 2600, dip: [1000, 1600], plats: [[300, 400, 200], [1100, 360, 160], [1400, 360, 160], [2200, 400, 220], [1250, 230, 200]], pads: [[600, G, 70], [2000, G, 70]] },
       { name: 'Frozen Ring', theme: 'snow', W: 2200, mu: 0.15, plats: [[250, 380, 220], [900, 290, 240], [1600, 380, 220], [1200, 170, 200]], pads: [] },
+      { name: 'Lava Bridge', theme: 'lava', W: 2600, plats: [[300, 390, 160], [700, 300, 160], [1100, 220, 160], [1500, 300, 160], [1900, 390, 160], [1300, 110, 200]], pads: [[1300, G, 70]] },
+      { name: 'Night Market', theme: 'night', W: 2500, plats: [[250, 400, 180], [650, 330, 180], [1050, 400, 180], [1450, 330, 180], [1850, 400, 180], [2200, 320, 180], [1250, 200, 260]], pads: [[900, G, 70], [1700, G, 70]] },
+      { name: 'Broken Ruins', theme: 'desert', W: 2300, pillars: [[600, 150], [1100, 220], [1700, 150]], plats: [[250, 380, 200], [850, 300, 180], [1350, 260, 200], [1950, 380, 200]], pads: [[1150, G, 70]] },
     ],
     hide: [
       { name: 'Hide & Seek Yard', theme: 'sunset', W: 3200, plats: [[300, 400, 200], [760, 310, 200], [1250, 390, 240], [1700, 290, 200], [2150, 380, 220], [2600, 300, 200], [1350, 170, 260], [550, 190, 160]], pads: [[900, G, 70], [2300, G, 70]],
@@ -442,6 +450,8 @@
       $('mpSel').textContent = 'Next game: ' + selLabel();
       status(ids.length + '/' + MAX + ' players' + (isHost ? (ids.length < 2 ? ' · share the invite link or word with friends' : allReady ? ' · everyone is ready!' : ' · waiting for everyone to press Ready') : ' · the host picks the game'));
       $('mpModes').style.display = isHost ? '' : 'none';
+      if (isHost && arenaAuto && !M.mode) { if (ids.length >= 2) { if (!autoTm) { let n = 8; status('Arena starts in ' + n + '…'); autoTm = setInterval(() => { n--; if (!isHost || !connected || M.mode || Object.keys(roster).length < 2) { clearInterval(autoTm); autoTm = null; return; } if (n <= 0) { clearInterval(autoTm); autoTm = null; hostStartMode('brawl', -1); } else status('Arena starts in ' + n + '…'); }, 1000); } } else if (autoTm) { clearInterval(autoTm); autoTm = null; } }
+      $('mpBots').style.display = isHost && arenaAuto && ids.length < 2 ? '' : 'none';
       $('mpReady').style.display = isHost ? 'none' : '';
       if (!isHost && roster[myId]) $('mpReady').textContent = roster[myId].ready ? '✅ Ready (tap to undo)' : '👍 I’m ready';
       $('mpStart').disabled = ids.length < 2;
@@ -472,7 +482,7 @@
       '<div id="mpRoom" style="display:none"><b id="mpRoomName"></b> <button class="sec" id="mpInvite">🔗 Copy invite link</button><div id="mpRoster"></div><div id="mpSel"></div>' +
       '<button class="big small-btn" id="mpReady" style="display:none">👍 I’m ready</button></div>' +
       '<div id="mpModes" style="display:none"><div id="mpModeChips"></div><div class="row"><select id="mpMap"></select></div>' +
-      '<div class="row" style="margin-top:8px"><button class="big small-btn" id="mpStart">▶ Start game</button></div></div>' +
+      '<div class="row" style="margin-top:8px"><button class="sec" id="mpBots" style="display:none">🤖 Nobody yet? Play vs bots</button><button class="big small-btn" id="mpStart">▶ Start game</button></div></div>' +
       '<div class="row" style="margin-top:12px"><button class="big small-btn ghost" id="mpClose">Back</button><button class="big small-btn ghost" id="mpDisc">Leave room</button></div></div></div>' +
       '<div class="overlay clear hidden" id="mpDone"><div class="card"><h2 id="mpDoneTitle"></h2><p id="mpDoneText" style="white-space:pre-line"></p><div class="row"><button class="big small-btn" id="mpRematch">Rematch</button><button class="big small-btn ghost" id="mpLobby">Back to lobby</button></div></div></div>';
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
@@ -489,6 +499,7 @@
     };
     $('mpJoinBtn').onclick = () => join($('mpWord').value);
     $('mpWord').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join($('mpWord').value); });
+    $('mpBots').onclick = () => { $('mpMenu').classList.add('hidden'); disconnect(); if (root.Battle) root.Battle.startBrawl(); };
     $('mpClose').onclick = () => $('mpMenu').classList.add('hidden');
     $('mpDisc').onclick = () => { disconnect(); status('Left the room.'); };
     $('mpRematch').onclick = () => { if (isHost) hostStartMode(M.mode, M.arg); };
@@ -512,5 +523,5 @@
   root.MP = { chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
               bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
               peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
-              _join: join, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };
+              _join: join, arenaQuick, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };
 })(window);

@@ -16,6 +16,11 @@
     hammer: { name: 'War Hammer', icon: '🔨', melee: true, reach: 86, dmg: 44, cd: 0.9, knock: 520, aoe: true },
     bow:    { name: 'Bow', icon: '🏹', melee: false, dmg: 18, cd: 0.5, speed: 980, kind: 'arrow' },
     wand:   { name: 'Fire Wand', icon: '🪄', melee: false, dmg: 26, cd: 0.85, speed: 560, kind: 'fire', blast: 70 },
+    axe:    { name: 'Battle Axe', icon: '🪓', melee: true, reach: 100, dmg: 30, cd: 0.62, knock: 400, aoe: true },
+    dagger: { name: 'Quick Dagger', icon: '🔪', melee: true, reach: 50, dmg: 8, cd: 0.13, knock: 70 },
+    sling:  { name: 'Slingshot', icon: '🎯', melee: false, dmg: 9, cd: 0.22, speed: 1150, kind: 'arrow' },
+    cannon: { name: 'Bread Cannon', icon: '🍞', melee: false, dmg: 40, cd: 1.5, speed: 430, kind: 'fire', blast: 120 },
+    flame:  { name: 'Flame Staff', icon: '🔥', melee: false, dmg: 11, cd: 0.28, speed: 640, kind: 'fire', blast: 40 },
   };
   const ARMOR = [
     { name: 'No armor', red: 0, col: '#999' }, { name: 'Leather Armor', red: 0.15, col: '#a0713d' }, { name: 'Chain Mail', red: 0.3, col: '#b8c2cf' },
@@ -102,7 +107,7 @@
     if (o.kind === 'coop') loadFloor(); else { S.lv = o.lv; S.W = o.lv.W; if (S.net.host) spawnBrawl(); hud(); }
   }
   function startBrawl() {
-    const MP = MPX(); if (!MP.arenaLevel) return; const lv = MP.arenaLevel('brawl', (Math.random() * 4) | 0, 0, 1);
+    const MP = MPX(); if (!MP.arenaLevel) return; const lv = MP.arenaLevel('brawl', (Math.random() * (MP._maps && MP._maps.brawl ? MP._maps.brawl.length : 4)) | 0, 0, 1);
     api.startCustom(lv);
     Object.assign(S, { on: true, kind: 'brawl', net: null, myId: 0, floor: 1, hp: 100, maxHp: 100, armor: 0, weapon: 'peck', cd: 0, inv: 1, over: false, kills: 0, t: 0, swing: 0, texts: [], down: false, pst: {}, rInv: {}, mid: 1, score: { 0: 0 }, tLeft: 150, botQ: [], mons: [], proj: [], items: [], fx: [], chest: null, door: null, cleared: false, itemT: 5, deaths: 0, respT: 0, bossName: '', lv, W: lv.W });
     S.W = lv.W; api.setMode(true); buildHud(); spawnBrawl(); hud(); api.toast('Battle Arena! First to 8 knockouts wins. Grab crates for weapons. (F / ⚔ to attack)', 5);
@@ -160,7 +165,7 @@
   function openChest() {
     S.chest.open = true; api.sfx('bread');
     const r = Math.random(), n = S.floor;
-    if (r < 0.5) { const ws = ['sword', 'spear', 'hammer', 'bow', 'wand']; const id = ws[Math.floor(Math.random() * ws.length)]; S.weapon = id; api.toast('You found: ' + WEAPONS[id].icon + ' ' + WEAPONS[id].name + '!', 3); }
+    if (r < 0.5) { const ws = ['sword', 'spear', 'hammer', 'bow', 'wand', 'axe', 'dagger', 'sling', 'cannon', 'flame']; const id = ws[Math.floor(Math.random() * ws.length)]; S.weapon = id; api.toast('You found: ' + WEAPONS[id].icon + ' ' + WEAPONS[id].name + '!', 3); }
     else if (r < 0.85) { const tier = Math.min(5, Math.max(S.armor + 1, 1 + Math.floor(n / 3) + (Math.random() < 0.3 ? 1 : 0))); if (tier > S.armor) { S.armor = tier; api.toast('You found: 🛡 ' + ARMOR[tier].name + ' (' + Math.round(ARMOR[tier].red * 100) + '% less damage)', 3.5); } else { S.hp = S.maxHp; api.toast('Healing potion! Full health.', 2.5); } }
     else { S.hp = S.maxHp; S.maxHp += 10; S.hp = S.maxHp; api.toast('Heart crystal! Max health +10 and a full heal.', 3); }
     hud();
@@ -207,7 +212,7 @@
   function spawnCrate() {
     const pl = (S.lv.solids || []).filter((q) => q[3] === 18); let x, y;
     if (pl.length && Math.random() < 0.65) { const q = pl[(Math.random() * pl.length) | 0]; x = q[0] + q[2] / 2; y = q[1] - 30; } else { x = SPAWNX(); y = G - 30; }
-    if (Math.random() < 0.3) S.items.push({ id: S.mid++, kind: 'heart', x, y }); else { const ws = ['sword', 'spear', 'hammer', 'bow', 'wand']; S.items.push({ id: S.mid++, kind: 'crate', w: ws[(Math.random() * ws.length) | 0], x, y }); }
+    if (Math.random() < 0.3) S.items.push({ id: S.mid++, kind: 'heart', x, y }); else { const ws = ['sword', 'spear', 'hammer', 'bow', 'wand', 'axe', 'dagger', 'sling', 'cannon', 'flame']; S.items.push({ id: S.mid++, kind: 'crate', w: ws[(Math.random() * ws.length) | 0], x, y }); }
   }
   function equipW(id) { S.weapon = id; api.toast('Equipped ' + WEAPONS[id].icon + ' ' + WEAPONS[id].name + '!', 2); api.sfx('bread'); hud(); stSend(true); }
   function takeItem(id, who) {

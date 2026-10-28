@@ -1395,7 +1395,22 @@
     sfx: (n) => { try { snd[n](); } catch (e) { /* ignore */ } },
   });
   $('battleBtn').addEventListener('click', () => { audio(); window.Battle.start(); });
-  $('arenaBtn').addEventListener('click', () => { audio(); window.Battle.startBrawl(); });
+  $('arenaBtn').addEventListener('click', () => {
+    audio();
+    let d = document.getElementById('arenaPick');
+    if (!d) {
+      d = document.createElement('div'); d.id = 'arenaPick'; d.className = 'overlay';
+      d.innerHTML = '<div class="card" style="max-width:420px"><h2>🥊 Battle Arena</h2><p class="small">Smash other geese, grab crates for weapons. First to 8 knockouts wins.</p>' +
+        '<div class="row" style="flex-direction:column;gap:8px"><button class="big" id="apOnline">⚔️ Fight real players (online)</button><button class="big" id="apFriends">👥 Play with friends (room word)</button><button class="big" id="apBots">🤖 Solo vs bots</button><button class="big ghost" id="apBack">Back</button></div></div>';
+      document.body.appendChild(d);
+      const close = () => d.classList.add('hidden');
+      document.getElementById('apOnline').onclick = () => { close(); window.MP.arenaQuick(); };
+      document.getElementById('apFriends').onclick = () => { close(); window.MP.open(); };
+      document.getElementById('apBots').onclick = () => { close(); window.Battle.startBrawl(); };
+      document.getElementById('apBack').onclick = close;
+    }
+    d.classList.remove('hidden');
+  });
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
