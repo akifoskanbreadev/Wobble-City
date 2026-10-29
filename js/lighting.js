@@ -48,6 +48,17 @@
     }
     return L;
   }
+  // small cached noise textures (speckled earth, fine grain) used to take the flat "vector" look off surfaces
+  const texCache = {};
+  function tex(kind, size) {
+    const k = kind + size; if (texCache[k]) return texCache[k];
+    const cv = document.createElement('canvas'); cv.width = cv.height = size; const c = cv.getContext('2d'); let seed = kind === 'grain' ? 7 : 31;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    if (kind === 'grain') { const im = c.createImageData(size, size); for (let i = 0; i < im.data.length; i += 4) { const v = rnd() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } c.putImageData(im, 0, 0); }
+    else { for (let i = 0; i < size * 1.6; i++) { const x = rnd() * size, y = rnd() * size, r = 0.6 + rnd() * 2.6; c.fillStyle = rnd() < 0.55 ? 'rgba(0,0,0,' + (0.1 + rnd() * 0.22) + ')' : 'rgba(255,255,255,' + (0.05 + rnd() * 0.14) + ')'; c.beginPath(); c.ellipse(x, y, r * (0.8 + rnd() * 1.2), r, rnd() * 3, 0, 7); c.fill(); } }
+    return (texCache[k] = cv);
+  }
+  const motes = []; for (let i = 0; i < 38; i++) motes.push({ x: Math.random(), y: Math.random(), s: 0.4 + Math.random(), p: Math.random() * 6 });
   function post2d(c, W, H, key, wx, t) {
     const L = get(key, wx), s = Math.max(W, H), r = L.col[0] | 0, g = L.col[1] | 0, b = L.col[2] | 0, sx = W * 0.8, sy = H * 0.2;
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
@@ -67,6 +78,16 @@
     gr = c.createRadialGradient(W / 2, H / 2, s * 0.32, W / 2, H / 2, s * 0.85);
     gr.addColorStop(0, 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + dimA + ')'); gr.addColorStop(1, 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + (0.34 + dimA) + ')');
     c.fillStyle = gr; c.fillRect(0, 0, W, H);
+    // slanting shafts of light from the sun (not in blizzards and storms, where the sky is closed)
+    if (!(wx && (wx.whiteout || wx.storm)) && key !== 'dungeon' && key !== 'cavern' && key !== 'space') {
+      c.globalCompositeOperation = 'screen';
+      for (let i = 0; i < 4; i++) { const a0 = 0.9 + i * 0.28 + Math.sin(t * 0.15 + i) * 0.03, wd = 0.07 + 0.02 * (i % 2), x2 = sx + Math.cos(a0) * s * 1.2, y2 = sy + Math.sin(a0) * s * 1.2, x3 = sx + Math.cos(a0 + wd) * s * 1.2, y3 = sy + Math.sin(a0 + wd) * s * 1.2; const rg = c.createLinearGradient(sx, sy, x2, y2); rg.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + 0.1 * L.k + ')'); rg.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(sx, sy); c.lineTo(x2, y2); c.lineTo(x3, y3); c.closePath(); c.fill(); }
+    }
+    // drifting specks of light in the air (pollen, dust, ice glitter) in the colour of the light
+    c.globalCompositeOperation = 'screen';
+    for (const m of motes) { const x = ((m.x * W + Math.sin(t * 0.3 * m.s + m.p) * 30 + t * 6 * m.s) % W + W) % W, y = ((m.y * H + Math.cos(t * 0.25 * m.s + m.p) * 20 - t * 4 * m.s) % H + H) % H, a = (0.18 + 0.2 * Math.sin(t * 1.3 + m.p)) * L.k; c.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + Math.max(0, a) + ')'; c.beginPath(); c.arc(x, y, (1 + m.s * 1.4) * (W / 900 + 0.4), 0, 7); c.fill(); }
+    // fine film grain
+    c.globalCompositeOperation = 'overlay'; c.globalAlpha = 0.07; c.fillStyle = c.createPattern(tex('grain', 128), 'repeat'); c.fillRect(0, 0, W, H); c.globalAlpha = 1;
     c.restore();
   }
   // 3D: the colour of the sun/lamp, a tinted ambient and a direction (low and warm for dusk, high for noon)
@@ -76,5 +97,5 @@
     R.ambCol = [(0.62 + 0.38 * c[0] / 255) * dim, (0.62 + 0.38 * c[1] / 255) * dim, (0.62 + 0.38 * c[2] / 255) * dim];
     R.lightDir = o.dir || (key === 'sunset' || key === 'pirate' ? [0.8, 0.45, 0.3] : [0.45, 0.85, 0.3]);
   }
-  root.Light = { get, post2d, apply3d, TABLE: T };
+  root.Light = { get, post2d, apply3d, tex, TABLE: T };
 })(typeof window !== 'undefined' ? window : globalThis);

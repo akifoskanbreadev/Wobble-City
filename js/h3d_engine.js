@@ -76,10 +76,16 @@
   function mul(a, b) { const o = new Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; }
 
   // ----------------------------------------------------------------- renderer
-  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;uniform vec3 uLC;uniform vec3 uAC;varying vec3 vC;varying float vD;' +
-    'void main(){gl_Position=uM*vec4(aP,1.0);float d=max(dot(aN,normalize(uL)),0.0);vec3 lit=uAC*(0.58+0.12*aN.y)+uLC*(0.42*d);vC=aC*lit;vD=distance(aP,uE);}';
-  const FS = 'precision mediump float;varying vec3 vC;varying float vD;uniform vec3 uF;uniform vec2 uFog;' +
-    'void main(){float f=smoothstep(uFog.x,uFog.y,vD);gl_FragColor=vec4(mix(vC,uF,f),1.0);}';
+  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;uniform vec3 uLC;uniform vec3 uAC;varying vec3 vC;varying float vD;varying vec3 vP;varying vec3 vSp;' +
+    'void main(){gl_Position=uM*vec4(aP,1.0);vec3 L=normalize(uL);float d=max(dot(aN,L),0.0);vec3 lit=uAC*(0.58+0.12*aN.y)+uLC*(0.42*d);' +
+    'float ao=mix(0.7,1.0,smoothstep(0.0,1.8,aP.y));if(abs(aN.y)<0.5)lit*=ao;' +                               // walls and legs darken towards the floor (ambient occlusion)
+    'vC=aC*lit;vD=distance(aP,uE);vP=aP;' +
+    'vec3 Hh=normalize(L+normalize(uE-aP));vSp=uLC*pow(max(dot(normalize(aN),Hh),0.0),28.0)*0.22;}';          // a soft shine on smooth shapes
+  const FS = '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n' +
+    'varying vec3 vC;varying float vD;varying vec3 vP;varying vec3 vSp;uniform vec3 uF;uniform vec2 uFog;' +
+    'float h(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}' +
+    'void main(){vec3 q=floor(vP*3.0);float g=0.955+0.09*h(q);float big=0.97+0.06*h(floor(vP*0.35));' +                // fine grain + broad patchiness = a real surface instead of flat colour
+    'vec3 c=vC*g*big+vSp;float f=smoothstep(uFog.x,uFog.y,vD);gl_FragColor=vec4(mix(c,uF,f),1.0);}';
 
   function create(canvas) {
     let gl = null;

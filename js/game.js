@@ -562,6 +562,7 @@
     if (decor) window.Decor.drawFar(ctx, decor.far, level.theme, cx, W, H, S, th, base - 20 * S);
     hills(0.2, th.h1, 70, 0.004, base - 40 * S);
     hills(0.45, th.h2, 50, 0.007, base + 10 * S);
+    if (window.Light) { const L = window.Light.get(level && level.theme, level && level.weather), hz = ctx.createLinearGradient(0, base - 160 * S, 0, base + 70 * S); hz.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); hz.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.12 + L.k * 0.3) + ')'); ctx.fillStyle = hz; ctx.fillRect(0, base - 160 * S, W, 230 * S); }   // atmospheric haze at the horizon
   }
 
   function drawTerrain(t) {
@@ -580,13 +581,26 @@
     ctx.beginPath(); ctx.moveTo(pts[i0][0], bottom);
     for (let i = i0; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
-    if (window.Light) { const L = window.Light.get(level.theme, level.weather); ctx.save(); ctx.clip(); const lg = ctx.createLinearGradient(0, miny, 0, miny + 90); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], 130); const sg = ctx.createLinearGradient(0, miny + 180, 0, miny + 520); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = sg; ctx.fillRect(pts[i0][0], miny + 180, pts[i1][0] - pts[i0][0], bottom - miny); ctx.restore(); }
+    if (window.Light) { const L = window.Light.get(level.theme, level.weather); ctx.save(); ctx.clip(); const lg = ctx.createLinearGradient(0, miny, 0, miny + 90); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], 130); const sg = ctx.createLinearGradient(0, miny + 180, 0, miny + 520); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = sg; ctx.fillRect(pts[i0][0], miny + 180, pts[i1][0] - pts[i0][0], bottom - miny); ctx.globalAlpha = ice ? 0.18 : 0.42; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], bottom - miny + 20); ctx.globalAlpha = 1; ctx.restore(); }
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
     window.Decor.terrainDetail(ctx, pts, i0, i1, level.theme, ice, camX, VW, clock);
     ctx.strokeStyle = ice ? '#eaf8ff' : th.grass; ctx.lineWidth = 12; trace(6); ctx.stroke();
     ctx.strokeStyle = ice ? '#ffffff' : th.grass2; ctx.lineWidth = 5; trace(3); ctx.stroke();
     ctx.strokeStyle = 'rgba(31,42,54,.72)'; ctx.lineWidth = 2.4; trace(0); ctx.stroke();
+    if (!ice) grassBlades(pts, i0, i1);
+  }
+  // little blades of grass along the top of the ground, swaying, with a light and a dark shade
+  function grassBlades(pts, i0, i1) {
+    ctx.lineCap = 'round';
+    for (let i = i0; i < i1; i++) {
+      const x0 = pts[i][0], y0 = pts[i][1], x1 = pts[i + 1][0], y1 = pts[i + 1][1], dx = x1 - x0; if (dx < 1) continue;
+      for (let x = x0 + 3; x < x1; x += 9) {
+        const q = Math.sin(x * 12.9898) * 43758.5453, r = q - Math.floor(q), y = y0 + (y1 - y0) * ((x - x0) / dx), hgt = 5 + r * 9, sw = Math.sin(clock * 1.8 + x * 0.05) * 2.2 + (r - 0.5) * 3;
+        ctx.strokeStyle = r > 0.5 ? th.grass2 : th.grass; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.quadraticCurveTo(x + sw * 0.4, y - hgt * 0.6, x + sw, y - hgt); ctx.stroke();
+      }
+    }
+    ctx.lineCap = 'butt';
   }
 
   function drawSolid(s) {
@@ -619,7 +633,9 @@
         ctx.beginPath(); ctx.moveTo(s.x, y); ctx.lineTo(s.x + s.w, y); ctx.stroke();
         for (let x = s.x + (r % 2 ? bw / 2 : 0); x < s.x + s.w; x += bw) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke(); }
       }
-      ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(s.x, s.y, 5, s.h); ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(s.x, s.y, 5, s.h);
+      if (window.Light) { ctx.globalAlpha = 0.4; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(s.x, s.y, s.w, s.h); ctx.globalAlpha = 1; }
+      ctx.restore();
     }
     ctx.fillStyle = th.grass; ctx.fillRect(s.x, s.y, s.w, 12);
     ctx.fillStyle = th.grass2; ctx.fillRect(s.x, s.y, s.w, 5);
@@ -684,6 +700,7 @@
     drawTrail();
     drawChasers(ctx); ENEMIES.draw(ctx, enemies, levelClock, enemyDead); ENEMIES.drawShots(ctx, enemies, levelClock); drawStormWorld(world.time);
     if (boss && bossPhase !== 'door') BOSS.draw(ctx, boss, clock);
+    { const gc = goose.center(), gy = window.Decor.groundAt(level, gc.x); if (gy != null && gy > gc.y - 30 && gy < gc.y + 260) { const dd = Math.max(0, gy - gc.y - 30), a = Math.max(0, 0.28 - dd / 900); ctx.fillStyle = 'rgba(10,14,20,' + a + ')'; ctx.beginPath(); ctx.ellipse(gc.x, gy + 1, 34 - Math.min(14, dd / 14), 6, 0, 0, 7); ctx.fill(); } }   // soft shadow on the ground
     drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
     if (window.Chungas) window.Chungas.draw(ctx, (c2, g2, e2, s2) => drawGoose(c2, g2, e2, s2));
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);

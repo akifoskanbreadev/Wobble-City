@@ -137,3 +137,4 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - **Spin the Bottle**: up to 16 geese (bots fill the circle), faster full-circle spins, and the Bread Blaster flies much faster.
 - **Shooting modes**: when the bottle lands on you, just TAP a goose to shoot it. In Eliminator and Lucky Blaster you can see the blaster in the shooter's wing, aiming around the circle.
 - **Lights Out**: pitch black, nobody is told who the bottle landed on or who got hit; the lights only come back on at the next spin.
+- **Realistic look pass**: speckled earth and stone textures, swaying grass blades, soft shadows under the goose, horizon haze, slanting light shafts, drifting specks of light and fine film grain in 2D levels; the 3D modes get surface grain, darker lower walls (ambient occlusion) and a soft shine on rounded shapes. The geese stay cartoon.
