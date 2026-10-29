@@ -130,4 +130,4 @@ New party mode in the menu: 4 to 8 geese stand in a circle wearing their real av
 ### Spin the Bottle: shooting modes
 Pick a mode in the lobby: 🤔 Truth or Dare, 🎯 Eliminator (when the bottle lands on you, pick a goose to blast out with the cartoon Bread Blaster; last goose standing wins), 🌑 Lights Out (the shot happens in the dark: the geese are shuffled and unnamed, you pick a number and might hit yourself) and 🎲 Lucky Blaster (the blaster only works 50% of the time). Blasted geese turn into a slice of toast. All work solo with bots or online.
 
-Spin the Bottle now plays in a 3D party room (round rug, cushions, windows, couches, party lights) with a glass 3D bottle; the geese stay 2D and stand on their cushions. If a device has no WebGL it falls back to the flat 2D table.
+Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with cards and chips, bar stools, ceiling fan, beams, moonlit windows, update board) with a glass 3D bottle spinning on the table. The geese stay flat 2D sprites sitting on the stools, with floating number-badge name plates. If a device has no WebGL it falls back to the flat 2D table.

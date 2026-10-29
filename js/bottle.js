@@ -220,34 +220,54 @@
   }
   // ------------------------------------------------------------------ the 3D room (the geese stay 2D sprites standing in it)
   let gl3 = null, glTried = false;
-  const WR = 4.4, CAM = { eye: [0, 8.8, 10.6], at: [0, 0.2, 0.8], fov: 0.9 };
-  const CUSH = ['#e63946', '#3a86ff', '#ffd23f', '#2fbf71', '#9b5de5', '#ff8c42', '#ff70a6', '#19d6ff'];
-  function buildRoom() {
+  const WR = 4.3, TR = 2.7, TY = 2.2, SY = 1.75, CAM = { eye: [0, 7.6, 11.4], at: [0, 1.5, 0.4], fov: 0.92 };   // seat ring radius, table radius, table height, seat height
+  const STOOL = ['#3b2a6b', '#2a6b3a', '#1f3a6b', '#6b2a3a', '#6b5a1f', '#2a5a6b', '#5a2a6b', '#3a3a44'];
+  const vrot = () => Math.PI - (2 * Math.PI * (G ? G.me : 0)) / (G ? G.players.length : 1);        // turn the circle so YOU sit on the near side of the table
+  function buildRoom() {                                                       // a dark, cosy wooden tavern (a static mesh built once)
     const m = root.H3E.mesh(), B = (x, y, z, w, h, d, c, ry) => m.box(x, y, z, w, h, d, c, ry), O = (x, y, z, rx, ry, rz, c, seg, ring) => m.ball(x, y, z, rx, ry, rz, c, 0, seg, ring);
-    B(0, -0.3, 0, 60, 0.3, 60, '#7a4e2c');                                              // wooden floor
-    for (let k = -9; k <= 9; k++) B(k * 1.6, 0.001, 0, 0.05, 0.01, 40, '#6a421f');       // floorboard lines
-    O(0, 0.03, 0, WR + 1.7, 0.03, WR + 1.7, '#8f2a5a', 40, 4); O(0, 0.05, 0, WR + 1.1, 0.03, WR + 1.1, '#f0c94a', 40, 4); O(0, 0.07, 0, WR + 0.5, 0.03, WR + 0.5, '#8f2a5a', 40, 4); O(0, 0.09, 0, WR - 0.9, 0.03, WR - 0.9, '#2b2f6b', 40, 4);   // big round rug
-    B(0, 0, -16, 60, 13, 0.6, '#4a3a6a'); B(-24, 0, 0, 0.6, 13, 60, '#43345f'); B(24, 0, 0, 0.6, 13, 60, '#43345f');   // walls
-    B(0, 0, -15.6, 60, 2.2, 0.3, '#2f2447');                                             // wainscot
-    for (const x of [-12, -4, 4, 12]) { B(x, 3.2, -15.6, 4.6, 4.2, 0.2, '#1c2b58'); B(x, 3.2, -15.5, 4.8, 0.2, 0.2, '#e8d29a'); B(x, 5.2, -15.5, 4.8, 0.2, 0.2, '#e8d29a'); B(x - 2.3, 3.2, -15.5, 0.2, 4.2, 0.2, '#e8d29a'); B(x + 2.3, 3.2, -15.5, 0.2, 4.2, 0.2, '#e8d29a'); O(x + 1, 4.6, -15.4, 0.35, 0.35, 0.05, '#fff6c0', 10, 6); }   // night windows with moons
-    B(0, 6.6, -15.5, 8, 0.7, 0.2, '#ff3d9a'); B(0, 6.6, -15.45, 7.4, 0.35, 0.2, '#ffd0ea');   // neon sign bar
-    B(0, 12.5, 0, 60, 0.5, 60, '#241a38');                                               // ceiling
-    for (const sx of [-1, 1]) { B(sx * 13, 0.55, -10, 5.2, 1.1, 2.2, sx < 0 ? '#2fa4a0' : '#d6528a'); B(sx * 13, 1.5, -10.9, 5.2, 1.6, 0.5, sx < 0 ? '#2a8e8a' : '#b8406f'); B(sx * 19, 0.55, -4, 2.2, 1.1, 5.2, sx < 0 ? '#d6a02a' : '#5a7ad6'); B(sx * 19.9, 1.5, -4, 0.5, 1.6, 5.2, sx < 0 ? '#b8841a' : '#4766b8'); }   // couches
-    for (const x of [-8, 8, -17, 17]) { B(x, 0, -13.5, 0.9, 0.8, 0.9, '#7a4a22'); O(x, 1.7, -13.5, 0.9, 1.1, 0.9, '#2f9b4a', 12, 8); O(x - 0.4, 2.5, -13.4, 0.55, 0.7, 0.55, '#3fbf6a', 10, 6); }   // plants
-    for (const x of [-9, 9]) B(x, 0, 12, 1, 6, 1, '#3a2a58');                           // pillars
-    O(0, 11.2, 0, 1, 1, 1, '#c8d0e0', 16, 12);                                          // disco ball
+    B(0, -0.4, 0, 70, 0.4, 70, '#1f130a');
+    for (let k = -30; k <= 30; k++) B(k * 1.1, 0, 0, 1.06, 0.06, 60, k % 3 === 0 ? '#3b2414' : k % 3 === 1 ? '#32200f' : '#402818');                    // floor planks
+    O(0, 0.06, 0, 8, 0.03, 8, '#4a2e18', 36, 4);                                                                                                 // warm pool of lamp light
+    B(0, 0, -23, 70, 13, 0.7, '#2a1d16'); B(-24, 0, 0, 0.7, 13, 70, '#251914'); B(24, 0, 0, 0.7, 13, 70, '#251914');                           // dark wooden walls
+    for (const y of [1.2, 3.8, 6.4, 9]) { B(0, y, -22.6, 70, 0.28, 0.3, '#3d2a1c'); B(-23.6, y, 0, 0.3, 0.28, 70, '#382719'); B(23.6, y, 0, 0.3, 0.28, 70, '#382719'); }   // panelling rails
+    B(0, 11.3, 0, 70, 0.5, 70, '#1a110b');                                                                                                       // ceiling
+    for (let x = -22; x <= 22; x += 5.5) B(x, 10.4, 0, 0.8, 0.8, 70, '#3a2515'); for (const z of [-18, -8, 2, 12, 22]) B(0, 10.9, z, 70, 0.55, 0.7, '#44301c');   // wooden beams
+    for (const z of [-12, 0, 12]) { B(-23.4, 4.6, z, 0.2, 4, 3, '#122240'); B(-23.2, 4.6, z, 0.25, 4.3, 0.22, '#5a3d22'); B(-23.2, 4.6, z - 1.6, 0.25, 4.3, 0.22, '#5a3d22'); B(-23.2, 4.6, z + 1.6, 0.25, 4.3, 0.22, '#5a3d22'); B(-23.2, 4.6, z, 0.25, 0.22, 3.4, '#5a3d22'); B(-23.2, 6.55, z, 0.25, 0.22, 3.4, '#5a3d22'); B(-23.2, 2.65, z, 0.25, 0.22, 3.4, '#5a3d22'); }   // moonlit windows on the left
+    for (const z of [-8, 8]) { B(23.4, 4.6, z, 0.2, 4, 3, '#122240'); B(23.2, 4.6, z, 0.25, 4.3, 0.22, '#5a3d22'); B(23.2, 4.6, z - 1.6, 0.25, 4.3, 0.22, '#5a3d22'); B(23.2, 4.6, z + 1.6, 0.25, 4.3, 0.22, '#5a3d22'); }
+    B(-6, 4.6, -22.4, 10, 5.2, 0.25, '#4a331f'); B(-6, 4.6, -22.25, 9.4, 4.7, 0.2, '#10141c');                                                  // the "update board"
+    B(-6, 6.4, -22.1, 5.5, 0.28, 0.1, '#ffd23f'); for (let k = 0; k < 6; k++) B(-6 + (k % 2 ? 0.6 : -0.4), 5.5 - k * 0.55, -22.1, 3 + ((k * 37) % 5) * 0.9, 0.13, 0.1, '#78b8ff');
+    B(8, 4.6, -22.4, 7, 4.4, 0.25, '#4a331f'); B(8, 4.6, -22.25, 6.4, 3.9, 0.2, '#14101c');                                                   // a second board with coloured icons
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 4; b++) B(5.4 + b * 1.7, 5.9 - a * 1.2, -22.1, 0.8, 0.8, 0.1, ['#e63946', '#3a86ff', '#ffd23f', '#2fbf71', '#9b5de5', '#ff8c42'][(a * 4 + b) % 6]);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) { B(-20 + b * 2.6, 3.4 + a * 1.8, -22.4, 2.2, 1.4, 0.2, '#0c0f14'); B(-20 + b * 2.6, 3.6 + a * 1.8, -22.25, 0.7, 0.5, 0.1, ['#e63946', '#19d6ff', '#ffd23f'][(a + b) % 3]); }   // a wall of little screens
+    for (const sx of [-1, 1]) { B(sx * 15, 0, -18, 6, 0.9, 2.4, sx < 0 ? '#4a2a22' : '#2a3a4a'); B(sx * 15, 0.9, -19, 6, 1.4, 0.6, sx < 0 ? '#5a342a' : '#33475a'); }   // sofas along the back
     gl3.setStatic(m);
   }
   function render3D(w, h, t) {
-    const m = root.H3E.mesh(), n = G.players.length, f = [Math.cos(G.a), Math.sin(G.a)], yaw = Math.PI / 2 - G.a;
+    const m = root.H3E.mesh(), n = G.players.length, vr = vrot(), aw = G.a + vr, f = [Math.cos(aw), Math.sin(aw)], yaw = Math.PI / 2 - aw;
     const dark = G.mode === 'lights' && G.stage === 'shoot';
-    for (let i = 0; i < n; i++) { const th = -Math.PI / 2 + (2 * Math.PI * i) / n; m.ball(Math.cos(th) * WR, 0.18, Math.sin(th) * WR, 0.7, 0.17, 0.7, CUSH[i % 8], 0, 16, 5); m.ball(Math.cos(th) * WR, 0.3, Math.sin(th) * WR, 0.5, 0.05, 0.5, '#ffffff', 14, 4); }   // a cushion for every goose
-    const P = (d, y) => [f[0] * d, y, f[1] * d], ball = (d, y, rx, ry, rz, c) => { const p = P(d, y); m.ball(p[0], p[1], p[2], rx, ry, rz, c, yaw, 14, 9); };
-    ball(-0.15, 0.36, 0.38, 0.36, 0.95, '#38b862'); ball(-0.15, 0.37, 0.385, 0.37, 0.34, '#efdca6'); ball(0.62, 0.34, 0.3, 0.3, 0.38, '#38b862'); ball(1.05, 0.33, 0.15, 0.15, 0.42, '#3fc46c'); ball(1.38, 0.33, 0.12, 0.12, 0.3, '#3fc46c'); ball(1.58, 0.33, 0.17, 0.16, 0.1, '#c9972b'); ball(-0.1, 0.62, 0.1, 0.06, 0.6, '#d8ffe4');   // the glass bottle
-    for (let k = 0; k < 24; k++) { const x = -22 + k * 1.9, tw = 0.6 + 0.4 * Math.sin(t * 3 + k); m.ball(x, 8.3 + Math.sin(k * 0.7) * 0.35, -15.2, 0.18, 0.18, 0.18, [0.9 * tw + 0.1, (0.5 + 0.5 * Math.sin(k)) * tw, (0.5 + 0.5 * Math.cos(k * 1.7)) * tw], 6, 4); }   // twinkling party lights
-    const sw = Math.sin(t * 0.25) * 0.9;
-    gl3.sky = dark ? [0.01, 0.01, 0.03] : [0.12, 0.08, 0.2]; gl3.fogNear = 30; gl3.fogFar = 70;
-    gl3.drawFrame({ eye: [CAM.eye[0] + sw, CAM.eye[1], CAM.eye[2]], at: CAM.at, fov: CAM.fov }, m);
+    const B = (x, y, z, ww, hh, dd, c, ry) => m.box(x, y, z, ww, hh, dd, c, ry), O = (x, y, z, rx, ry, rz, c, seg, ring) => m.ball(x, y, z, rx, ry, rz, c, 0, seg, ring);
+    // the round (octagonal) table with its pedestal
+    B(0, TY - 0.3, 0, TR * 2, 0.3, TR * 2 * 0.99, '#2c2420'); B(0, TY - 0.3, 0, TR * 2, 0.3, TR * 2 * 0.99, '#2c2420', Math.PI / 4); B(0, TY - 0.02, 0, TR * 1.7, 0.03, TR * 1.7, '#352b26', Math.PI / 8);
+    B(0, 0.2, 0, 0.8, TY - 0.5, 0.8, '#1e1814'); O(0, 0.18, 0, 1.7, 0.18, 1.7, '#1e1814', 20, 6);
+    // things lying on the table
+    B(1.2, TY + 0.005, 1.1, 1.1, 0.02, 0.75, '#e9e4d6', 0.35); B(-1.5, TY + 0.005, -0.9, 0.9, 0.02, 0.65, '#ddd8c8', -0.5); B(-1.1, TY + 0.005, 1.4, 0.45, 0.03, 0.3, '#e63946', 0.8); B(-0.9, TY + 0.035, 1.35, 0.45, 0.03, 0.3, '#ffffff', 0.2);
+    O(1.6, TY + 0.07, -1.1, 0.16, 0.07, 0.16, '#e63946', 10, 5); O(1.6, TY + 0.15, -1.1, 0.16, 0.07, 0.16, '#2fbf71', 10, 5); O(1.9, TY + 0.07, -0.8, 0.16, 0.07, 0.16, '#ffd23f', 10, 5); O(-0.4, TY + 0.1, -1.7, 0.2, 0.1, 0.2, '#8a6a3a', 10, 5);
+    // bottle on the table
+    const k = 0.78, P = (d, y) => [f[0] * d * k, TY + y * k, f[1] * d * k], ball = (d, y, rx, ry, rz, c) => { const p = P(d, y); m.ball(p[0], p[1], p[2], rx * k, ry * k, rz * k, c, yaw, 14, 9); };
+    ball(-0.15, 0.36, 0.38, 0.36, 0.95, '#38b862'); ball(-0.15, 0.37, 0.385, 0.37, 0.34, '#efdca6'); ball(0.62, 0.34, 0.3, 0.3, 0.38, '#38b862'); ball(1.05, 0.33, 0.15, 0.15, 0.42, '#3fc46c'); ball(1.38, 0.33, 0.12, 0.12, 0.3, '#3fc46c'); ball(1.58, 0.33, 0.17, 0.16, 0.1, '#c9972b'); ball(-0.1, 0.62, 0.1, 0.06, 0.6, '#d8ffe4');
+    // a bar stool for every goose
+    for (let i = 0; i < n; i++) {
+      const th = -Math.PI / 2 + (2 * Math.PI * i) / n + vr, x = Math.cos(th) * WR, z = Math.sin(th) * WR, c = STOOL[i % 8];
+      O(x, SY - 0.1, z, 0.85, 0.22, 0.85, c, 16, 6); O(x, SY - 0.3, z, 0.62, 0.1, 0.62, '#a8aeb8', 14, 4);
+      for (const [dx, dz] of [[0.42, 0.42], [-0.42, 0.42], [0.42, -0.42], [-0.42, -0.42]]) B(x + dx, 0, z + dz, 0.09, SY - 0.3, 0.09, '#8d939d');
+      O(x, 0.75, z, 0.78, 0.05, 0.78, '#8d939d', 14, 3);
+    }
+    // ceiling fan with warm lights, turning slowly
+    B(0, 8.6, 0, 0.12, 2.6, 0.12, '#6a4a22'); O(0, 8.4, 0, 0.55, 0.3, 0.55, '#c9972b', 14, 8);
+    for (let q = 0; q < 4; q++) { const a = t * 1.1 + q * Math.PI / 2; B(Math.cos(a) * 1.9, 8.55, Math.sin(a) * 1.9, 3.2, 0.07, 0.6, '#7a5028', -a); }
+    for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + 0.78; O(Math.cos(a) * 0.55, 8.05, Math.sin(a) * 0.55, 0.2, 0.2, 0.2, '#fff0b0', 8, 6); }
+    gl3.sky = dark ? [0.01, 0.01, 0.02] : [0.1, 0.07, 0.05]; gl3.fogNear = 40; gl3.fogFar = 90;
+    gl3.drawFrame({ eye: [CAM.eye[0] + Math.sin(t * 0.3) * 0.5, CAM.eye[1], CAM.eye[2]], at: CAM.at, fov: CAM.fov }, m);
   }
   function draw() {
     const cv = dom.cv, dpr = Math.min(2, root.devicePixelRatio || 1), w = Math.max(2, Math.floor(cv.clientWidth * dpr)), h = Math.max(2, Math.floor(cv.clientHeight * dpr));
@@ -264,35 +284,46 @@
     const gw0 = gw;
     if (!use3) { c.fillStyle = 'rgba(255,255,255,.07)'; c.beginPath(); c.arc(cx, cy, R * 0.95, 0, 7); c.fill(); c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 3 * dpr; c.stroke(); }
     const t = G.time || 0;
-    const dark = G.mode === 'lights' && G.stage === 'shoot', posOf = (k, m) => {
+    const dark = G.mode === 'lights' && G.stage === 'shoot', posOf = (k, m, seat) => {
       const th = -Math.PI / 2 + (2 * Math.PI * k) / m;
-      if (use3) {                                            // stand the 2D goose on its cushion in the 3D room and size it by distance
-        const q = gl3.project([Math.cos(th) * WR, 0.3, Math.sin(th) * WR]);
-        if (q) { const s = (cv.clientHeight / 2) / (Math.tan(CAM.fov / 2) * q[2]); gw = Math.max(18, 0.78 * s * dpr / 0.62); return [q[0] * dpr, q[1] * dpr, th]; }
+      if (use3) {                                            // sit the flat 2D goose on its bar stool in the 3D room and size it by distance
+        const tw = -Math.PI / 2 + (2 * Math.PI * (seat != null ? seat : k)) / n + vrot(), q = gl3.project([Math.cos(tw) * WR, SY + 0.05, Math.sin(tw) * WR]);
+        if (q) { const s = (cv.clientHeight / 2) / (Math.tan(CAM.fov / 2) * q[2]); gw = Math.max(18, 0.82 * s * dpr / 0.62); return [q[0] * dpr, q[1] * dpr, th, true]; }
       }
       gw = gw0; return [cx + Math.cos(th) * R, cy + Math.sin(th) * R + gw * 0.6, th];
     };
-    const drawOne = (p, i, px, py, th, named) => {
+    const drawOne = (p, i, px, py, th, named, t3) => {
       const isSp = i === G.turn && G.stage !== 'over' && !dark, isT = i === G.target && ['pick', 'task', 'vote', 'result', 'shoot'].includes(G.stage) && !dark;
       if (!p.alive && !dark) {                                  // blasted out: just a slice of toast left
         c.globalAlpha = 0.6; c.font = Math.round(34 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = '#fff'; c.fillText('🍞', px, py); c.globalAlpha = 1;
         c.font = '800 ' + Math.round(12 * dpr) + 'px system-ui'; c.fillStyle = 'rgba(255,255,255,.55)'; c.fillText(p.name + ' (out)', px, py + 18 * dpr); return;
       }
       if (isSp || isT) { c.fillStyle = isT ? 'rgba(255,90,90,' + (0.35 + 0.2 * Math.sin(t * 6)) + ')' : 'rgba(255,214,60,.3)'; c.beginPath(); c.ellipse(px, py, gw * 0.9, gw * 0.35, 0, 0, 7); c.fill(); }
-      let ok = false;
-      if (root.GooseArt && p.look) { try { root.GooseArt.draw(c, px, py, p.look, { w: gw * 0.62, face: Math.cos(th) > 0.2 ? -1 : 1, t, moving: isT && G.stage === 'result' && !G.skipped && G.mode === 'tod' }); ok = true; } catch (e) { ok = false; } }
+      let ok = false, head = null;
+      if (t3) { c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(px, py + gw * 0.05, gw * 0.55, gw * 0.16, 0, 0, 7); c.fill(); }
+      if (root.GooseArt && p.look) { try { head = root.GooseArt.draw(c, px, py, p.look, { w: gw * 0.62, face: Math.cos(th) > 0.2 ? -1 : 1, t, moving: isT && G.stage === 'result' && !G.skipped && G.mode === 'tod' }); ok = true; } catch (e) { ok = false; } }
       if (!ok) { c.fillStyle = '#fff'; c.beginPath(); c.ellipse(px, py - gw * 0.3, gw * 0.4, gw * 0.3, 0, 0, 7); c.fill(); }
       if (!named) return;
+      if (t3) {                                               // a floating name plate like in Rec Room: number badge + name
+        const hx = head ? head.x : px, hy = Math.max(30 * dpr, (head ? head.y : py - gw) - 26 * dpr), lab = p.name + (i === G.me ? ' (you)' : ''), fs = Math.round(15 * dpr);
+        c.font = '800 ' + fs + 'px system-ui'; const tw2 = c.measureText(lab).width, bw = fs * 1.5, pw = bw + tw2 + fs * 1.1, ph = fs * 1.7;
+        c.fillStyle = 'rgba(12,12,16,.78)'; c.beginPath(); if (c.roundRect) c.roundRect(hx - pw / 2, hy - ph / 2, pw, ph, ph / 2); else c.rect(hx - pw / 2, hy - ph / 2, pw, ph); c.fill();
+        c.fillStyle = '#fff'; c.beginPath(); if (c.roundRect) c.roundRect(hx - pw / 2 + fs * 0.25, hy - bw / 2 + 0, bw, bw, fs * 0.3); else c.rect(hx - pw / 2 + fs * 0.25, hy - bw / 2, bw, bw); c.fill();
+        c.fillStyle = '#111'; c.textAlign = 'center'; c.fillText(String(i + 1), hx - pw / 2 + fs * 0.25 + bw / 2, hy + fs * 0.35);
+        c.fillStyle = i === G.me ? '#ffe27a' : '#fff'; c.textAlign = 'left'; c.fillText(lab, hx - pw / 2 + fs * 0.25 + bw + fs * 0.4, hy + fs * 0.35);
+        if (G.mode === 'tod') { c.font = '700 ' + Math.round(12 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 3 * dpr; c.strokeStyle = '#000'; c.fillStyle = '#fff'; const sc = '🍞 ' + p.pts + (p.chick ? '  🐔 ' + p.chick : ''); c.strokeText(sc, hx, hy + ph * 0.95); c.fillText(sc, hx, hy + ph * 0.95); }
+        return;
+      }
       c.font = '800 ' + Math.round(13 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 3 * dpr; c.strokeStyle = '#000'; c.fillStyle = i === G.me ? '#ffe27a' : '#fff';
       const lab = p.name + (i === G.me ? ' (you)' : ''); c.strokeText(lab, px, py + 16 * dpr); c.fillText(lab, px, py + 16 * dpr);
       if (G.mode === 'tod') { c.font = '700 ' + Math.round(12 * dpr) + 'px system-ui'; const sc = '🍞 ' + p.pts + (p.chick ? '  🐔 ' + p.chick : ''); c.strokeText(sc, px, py + 30 * dpr); c.fillText(sc, px, py + 30 * dpr); }
       if (isSp) { c.font = Math.round(16 * dpr) + 'px system-ui'; c.fillText('🍾', px + gw * 0.55, py - gw * 0.9); }
     };
     if (dark) {
-      const m = G.perm.length; G.perm.forEach((pi, k) => { const [px, py, th] = posOf(k, m); drawOne(G.players[pi], pi, px, py, th, false); });
+      const m = G.perm.length, seats = aliveIdx(); G.perm.forEach((pi, k) => { const [px, py, th] = posOf(k, m, seats[k]); drawOne(G.players[pi], pi, px, py, th, false); });
       c.fillStyle = 'rgba(4,2,12,.93)'; c.fillRect(0, 0, w, h);
-      G.perm.forEach((pi, k) => { const [px, py] = posOf(k, m); c.font = '900 ' + Math.round(20 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ffe27a'; c.fillText(String(k + 1), px, py - gw * 0.5); });
-    } else G.players.forEach((p, i) => { const [px, py, th] = posOf(i, n); drawOne(p, i, px, py, th, true); });
+      G.perm.forEach((pi, k) => { const [px, py] = posOf(k, m, seats[k]); c.font = '900 ' + Math.round(20 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ffe27a'; c.fillText(String(k + 1), px, py - gw * 0.5); });
+    } else G.players.forEach((p, i) => { const [px, py, th, t3] = posOf(i, n); drawOne(p, i, px, py, th, true, t3); });
     // the Bread Blaster shot: a slice of bread flies from the shooter to the target
     if (G.shot && G.stage === 'result' && G.mode !== 'tod') {
       const a = posOf(G.shot.from, n), b = posOf(G.shot.to, n), k = Math.min(1, G.stT / 0.7);
