@@ -218,20 +218,60 @@
     c.fillStyle = '#c9972b'; c.fillRect(54, -6, 8, 12); c.strokeRect(54, -6, 8, 12);
     c.restore();
   }
+  // ------------------------------------------------------------------ the 3D room (the geese stay 2D sprites standing in it)
+  let gl3 = null, glTried = false;
+  const WR = 4.4, CAM = { eye: [0, 8.8, 10.6], at: [0, 0.2, 0.8], fov: 0.9 };
+  const CUSH = ['#e63946', '#3a86ff', '#ffd23f', '#2fbf71', '#9b5de5', '#ff8c42', '#ff70a6', '#19d6ff'];
+  function buildRoom() {
+    const m = root.H3E.mesh(), B = (x, y, z, w, h, d, c, ry) => m.box(x, y, z, w, h, d, c, ry), O = (x, y, z, rx, ry, rz, c, seg, ring) => m.ball(x, y, z, rx, ry, rz, c, 0, seg, ring);
+    B(0, -0.3, 0, 60, 0.3, 60, '#7a4e2c');                                              // wooden floor
+    for (let k = -9; k <= 9; k++) B(k * 1.6, 0.001, 0, 0.05, 0.01, 40, '#6a421f');       // floorboard lines
+    O(0, 0.03, 0, WR + 1.7, 0.03, WR + 1.7, '#8f2a5a', 40, 4); O(0, 0.05, 0, WR + 1.1, 0.03, WR + 1.1, '#f0c94a', 40, 4); O(0, 0.07, 0, WR + 0.5, 0.03, WR + 0.5, '#8f2a5a', 40, 4); O(0, 0.09, 0, WR - 0.9, 0.03, WR - 0.9, '#2b2f6b', 40, 4);   // big round rug
+    B(0, 0, -16, 60, 13, 0.6, '#4a3a6a'); B(-24, 0, 0, 0.6, 13, 60, '#43345f'); B(24, 0, 0, 0.6, 13, 60, '#43345f');   // walls
+    B(0, 0, -15.6, 60, 2.2, 0.3, '#2f2447');                                             // wainscot
+    for (const x of [-12, -4, 4, 12]) { B(x, 3.2, -15.6, 4.6, 4.2, 0.2, '#1c2b58'); B(x, 3.2, -15.5, 4.8, 0.2, 0.2, '#e8d29a'); B(x, 5.2, -15.5, 4.8, 0.2, 0.2, '#e8d29a'); B(x - 2.3, 3.2, -15.5, 0.2, 4.2, 0.2, '#e8d29a'); B(x + 2.3, 3.2, -15.5, 0.2, 4.2, 0.2, '#e8d29a'); O(x + 1, 4.6, -15.4, 0.35, 0.35, 0.05, '#fff6c0', 10, 6); }   // night windows with moons
+    B(0, 6.6, -15.5, 8, 0.7, 0.2, '#ff3d9a'); B(0, 6.6, -15.45, 7.4, 0.35, 0.2, '#ffd0ea');   // neon sign bar
+    B(0, 12.5, 0, 60, 0.5, 60, '#241a38');                                               // ceiling
+    for (const sx of [-1, 1]) { B(sx * 13, 0.55, -10, 5.2, 1.1, 2.2, sx < 0 ? '#2fa4a0' : '#d6528a'); B(sx * 13, 1.5, -10.9, 5.2, 1.6, 0.5, sx < 0 ? '#2a8e8a' : '#b8406f'); B(sx * 19, 0.55, -4, 2.2, 1.1, 5.2, sx < 0 ? '#d6a02a' : '#5a7ad6'); B(sx * 19.9, 1.5, -4, 0.5, 1.6, 5.2, sx < 0 ? '#b8841a' : '#4766b8'); }   // couches
+    for (const x of [-8, 8, -17, 17]) { B(x, 0, -13.5, 0.9, 0.8, 0.9, '#7a4a22'); O(x, 1.7, -13.5, 0.9, 1.1, 0.9, '#2f9b4a', 12, 8); O(x - 0.4, 2.5, -13.4, 0.55, 0.7, 0.55, '#3fbf6a', 10, 6); }   // plants
+    for (const x of [-9, 9]) B(x, 0, 12, 1, 6, 1, '#3a2a58');                           // pillars
+    O(0, 11.2, 0, 1, 1, 1, '#c8d0e0', 16, 12);                                          // disco ball
+    gl3.setStatic(m);
+  }
+  function render3D(w, h, t) {
+    const m = root.H3E.mesh(), n = G.players.length, f = [Math.cos(G.a), Math.sin(G.a)], yaw = Math.PI / 2 - G.a;
+    const dark = G.mode === 'lights' && G.stage === 'shoot';
+    for (let i = 0; i < n; i++) { const th = -Math.PI / 2 + (2 * Math.PI * i) / n; m.ball(Math.cos(th) * WR, 0.18, Math.sin(th) * WR, 0.7, 0.17, 0.7, CUSH[i % 8], 0, 16, 5); m.ball(Math.cos(th) * WR, 0.3, Math.sin(th) * WR, 0.5, 0.05, 0.5, '#ffffff', 14, 4); }   // a cushion for every goose
+    const P = (d, y) => [f[0] * d, y, f[1] * d], ball = (d, y, rx, ry, rz, c) => { const p = P(d, y); m.ball(p[0], p[1], p[2], rx, ry, rz, c, yaw, 14, 9); };
+    ball(-0.15, 0.36, 0.38, 0.36, 0.95, '#38b862'); ball(-0.15, 0.37, 0.385, 0.37, 0.34, '#efdca6'); ball(0.62, 0.34, 0.3, 0.3, 0.38, '#38b862'); ball(1.05, 0.33, 0.15, 0.15, 0.42, '#3fc46c'); ball(1.38, 0.33, 0.12, 0.12, 0.3, '#3fc46c'); ball(1.58, 0.33, 0.17, 0.16, 0.1, '#c9972b'); ball(-0.1, 0.62, 0.1, 0.06, 0.6, '#d8ffe4');   // the glass bottle
+    for (let k = 0; k < 24; k++) { const x = -22 + k * 1.9, tw = 0.6 + 0.4 * Math.sin(t * 3 + k); m.ball(x, 8.3 + Math.sin(k * 0.7) * 0.35, -15.2, 0.18, 0.18, 0.18, [0.9 * tw + 0.1, (0.5 + 0.5 * Math.sin(k)) * tw, (0.5 + 0.5 * Math.cos(k * 1.7)) * tw], 6, 4); }   // twinkling party lights
+    const sw = Math.sin(t * 0.25) * 0.9;
+    gl3.sky = dark ? [0.01, 0.01, 0.03] : [0.12, 0.08, 0.2]; gl3.fogNear = 30; gl3.fogFar = 70;
+    gl3.drawFrame({ eye: [CAM.eye[0] + sw, CAM.eye[1], CAM.eye[2]], at: CAM.at, fov: CAM.fov }, m);
+  }
   function draw() {
     const cv = dom.cv, dpr = Math.min(2, root.devicePixelRatio || 1), w = Math.max(2, Math.floor(cv.clientWidth * dpr)), h = Math.max(2, Math.floor(cv.clientHeight * dpr));
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0);
-    const bg = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7); bg.addColorStop(0, '#6b3f93'); bg.addColorStop(1, '#241338'); c.fillStyle = bg; c.fillRect(0, 0, w, h);
+    if (!glTried) { glTried = true; try { gl3 = root.H3E && dom.gl ? root.H3E.create(dom.gl) : null; if (gl3) buildRoom(); } catch (e) { gl3 = null; } }
+    const use3 = !!(gl3 && G);
+    dom.gl.style.display = gl3 ? '' : 'none';
+    if (G) { if (G.stage === 'spin') G.a = (G.spinFrom || 0) + (G.a1 - (G.spinFrom || 0)) * ease((G.spinT || 0) / G.dur); else if (G.stage !== 'idle') G.a = G.a1; else if (G.a1 && Math.abs(G.a - G.a1) > 0.001) G.a = G.a1; }
+    if (use3) { c.clearRect(0, 0, w, h); render3D(w, h, G.time || 0); }
+    else { const bg = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7); bg.addColorStop(0, '#6b3f93'); bg.addColorStop(1, '#241338'); c.fillStyle = bg; c.fillRect(0, 0, w, h); }
     if (!G) return;
-    const cx = w / 2, cy = h * 0.41, R = Math.min(w * 0.32, h * 0.22), n = G.players.length, gw = Math.max(26 * dpr, Math.min(54 * dpr, R * 0.36));
-    c.fillStyle = 'rgba(255,255,255,.07)'; c.beginPath(); c.arc(cx, cy, R * 0.95, 0, 7); c.fill(); c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 3 * dpr; c.stroke();
-    // bottle angle (spin animation on every device, finishing on the host's chosen angle)
-    if (G.stage === 'spin') { G.spinT = (G.spinT || 0); G.a = (G.spinFrom || 0) + (G.a1 - (G.spinFrom || 0)) * ease(G.spinT / G.dur); }
-    else if (G.stage !== 'idle' || G.a === 0) { if (G.stage !== 'idle') G.a = G.a1; }
-    if (G.stage === 'idle' && G.a1 && Math.abs(G.a - G.a1) > 0.001) G.a = G.a1;
+    const cx = w / 2, cy = h * 0.41, R = Math.min(w * 0.32, h * 0.22), n = G.players.length; let gw = Math.max(26 * dpr, Math.min(54 * dpr, R * 0.36));
+    const gw0 = gw;
+    if (!use3) { c.fillStyle = 'rgba(255,255,255,.07)'; c.beginPath(); c.arc(cx, cy, R * 0.95, 0, 7); c.fill(); c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 3 * dpr; c.stroke(); }
     const t = G.time || 0;
-    const dark = G.mode === 'lights' && G.stage === 'shoot', posOf = (k, m) => { const th = -Math.PI / 2 + (2 * Math.PI * k) / m; return [cx + Math.cos(th) * R, cy + Math.sin(th) * R + gw * 0.6, th]; };
+    const dark = G.mode === 'lights' && G.stage === 'shoot', posOf = (k, m) => {
+      const th = -Math.PI / 2 + (2 * Math.PI * k) / m;
+      if (use3) {                                            // stand the 2D goose on its cushion in the 3D room and size it by distance
+        const q = gl3.project([Math.cos(th) * WR, 0.3, Math.sin(th) * WR]);
+        if (q) { const s = (cv.clientHeight / 2) / (Math.tan(CAM.fov / 2) * q[2]); gw = Math.max(18, 0.78 * s * dpr / 0.62); return [q[0] * dpr, q[1] * dpr, th]; }
+      }
+      gw = gw0; return [cx + Math.cos(th) * R, cy + Math.sin(th) * R + gw * 0.6, th];
+    };
     const drawOne = (p, i, px, py, th, named) => {
       const isSp = i === G.turn && G.stage !== 'over' && !dark, isT = i === G.target && ['pick', 'task', 'vote', 'result', 'shoot'].includes(G.stage) && !dark;
       if (!p.alive && !dark) {                                  // blasted out: just a slice of toast left
@@ -260,8 +300,7 @@
       if (G.shot.hit) { c.fillText('🍞', a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k - gw * 0.4); if (k >= 1) { c.globalAlpha = Math.max(0, 1 - (G.stT - 0.7) * 1.4); c.fillText('💥', b[0], b[1] - gw * 0.5); c.globalAlpha = 1; } }
       else { c.globalAlpha = Math.max(0, 1 - G.stT * 0.7); c.fillText('💨', a[0], a[1] - gw * 0.5); c.globalAlpha = 1; }
     }
-    bottle(c, cx, cy, G.a, Math.max(0.5, R / 150) * dpr * 0.9 * (dpr > 1 ? 1 : 1));
-    c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 5 * dpr, 0, 7); c.fill();
+    if (!use3) { bottle(c, cx, cy, G.a, Math.max(0.5, R / 150) * dpr * 0.9); c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 5 * dpr, 0, 7); c.fill(); }
   }
 
   // ------------------------------------------------------------------ UI cards
@@ -319,7 +358,7 @@
   }
 
   // ------------------------------------------------------------------ shell
-  function showPanel(id) { if (!dom) return; dom.lobby.style.display = id === 'lobby' ? 'flex' : 'none'; dom.cv.style.display = id === 'lobby' ? 'none' : ''; $('sbcard').style.display = id === 'lobby' ? 'none' : ''; $('sbtop').style.display = id === 'lobby' ? 'none' : ''; }
+  function showPanel(id) { if (!dom) return; dom.lobby.style.display = id === 'lobby' ? 'flex' : 'none'; dom.cv.style.display = id === 'lobby' ? 'none' : ''; dom.gl.style.visibility = id === 'lobby' ? 'hidden' : ''; $('sbcard').style.display = id === 'lobby' ? 'none' : ''; $('sbtop').style.display = id === 'lobby' ? 'none' : ''; }
   function begin() { last = performance.now(); lastKey = ''; if (!raf) raf = requestAnimationFrame(frame); }
   function step(dt) {
     if (!G) return; G.time = (G.time || 0) + dt;
@@ -337,7 +376,7 @@
     if (dom) return;
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     const d = document.createElement('div'); d.id = 'sbt';
-    d.innerHTML = `<canvas id="sbcv"></canvas><div id="sbtop"></div><button id="sbquit" title="Leave">☰</button><div id="sbcard"></div>
+    d.innerHTML = `<canvas id="sbgl"></canvas><canvas id="sbcv"></canvas><div id="sbtop"></div><button id="sbquit" title="Leave">☰</button><div id="sbcard"></div>
       <div class="panel" id="sblobby"><div class="card"><h2>🍾 Spin the Bottle</h2><div class="sub">A party game for 3 to 8 geese, with bots or online. All cartoon fun: the Bread Blaster only fires toast.</div>
         <div class="row"><b>Mode</b><span class="chip on" data-mode="tod">🤔 Truth or Dare</span><span class="chip" data-mode="elim">🎯 Eliminator</span><span class="chip" data-mode="lights">🌑 Lights Out</span><span class="chip" data-mode="luck">🎲 Lucky Blaster</span></div>
         <div id="sbmdesc" style="font-size:13px;opacity:.8;margin:-2px 0 4px"></div>
@@ -348,7 +387,7 @@
         <div id="sbonl" style="display:none"><div class="row" id="sbroster"></div><div id="sbwait" class="sub"></div><div class="row"><button class="go" id="sbstartonl">▶ Start online game</button><button class="go alt" id="sbleave">Leave room</button></div></div>
         <div id="sbstat" style="font-size:13px;min-height:16px"></div></div></div>`;
     document.body.appendChild(d);
-    dom = { root: d, cv: $('sbcv'), lobby: $('sblobby') };
+    dom = { root: d, cv: $('sbcv'), gl: $('sbgl'), lobby: $('sblobby') };
     d.querySelectorAll('[data-n]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-n]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); osel.n = +c.dataset.n; }));
     const MDESC = { tod: 'Spin, Truth or Dare, the others vote. Most 🍞 wins.', elim: 'When the bottle lands on you, pick a goose to blast out with the Bread Blaster. Last goose standing wins!', lights: 'The lights go out when the bottle lands. The geese are shuffled and unnamed: pick a shape in the dark (you might hit yourself!).', luck: 'Like Eliminator, but the Bread Blaster only works 50% of the time. Click… or BOOM?' };
     const setMode = (m) => { osel.mode = m; d.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x.dataset.mode === m)); $('sbmdesc').textContent = MDESC[m]; };
