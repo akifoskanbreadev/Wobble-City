@@ -123,3 +123,6 @@ The 🥊 Battle Arena button now asks how you want to play: fight real players o
 
 ### Owner / head admin: more fun
 New 🎉 Fun tab (works on yourself, selected players or everyone): emoji rains (confetti, snow, hearts, pizza, geese, stars, fire, money, bread), party starters (full party, disco, movie night, neon, VHS, matrix), on-screen shows (countdowns, scrolling announcement banner, fake achievement popups), gifts, a bread raffle and chaos roulette. Seven new screen effects and two new time speeds in Troll. Overview has Party, Countdown and Announce quick buttons.
+
+### Spin the Bottle 🍾
+New party mode in the menu: 4 to 8 geese stand in a circle wearing their real avatars. Spin the bottle, it lands on a goose, they pick Truth or Dare (silly and clean prompts, typed answers are word-filtered), and the others vote 👍 or 👎. A 👍 majority earns a 🍞 point, skipping earns a 🐔. Everyone spins in turn; most points wins bread. Play solo with bots, or online via a room word or a random lobby (the host runs the rules, bots fill empty places and take over if someone leaves).

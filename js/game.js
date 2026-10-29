@@ -1440,7 +1440,7 @@
     return o; } });
   $('h3Btn').addEventListener('click', () => { audio(); window.Hide3D.open(); });
   // extra game modes: each is a full-screen overlay module with init({save, Skins, award}) and open()
-  [['Chameleon', 'chamBtn'], ['Crew', 'crewBtn']].forEach(([m, b]) => {
+  [['Chameleon', 'chamBtn'], ['Crew', 'crewBtn'], ['Bottle', 'bottleBtn']].forEach(([m, b]) => {
     if (window[m] && window[m].init) window[m].init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
     $(b).addEventListener('click', () => { audio(); if (window[m] && window[m].open) window[m].open(); });
   });
