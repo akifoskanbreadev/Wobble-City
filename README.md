@@ -131,3 +131,9 @@ New party mode in the menu: 4 to 8 geese stand in a circle wearing their real av
 Pick a mode in the lobby: 🤔 Truth or Dare, 🎯 Eliminator (when the bottle lands on you, pick a goose to blast out with the cartoon Bread Blaster; last goose standing wins), 🌑 Lights Out (the shot happens in the dark: the geese are shuffled and unnamed, you pick a number and might hit yourself) and 🎲 Lucky Blaster (the blaster only works 50% of the time). Blasted geese turn into a slice of toast. All work solo with bots or online.
 
 Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with cards and chips, bar stools, ceiling fan, beams, moonlit windows, update board) with a glass 3D bottle spinning on the table. The geese stay flat 2D sprites sitting on the stools, with floating number-badge name plates. If a device has no WebGL it falls back to the flat 2D table.
+
+## Soft light and Spin the Bottle update
+- **Soft light** (`js/lighting.js`): every level theme, weather and 3D map has its own light colour and strength. Meadow is warm gold, desert hot orange, snow and blizzards icy blue-white, night cool and dim, candy pink, storms grey-blue. 2D levels get a tinted soft-light wash, a sun glow and a vignette; the 3D modes feed the same colours into the engine.
+- **Spin the Bottle**: up to 16 geese (bots fill the circle), faster full-circle spins, and the Bread Blaster flies much faster.
+- **Shooting modes**: when the bottle lands on you, just TAP a goose to shoot it. In Eliminator and Lucky Blaster you can see the blaster in the shooter's wing, aiming around the circle.
+- **Lights Out**: pitch black, nobody is told who the bottle landed on or who got hit; the lights only come back on at the next spin.

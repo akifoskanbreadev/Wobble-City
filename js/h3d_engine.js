@@ -76,8 +76,8 @@
   function mul(a, b) { const o = new Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; }
 
   // ----------------------------------------------------------------- renderer
-  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;varying vec3 vC;varying float vD;' +
-    'void main(){gl_Position=uM*vec4(aP,1.0);float d=max(dot(aN,normalize(uL)),0.0);float l=0.58+0.42*d+0.12*aN.y;vC=aC*l;vD=distance(aP,uE);}';
+  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;uniform vec3 uLC;uniform vec3 uAC;varying vec3 vC;varying float vD;' +
+    'void main(){gl_Position=uM*vec4(aP,1.0);float d=max(dot(aN,normalize(uL)),0.0);vec3 lit=uAC*(0.58+0.12*aN.y)+uLC*(0.42*d);vC=aC*lit;vD=distance(aP,uE);}';
   const FS = 'precision mediump float;varying vec3 vC;varying float vD;uniform vec3 uF;uniform vec2 uFog;' +
     'void main(){float f=smoothstep(uFog.x,uFog.y,vD);gl_FragColor=vec4(mix(vC,uF,f),1.0);}';
 
@@ -92,7 +92,7 @@
     const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr);
     if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return null;
     gl.useProgram(pr);
-    const loc = { p: gl.getAttribLocation(pr, 'aP'), n: gl.getAttribLocation(pr, 'aN'), c: gl.getAttribLocation(pr, 'aC'), m: gl.getUniformLocation(pr, 'uM'), e: gl.getUniformLocation(pr, 'uE'), l: gl.getUniformLocation(pr, 'uL'), f: gl.getUniformLocation(pr, 'uF'), fog: gl.getUniformLocation(pr, 'uFog') };
+    const loc = { p: gl.getAttribLocation(pr, 'aP'), n: gl.getAttribLocation(pr, 'aN'), c: gl.getAttribLocation(pr, 'aC'), m: gl.getUniformLocation(pr, 'uM'), e: gl.getUniformLocation(pr, 'uE'), l: gl.getUniformLocation(pr, 'uL'), f: gl.getUniformLocation(pr, 'uF'), fog: gl.getUniformLocation(pr, 'uFog'), lc: gl.getUniformLocation(pr, 'uLC'), ac: gl.getUniformLocation(pr, 'uAC') };
     gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     const mk = () => ({ vb: gl.createBuffer(), ib: gl.createBuffer(), count: 0 });
     const stat = mk(), dyn = mk();
@@ -110,6 +110,7 @@
     }
     const R = {
       gl, sky: [0.6, 0.8, 1], fogNear: 40, fogFar: 130,
+      lightDir: [0.45, 0.85, 0.3], lightCol: [1, 1, 1], ambCol: [1, 1, 1],   // the soft light: its direction, colour (x intensity) and the ambient colour (x intensity)
       setStatic(m) { upload(stat, m, gl.STATIC_DRAW); },
       resize() {
         const dpr = Math.min(2, root.devicePixelRatio || 1), w = Math.max(2, Math.floor(canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
@@ -123,7 +124,7 @@
         gl.clearColor(s[0], s[1], s[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const mvp = mul(persp(cam.fov || 1.0, canvas.width / canvas.height, 0.2, 400), look(cam.eye, cam.at));
         gl.uniformMatrix4fv(loc.m, false, new Float32Array(mvp)); gl.uniform3fv(loc.e, new Float32Array(cam.eye));
-        gl.uniform3fv(loc.l, new Float32Array([0.45, 0.85, 0.3])); gl.uniform3fv(loc.f, new Float32Array(s)); gl.uniform2fv(loc.fog, new Float32Array([R.fogNear, R.fogFar]));
+        gl.uniform3fv(loc.l, new Float32Array(R.lightDir)); gl.uniform3fv(loc.lc, new Float32Array(R.lightCol)); gl.uniform3fv(loc.ac, new Float32Array(R.ambCol)); gl.uniform3fv(loc.f, new Float32Array(s)); gl.uniform2fv(loc.fog, new Float32Array([R.fogNear, R.fogFar]));
         draw(stat);
         if (dm) { upload(dyn, dm, gl.DYNAMIC_DRAW); draw(dyn); }
         R.mvp = mvp;

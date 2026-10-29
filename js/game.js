@@ -580,12 +580,13 @@
     ctx.beginPath(); ctx.moveTo(pts[i0][0], bottom);
     for (let i = i0; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
+    if (window.Light) { const L = window.Light.get(level.theme, level.weather); ctx.save(); ctx.clip(); const lg = ctx.createLinearGradient(0, miny, 0, miny + 90); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], 130); const sg = ctx.createLinearGradient(0, miny + 180, 0, miny + 520); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = sg; ctx.fillRect(pts[i0][0], miny + 180, pts[i1][0] - pts[i0][0], bottom - miny); ctx.restore(); }
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
     window.Decor.terrainDetail(ctx, pts, i0, i1, level.theme, ice, camX, VW, clock);
     ctx.strokeStyle = ice ? '#eaf8ff' : th.grass; ctx.lineWidth = 12; trace(6); ctx.stroke();
     ctx.strokeStyle = ice ? '#ffffff' : th.grass2; ctx.lineWidth = 5; trace(3); ctx.stroke();
-    ctx.strokeStyle = INK; ctx.lineWidth = 3; trace(0); ctx.stroke();
+    ctx.strokeStyle = 'rgba(31,42,54,.72)'; ctx.lineWidth = 2.4; trace(0); ctx.stroke();
   }
 
   function drawSolid(s) {
@@ -610,6 +611,7 @@
     const dg = ctx.createLinearGradient(0, s.y, 0, s.y + Math.min(s.h, 300));
     dg.addColorStop(0, th.d1); dg.addColorStop(1, th.d2);
     ctx.fillStyle = dg; ctx.fillRect(s.x, s.y, s.w, s.h);
+    if (window.Light) { const L = window.Light.get(level.theme, level.weather), lg = ctx.createLinearGradient(0, s.y, 0, s.y + Math.min(s.h, 80)); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(s.x, s.y, s.w, Math.min(s.h, 80)); }
     if (s.h > 30) {   // stone-block texture
       ctx.save(); ctx.beginPath(); ctx.rect(s.x, s.y, s.w, s.h); ctx.clip(); ctx.strokeStyle = 'rgba(0,0,0,.16)'; ctx.lineWidth = 2;
       const bh = 26, bw = 46;
@@ -765,6 +767,10 @@
       ctx.beginPath(); ctx.ellipse(lx, ly, 17, 5, 0, 0.35, Math.PI * 2 - 0.1); ctx.lineTo(lx, ly); ctx.closePath(); ctx.fill(); ctx.stroke();
       if (r > 0.6) { ctx.fillStyle = '#ffd1e6'; ctx.beginPath(); ctx.ellipse(lx + 3, ly - 5, 4, 5, 0, 0, 7); ctx.fill(); }
     }
+    // soft foam band and glossy shine along the surface
+    ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 9; ctx.beginPath();
+    for (let x = x0, pen = false; x <= x1; x += 8) { if (!wetAt(x)) { pen = false; continue; } const y = surf(x) + 4; if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
+    ctx.stroke(); ctx.lineCap = 'butt';
     // surface sparkle + edge
     ctx.strokeStyle = 'rgba(235,255,250,.9)'; ctx.lineWidth = 2.5; ctx.beginPath();
     for (let x = x0, pen = false; x <= x1; x += 8) { if (!wetAt(x)) { pen = false; continue; } const y = surf(x); if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
@@ -1006,6 +1012,7 @@
       drawWorld();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       drawWeather();
+      if (window.Light && level) { try { window.Light.post2d(ctx, canvas.width, canvas.height, level.theme, level.weather, clock); } catch (e) { /* ignore */ } }
       if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
       if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
       drawAimHint();

@@ -12,7 +12,7 @@
   const $ = (id) => document.getElementById(id);
   const rnd = (a) => a[(Math.random() * a.length) | 0];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const NAMES = ['Honky', 'Waddle', 'Biscuit', 'Quackers', 'Pebble', 'Noodle', 'Gus', 'Mabel', 'Pip', 'Dumpling', 'Toast', 'Sprout'];
+  const NAMES = ['Honky', 'Waddle', 'Biscuit', 'Quackers', 'Pebble', 'Noodle', 'Gus', 'Mabel', 'Pip', 'Dumpling', 'Toast', 'Sprout', 'Clover', 'Beanie', 'Nugget', 'Pickle', 'Muffin', 'Zigzag', 'Marsh', 'Fluff'];
   const TRUTHS = [
     'What is the silliest thing you have ever done?', 'What is your favourite kind of bread, and why?', 'If you were a different animal, which one and why?',
     'What is the funniest thing you have seen in a game?', 'What would you do with a million bread?', 'What is your most useless talent?',
@@ -63,7 +63,7 @@
   const clean = (t, n) => { t = String(t || '').replace(/[<>]/g, '').slice(0, n || 90); try { if (root.Moderation) t = root.Moderation.scan(t).clean; } catch (e) { /* ignore */ } return t; };
 
   function newGame(o) {
-    const hum = o.humans || null, n = Math.max(3, Math.min(8, Math.max(o.n || 5, hum ? hum.length : 1)));
+    const hum = o.humans || null, n = Math.max(3, Math.min(16, Math.max(o.n || 5, hum ? hum.length : 1)));
     const names = NAMES.slice().sort(() => Math.random() - 0.5), P = [];
     for (let i = 0; i < n; i++) {
       const h = hum && hum[i];
@@ -72,10 +72,10 @@
     G = { mode: ['tod', 'elim', 'lights', 'luck'].includes(o.mode) ? o.mode : 'tod', perm: [], shot: null, online: !!hum, host: true, me: 0, players: P, turn: (Math.random() * n) | 0, round: 1, rounds: (['elim', 'lights', 'luck'].includes(o.mode) ? 999 : n * 2), stage: 'idle', stT: 0, target: -1, a: 0, a1: 0, dur: 3.4, seq: 0, kind: '', prompt: '', ans: '', skipped: false, votes: {}, vd: {}, msg: '', t: 0 };
     lastKey = '';
   }
-  const pub = () => ({ stage: G.stage, turn: G.turn, round: G.round, rounds: G.rounds, target: G.target, a1: G.a1, dur: G.dur, seq: G.seq, kind: G.kind, prompt: G.prompt, ans: G.ans, skipped: G.skipped, votes: G.votes, msg: G.msg, mode: G.mode, perm: G.perm, shot: G.shot, alive: G.players.map((p) => (p.alive ? 1 : 0)), pts: G.players.map((p) => p.pts), chick: G.players.map((p) => p.chick), bots: G.players.map((p) => (p.bot ? 1 : 0)) });
+  const pub = () => ({ stage: G.stage, turn: G.turn, round: G.round, rounds: G.rounds, target: G.target, a1: G.a1, dur: G.dur, seq: G.seq, kind: G.kind, prompt: G.prompt, ans: G.ans, skipped: G.skipped, votes: G.votes, msg: G.msg, mode: G.mode, perm: G.perm, shot: G.shot, seats: G.seats || [], alive: G.players.map((p) => (p.alive ? 1 : 0)), pts: G.players.map((p) => p.pts), chick: G.players.map((p) => p.chick), bots: G.players.map((p) => (p.bot ? 1 : 0)) });
   function snap() { if (G.online && room) room.toAll({ k: 'st', s: pub() }); lastKey = ''; }
   function apply(s) {       // guest: take the host's snapshot
-    const was = G.seq; G.stage = s.stage; G.turn = s.turn; G.round = s.round; G.rounds = s.rounds; G.target = s.target; G.a1 = s.a1; G.dur = s.dur; G.kind = s.kind; G.prompt = s.prompt; G.ans = s.ans; G.skipped = s.skipped; G.votes = s.votes || {}; G.msg = s.msg; G.mode = s.mode || 'tod'; G.perm = s.perm || []; G.shot = s.shot || null;
+    const was = G.seq; G.stage = s.stage; G.turn = s.turn; G.round = s.round; G.rounds = s.rounds; G.target = s.target; G.a1 = s.a1; G.dur = s.dur; G.kind = s.kind; G.prompt = s.prompt; G.ans = s.ans; G.skipped = s.skipped; G.votes = s.votes || {}; G.msg = s.msg; G.mode = s.mode || 'tod'; G.perm = s.perm || []; G.shot = s.shot || null; G.seats = s.seats || [];
     s.pts.forEach((v, i) => { if (G.players[i]) { G.players[i].pts = v; G.players[i].chick = s.chick[i]; G.players[i].bot = !!s.bots[i]; G.players[i].alive = s.alive ? !!s.alive[i] : true; } });
     if (s.seq !== was) { G.seq = s.seq; G.spinFrom = G.a; G.spinT = 0; }
     G.stT = 0; lastKey = '';
@@ -86,8 +86,8 @@
     if (G.stage !== 'idle') return;
     const n = G.players.length; let t, guard = 0; do { t = (Math.random() * n) | 0; } while ((t === G.turn || !G.players[t].alive) && ++guard < 200);
     const th = -Math.PI / 2 + (2 * Math.PI * t) / n, cur = ((G.a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    let a1 = th + 2 * Math.PI * (4 + ((Math.random() * 3) | 0)) + (Math.random() - 0.5) * (Math.PI / n) * 0.7; a1 += Math.ceil((G.a - a1) / (2 * Math.PI)) * 2 * Math.PI;
-    G.target = t; G.a1 = a1; G.seq++; G.spinFrom = G.a; G.spinT = 0; G.dur = 3.4; G.stage = 'spin'; G.stT = 0; G.kind = ''; G.prompt = ''; G.ans = ''; G.skipped = false; G.votes = {}; G.msg = '';
+    let a1 = th + 2 * Math.PI * (9 + ((Math.random() * 4) | 0)) + (Math.random() - 0.5) * (Math.PI / n) * 0.7; a1 += Math.ceil((G.a - a1) / (2 * Math.PI)) * 2 * Math.PI;
+    G.target = t; G.a1 = a1; G.seq++; G.spinFrom = G.a; G.spinT = 0; G.dur = 4.4; G.stage = 'spin'; G.stT = 0; G.kind = ''; G.prompt = ''; G.ans = ''; G.skipped = false; G.votes = {}; G.msg = '';
     tone(300, 0.2, 'sawtooth', 0.04); snap(); void cur;
   }
   function doPick(kind) {
@@ -110,7 +110,7 @@
   const shuffled = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const aliveIdx = () => G.players.map((p, i) => (p.alive ? i : -1)).filter((i) => i >= 0);
   function toShoot() {                        // the bottle has landed: in the shooting modes the goose it landed on blasts someone
-    G.stage = 'shoot'; G.stT = 0; G.perm = G.mode === 'lights' ? shuffled(aliveIdx()) : []; G.shot = null; tone(180, 0.3, 'sawtooth', 0.04); snap();
+    G.stage = 'shoot'; G.stT = 0; G.seats = aliveIdx(); G.perm = G.mode === 'lights' ? shuffled(G.seats) : []; G.shot = null; tone(180, 0.3, 'sawtooth', 0.04); snap();
   }
   function doShoot(v) {                       // v: a player index (a slot number in Lights Out, where nobody can see who is who)
     if (G.stage !== 'shoot') return; v = +v;
@@ -118,7 +118,7 @@
     if (vic == null || !G.players[vic] || !G.players[vic].alive || (vic === from && G.mode !== 'lights')) return;
     const hit = G.mode === 'luck' ? Math.random() < 0.5 : true, S = G.players, f = S[from], t = S[vic];
     G.shot = { from, to: vic, hit };
-    if (hit) { t.alive = false; G.msg = vic === from ? '🍞 ' + f.name + ' blasted THEMSELVES in the dark!' : '🍞 ' + f.name + ' blasted ' + t.name + ' out!'; tone(140, 0.4, 'square', 0.06); tone(90, 0.5, 'sawtooth', 0.05); }
+    if (hit) { t.alive = false; G.msg = G.mode === 'lights' ? '💥 BANG! Somebody was blasted out in the dark…' : '🍞 ' + f.name + ' blasted ' + t.name + ' out!'; tone(140, 0.4, 'square', 0.06); tone(90, 0.5, 'sawtooth', 0.05); }
     else { G.msg = '💨 CLICK! ' + f.name + '\'s blaster jammed. ' + t.name + ' is safe!'; tone(500, 0.08); tone(420, 0.12); }
     G.stage = 'result'; G.stT = 0; snap();
   }
@@ -153,7 +153,7 @@
     else if (g.stage === 'vote') {
       for (const k of Object.keys(g.vd)) if (g.stT > g.vd[k] && g.votes[k] == null) { delete g.vd[k]; doVote(+k, Math.random() < 0.72); if (g.stage !== 'vote') return; }
       if (g.stT > 14) tally();
-    } else if (g.stage === 'result') { if (g.stT > 2.4) nextTurn(); }
+    } else if (g.stage === 'result') { if (g.stT > (g.mode === 'tod' ? 2.4 : 2.2)) nextTurn(); }
   }
 
   // ------------------------------------------------------------------ network (guests send intentions, the host decides)
@@ -162,7 +162,7 @@
   function setupRoom() {
     if (room || !root.Room) return;
     room = root.Room.create({
-      prefix: PREFIX, max: 8, hello: () => ({ name: myName() === 'You' ? 'Goose' + (100 + ((Math.random() * 900) | 0)) : myName(), look: myLook() }),
+      prefix: PREFIX, max: 16, hello: () => ({ name: myName() === 'You' ? 'Goose' + (100 + ((Math.random() * 900) | 0)) : myName(), look: myLook() }),
       onRoster: renderRoster, onMsg: onNet, onStatus: status,
       onDrop: (id) => { if (!G || !G.online || !G.host) return; const p = G.players.find((q) => q.net === id); if (p) { p.bot = true; p.net = -1; snap(); } },
       onLost: (why) => { if (G && G.online) { G = null; showPanel('lobby'); } renderRoster([]); status(why, true); },
@@ -209,7 +209,8 @@
   };
 
   // ------------------------------------------------------------------ drawing
-  const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const isDark = () => !!G && G.mode === 'lights' && (G.stage === 'shoot' || G.stage === 'result');   // lights out until the next spin
+  const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 4);   // spins up instantly, then slows down
   function bottle(c, x, y, a, s) {
     c.save(); c.translate(x, y); c.rotate(a); c.scale(s, s); c.lineJoin = 'round'; c.lineWidth = 3; c.strokeStyle = '#0d2e1a';
     c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(4, 6, 62, 18, 0, 0, 7); c.fill();
@@ -218,9 +219,22 @@
     c.fillStyle = '#c9972b'; c.fillRect(54, -6, 8, 12); c.strokeRect(54, -6, 8, 12);
     c.restore();
   }
+  // the Bread Blaster: a little toaster-cannon. Drawn pointing along +x at the grip, then turned to aim (flipped so it never goes upside down)
+  function gun(c, x, y, a, s) {
+    c.save(); c.translate(x, y); c.rotate(a); if (Math.cos(a) < 0) c.scale(1, -1); c.scale(s, s); c.lineJoin = 'round'; c.lineWidth = 2.6; c.strokeStyle = '#1b1b1b';
+    c.fillStyle = '#6b4a2b'; c.beginPath(); c.moveTo(-8, 0); c.lineTo(2, 0); c.lineTo(-2, 22); c.lineTo(-14, 22); c.closePath(); c.fill(); c.stroke();                 // grip
+    c.fillStyle = '#c3c9d3'; c.beginPath(); if (c.roundRect) c.roundRect(-14, -14, 34, 17, 5); else c.rect(-14, -14, 34, 17); c.fill(); c.stroke();                         // toaster body
+    c.fillStyle = '#2b2f3a'; c.fillRect(-6, -17, 18, 4); c.fillStyle = '#e6b45a'; c.beginPath(); c.moveTo(-4, -15); c.lineTo(-4, -22); c.quadraticCurveTo(-1, -27, 3, -23); c.quadraticCurveTo(7, -27, 10, -22); c.lineTo(10, -15); c.closePath(); c.fill(); c.stroke();   // a slice of bread in the slot
+    c.fillStyle = '#8d96a6'; c.fillRect(20, -10, 28, 9); c.strokeRect(20, -10, 28, 9);                                                                                       // barrel
+    c.fillStyle = '#ff8c42'; c.fillRect(44, -12, 8, 13); c.strokeRect(44, -12, 8, 13);                                                                                       // muzzle
+    c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(-10, -11, 24, 3);
+    c.restore();
+  }
   // ------------------------------------------------------------------ the 3D room (the geese stay 2D sprites standing in it)
-  let gl3 = null, glTried = false;
-  const WR = 4.3, TR = 2.7, TY = 2.2, SY = 1.75, CAM = { eye: [0, 7.6, 11.4], at: [0, 1.5, 0.4], fov: 0.92 };   // seat ring radius, table radius, table height, seat height
+  let gl3 = null, glTried = false, hits = [], hov = null;
+  const canShoot = () => !!G && G.stage === 'shoot' && G.target === G.me;
+  let WR = 4.3, TR = 2.7; const TY = 2.2, SY = 1.75, CAM = { eye: [0, 7.6, 11.4], at: [0, 1.5, 0.4], fov: 0.92 };
+  function layout(n) { WR = Math.max(4.3, n * 0.46); TR = 2.7 + Math.max(0, n - 8) * 0.1; const kc = WR / 4.3; CAM.eye = [0, 7.6 * kc, 11.4 * kc]; CAM.at = [0, 1.5, 0.4]; }   // seat ring radius, table radius, table height, seat height
   const STOOL = ['#3b2a6b', '#2a6b3a', '#1f3a6b', '#6b2a3a', '#6b5a1f', '#2a5a6b', '#5a2a6b', '#3a3a44'];
   const vrot = () => Math.PI - (2 * Math.PI * (G ? G.me : 0)) / (G ? G.players.length : 1);        // turn the circle so YOU sit on the near side of the table
   function buildRoom() {                                                       // a dark, cosy wooden tavern (a static mesh built once)
@@ -244,7 +258,7 @@
   }
   function render3D(w, h, t) {
     const m = root.H3E.mesh(), n = G.players.length, vr = vrot(), aw = G.a + vr, f = [Math.cos(aw), Math.sin(aw)], yaw = Math.PI / 2 - aw;
-    const dark = G.mode === 'lights' && G.stage === 'shoot';
+    const dark = isDark();
     const B = (x, y, z, ww, hh, dd, c, ry) => m.box(x, y, z, ww, hh, dd, c, ry), O = (x, y, z, rx, ry, rz, c, seg, ring) => m.ball(x, y, z, rx, ry, rz, c, 0, seg, ring);
     // the round (octagonal) table with its pedestal
     B(0, TY - 0.3, 0, TR * 2, 0.3, TR * 2 * 0.99, '#2c2420'); B(0, TY - 0.3, 0, TR * 2, 0.3, TR * 2 * 0.99, '#2c2420', Math.PI / 4); B(0, TY - 0.02, 0, TR * 1.7, 0.03, TR * 1.7, '#352b26', Math.PI / 8);
@@ -253,7 +267,7 @@
     B(1.2, TY + 0.005, 1.1, 1.1, 0.02, 0.75, '#e9e4d6', 0.35); B(-1.5, TY + 0.005, -0.9, 0.9, 0.02, 0.65, '#ddd8c8', -0.5); B(-1.1, TY + 0.005, 1.4, 0.45, 0.03, 0.3, '#e63946', 0.8); B(-0.9, TY + 0.035, 1.35, 0.45, 0.03, 0.3, '#ffffff', 0.2);
     O(1.6, TY + 0.07, -1.1, 0.16, 0.07, 0.16, '#e63946', 10, 5); O(1.6, TY + 0.15, -1.1, 0.16, 0.07, 0.16, '#2fbf71', 10, 5); O(1.9, TY + 0.07, -0.8, 0.16, 0.07, 0.16, '#ffd23f', 10, 5); O(-0.4, TY + 0.1, -1.7, 0.2, 0.1, 0.2, '#8a6a3a', 10, 5);
     // bottle on the table
-    const k = 0.78, P = (d, y) => [f[0] * d * k, TY + y * k, f[1] * d * k], ball = (d, y, rx, ry, rz, c) => { const p = P(d, y); m.ball(p[0], p[1], p[2], rx * k, ry * k, rz * k, c, yaw, 14, 9); };
+    const k = 0.78 * (TR / 2.7), P = (d, y) => [f[0] * d * k, TY + y * k, f[1] * d * k], ball = (d, y, rx, ry, rz, c) => { const p = P(d, y); m.ball(p[0], p[1], p[2], rx * k, ry * k, rz * k, c, yaw, 14, 9); };
     ball(-0.15, 0.36, 0.38, 0.36, 0.95, '#38b862'); ball(-0.15, 0.37, 0.385, 0.37, 0.34, '#efdca6'); ball(0.62, 0.34, 0.3, 0.3, 0.38, '#38b862'); ball(1.05, 0.33, 0.15, 0.15, 0.42, '#3fc46c'); ball(1.38, 0.33, 0.12, 0.12, 0.3, '#3fc46c'); ball(1.58, 0.33, 0.17, 0.16, 0.1, '#c9972b'); ball(-0.1, 0.62, 0.1, 0.06, 0.6, '#d8ffe4');
     // a bar stool for every goose
     for (let i = 0; i < n; i++) {
@@ -266,7 +280,7 @@
     B(0, 8.6, 0, 0.12, 2.6, 0.12, '#6a4a22'); O(0, 8.4, 0, 0.55, 0.3, 0.55, '#c9972b', 14, 8);
     for (let q = 0; q < 4; q++) { const a = t * 1.1 + q * Math.PI / 2; B(Math.cos(a) * 1.9, 8.55, Math.sin(a) * 1.9, 3.2, 0.07, 0.6, '#7a5028', -a); }
     for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + 0.78; O(Math.cos(a) * 0.55, 8.05, Math.sin(a) * 0.55, 0.2, 0.2, 0.2, '#fff0b0', 8, 6); }
-    gl3.sky = dark ? [0.01, 0.01, 0.02] : [0.1, 0.07, 0.05]; gl3.fogNear = 40; gl3.fogFar = 90;
+    gl3.sky = dark ? [0.0, 0.0, 0.01] : [0.1, 0.07, 0.05]; gl3.fogNear = 40 * (WR / 4.3); gl3.fogFar = 90 * (WR / 4.3); if (root.Light) root.Light.apply3d(gl3, dark ? 'tavernDark' : 'tavern');
     gl3.drawFrame({ eye: [CAM.eye[0] + Math.sin(t * 0.3) * 0.5, CAM.eye[1], CAM.eye[2]], at: CAM.at, fov: CAM.fov }, m);
   }
   function draw() {
@@ -274,6 +288,7 @@
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0);
     if (!glTried) { glTried = true; try { gl3 = root.H3E && dom.gl ? root.H3E.create(dom.gl) : null; if (gl3) buildRoom(); } catch (e) { gl3 = null; } }
+    if (G) layout(G.players.length);
     const use3 = !!(gl3 && G);
     dom.gl.style.display = gl3 ? '' : 'none';
     if (G) { if (G.stage === 'spin') G.a = (G.spinFrom || 0) + (G.a1 - (G.spinFrom || 0)) * ease((G.spinT || 0) / G.dur); else if (G.stage !== 'idle') G.a = G.a1; else if (G.a1 && Math.abs(G.a - G.a1) > 0.001) G.a = G.a1; }
@@ -284,11 +299,11 @@
     const gw0 = gw;
     if (!use3) { c.fillStyle = 'rgba(255,255,255,.07)'; c.beginPath(); c.arc(cx, cy, R * 0.95, 0, 7); c.fill(); c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 3 * dpr; c.stroke(); }
     const t = G.time || 0;
-    const dark = G.mode === 'lights' && G.stage === 'shoot', posOf = (k, m, seat) => {
+    const dark = isDark(), posOf = (k, m, seat) => {
       const th = -Math.PI / 2 + (2 * Math.PI * k) / m;
       if (use3) {                                            // sit the flat 2D goose on its bar stool in the 3D room and size it by distance
         const tw = -Math.PI / 2 + (2 * Math.PI * (seat != null ? seat : k)) / n + vrot(), q = gl3.project([Math.cos(tw) * WR, SY + 0.05, Math.sin(tw) * WR]);
-        if (q) { const s = (cv.clientHeight / 2) / (Math.tan(CAM.fov / 2) * q[2]); gw = Math.max(18, 0.82 * s * dpr / 0.62); return [q[0] * dpr, q[1] * dpr, th, true]; }
+        if (q) { const s = (cv.clientHeight / 2) / (Math.tan(CAM.fov / 2) * q[2]); gw = Math.max(16, (n > 12 ? 0.6 : n > 8 ? 0.7 : 0.82) * s * dpr / 0.62); return [q[0] * dpr, q[1] * dpr, th, true]; }
       }
       gw = gw0; return [cx + Math.cos(th) * R, cy + Math.sin(th) * R + gw * 0.6, th];
     };
@@ -305,7 +320,7 @@
       if (!ok) { c.fillStyle = '#fff'; c.beginPath(); c.ellipse(px, py - gw * 0.3, gw * 0.4, gw * 0.3, 0, 0, 7); c.fill(); }
       if (!named) return;
       if (t3) {                                               // a floating name plate like in Rec Room: number badge + name
-        const hx = head ? head.x : px, hy = Math.max(30 * dpr, (head ? head.y : py - gw) - 26 * dpr), lab = p.name + (i === G.me ? ' (you)' : ''), fs = Math.round(15 * dpr);
+        const hx = head ? head.x : px, hy = Math.max(30 * dpr, (head ? head.y : py - gw) - 26 * dpr), lab = p.name + (i === G.me ? ' (you)' : ''), fs = Math.round(Math.max(9 * dpr, Math.min(15 * dpr, gw * 0.3)));
         c.font = '800 ' + fs + 'px system-ui'; const tw2 = c.measureText(lab).width, bw = fs * 1.5, pw = bw + tw2 + fs * 1.1, ph = fs * 1.7;
         c.fillStyle = 'rgba(12,12,16,.78)'; c.beginPath(); if (c.roundRect) c.roundRect(hx - pw / 2, hy - ph / 2, pw, ph, ph / 2); else c.rect(hx - pw / 2, hy - ph / 2, pw, ph); c.fill();
         c.fillStyle = '#fff'; c.beginPath(); if (c.roundRect) c.roundRect(hx - pw / 2 + fs * 0.25, hy - bw / 2 + 0, bw, bw, fs * 0.3); else c.rect(hx - pw / 2 + fs * 0.25, hy - bw / 2, bw, bw); c.fill();
@@ -319,17 +334,33 @@
       if (G.mode === 'tod') { c.font = '700 ' + Math.round(12 * dpr) + 'px system-ui'; const sc = '🍞 ' + p.pts + (p.chick ? '  🐔 ' + p.chick : ''); c.strokeText(sc, px, py + 30 * dpr); c.fillText(sc, px, py + 30 * dpr); }
       if (isSp) { c.font = Math.round(16 * dpr) + 'px system-ui'; c.fillText('🍾', px + gw * 0.55, py - gw * 0.9); }
     };
+    hits = [];
     if (dark) {
-      const m = G.perm.length, seats = aliveIdx(); G.perm.forEach((pi, k) => { const [px, py, th] = posOf(k, m, seats[k]); drawOne(G.players[pi], pi, px, py, th, false); });
-      c.fillStyle = 'rgba(4,2,12,.93)'; c.fillRect(0, 0, w, h);
-      G.perm.forEach((pi, k) => { const [px, py] = posOf(k, m, seats[k]); c.font = '900 ' + Math.round(20 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ffe27a'; c.fillText(String(k + 1), px, py - gw * 0.5); });
-    } else G.players.forEach((p, i) => { const [px, py, th, t3] = posOf(i, n); drawOne(p, i, px, py, th, true, t3); });
-    // the Bread Blaster shot: a slice of bread flies from the shooter to the target
-    if (G.shot && G.stage === 'result' && G.mode !== 'tod') {
-      const a = posOf(G.shot.from, n), b = posOf(G.shot.to, n), k = Math.min(1, G.stT / 0.7);
-      c.font = Math.round(30 * dpr) + 'px system-ui'; c.textAlign = 'center';
-      if (G.shot.hit) { c.fillText('🍞', a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k - gw * 0.4); if (k >= 1) { c.globalAlpha = Math.max(0, 1 - (G.stT - 0.7) * 1.4); c.fillText('💥', b[0], b[1] - gw * 0.5); c.globalAlpha = 1; } }
-      else { c.globalAlpha = Math.max(0, 1 - G.stT * 0.7); c.fillText('💨', a[0], a[1] - gw * 0.5); c.globalAlpha = 1; }
+      c.fillStyle = 'rgba(0,0,2,.985)'; c.fillRect(0, 0, w, h);          // pitch black: the shuffled geese are only faint shapes
+      const m = G.perm.length, seats = G.seats && G.seats.length === m ? G.seats : aliveIdx();
+      G.perm.forEach((pi, k) => { const [px, py, th] = posOf(k, m, seats[k]); c.globalAlpha = 0.2; drawOne(G.players[pi], pi, px, py, th, false); c.globalAlpha = 1; hits.push({ v: k, x: px, y: py - gw * 0.45, r: gw * 0.6 }); });
+      G.perm.forEach((pi, k) => { const [px, py] = posOf(k, m, seats[k]); c.font = '900 ' + Math.round(20 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = hov === k && canShoot() ? '#ff6a5a' : 'rgba(255,226,122,.85)'; c.fillText(String(k + 1), px, py - gw * 0.5); });
+    } else G.players.forEach((p, i) => { const [px, py, th, t3] = posOf(i, n); drawOne(p, i, px, py, th, true, t3); if (p.alive && i !== G.target) hits.push({ v: i, x: px, y: py - gw * 0.45, r: gw * 0.6 }); });
+    // a crosshair on the goose you are about to shoot (hover on a computer)
+    if (canShoot() && hov != null) { const hh = hits.find((q) => q.v === hov); if (hh) { c.strokeStyle = '#ff4d3d'; c.lineWidth = 3 * dpr; c.beginPath(); c.arc(hh.x, hh.y, hh.r * 0.8, 0, 7); c.moveTo(hh.x - hh.r, hh.y); c.lineTo(hh.x + hh.r, hh.y); c.moveTo(hh.x, hh.y - hh.r); c.lineTo(hh.x, hh.y + hh.r); c.stroke(); } }
+    // the Bread Blaster, held by the shooter (not in Lights Out, where nobody may see who is who)
+    if ((G.mode === 'elim' || G.mode === 'luck') && (G.stage === 'shoot' || (G.stage === 'result' && G.shot)) && G.players[G.target]) {
+      const a = posOf(G.target, n), res = G.stage === 'result' && G.shot, alive = aliveIdx().filter((k) => k !== G.target);
+      let aim = null;
+      if (res) aim = posOf(G.shot.to, n); else if (hov != null && canShoot() && G.players[hov]) aim = posOf(hov, n); else if (alive.length) aim = posOf(alive[Math.floor(t * 1.8) % alive.length], n);
+      if (aim) {
+        const ax = aim[0], ay = aim[1] - gw * 0.45, bx = a[0], by = a[1] - gw * 0.42, side = ax >= bx ? 1 : -1, hx = bx + side * gw * 0.3, hy = by;
+        const ang = Math.atan2(ay - hy, ax - hx), rec = res ? Math.max(0, 1 - G.stT * 7) * gw * 0.14 : 0, gs = gw / 62;
+        const gx = hx - Math.cos(ang) * rec, gy = hy - Math.sin(ang) * rec, mx = gx + Math.cos(ang) * 50 * gs, my = gy + Math.sin(ang) * 50 * gs;
+        gun(c, gx, gy, ang, gs);
+        if (res) {
+          const k = Math.min(1, G.stT / 0.18);
+          if (G.stT < 0.12) { c.fillStyle = 'rgba(255,210,70,.95)'; c.beginPath(); c.arc(mx, my, gw * 0.2, 0, 7); c.fill(); }
+          c.font = Math.round(30 * dpr) + 'px system-ui'; c.textAlign = 'center';
+          if (G.shot.hit) { c.save(); c.translate(mx + (ax - mx) * k, my + (ay - my) * k); c.rotate(G.stT * 40); c.fillText('🍞', 0, 10 * dpr); c.restore(); if (k >= 1) { c.globalAlpha = Math.max(0, 1 - (G.stT - 0.18) * 1.4); c.fillText('💥', ax, ay); c.globalAlpha = 1; } }
+          else { c.globalAlpha = Math.max(0, 1 - G.stT * 0.7); c.fillText('💨', mx, my - gw * 0.2); c.globalAlpha = 1; }
+        }
+      }
     }
     if (!use3) { bottle(c, cx, cy, G.a, Math.max(0.5, R / 150) * dpr * 0.9); c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 5 * dpr, 0, 7); c.fill(); }
   }
@@ -349,11 +380,8 @@
     else if (G.stage === 'shoot') {
       const dark = G.mode === 'lights';
       if (G.target === me) {
-        h = '<div class="bt">It landed on YOU!</div><div>' + (dark ? '🌑 The lights went out! Pick a shape in the dark… you might even hit yourself!' : G.mode === 'luck' ? '🎲 Pick a goose. The Bread Blaster only works half the time!' : '🍞 Pick a goose to blast out of the game!') + '</div><div class="row">';
-        if (dark) G.perm.forEach((pi, k) => { h += '<button class="go red" data-v="' + k + '">🌑 ' + (k + 1) + '</button>'; });
-        else G.players.forEach((p, k) => { if (p.alive && k !== me) h += '<button class="go red" data-v="' + k + '">🎯 ' + esc(p.name) + '</button>'; });
-        h += '</div>';
-      } else h = '<div class="bt">It landed on ' + esc(tg.name) + '!</div><div>' + (dark ? '🌑 Lights out… ' : '') + esc(tg.name) + ' is picking who to blast…</div>';
+        h = '<div class="bt">It landed on YOU!</div><div>' + (dark ? '🌑 The lights went out! TAP a shape in the dark… you might even hit yourself!' : G.mode === 'luck' ? '🎲 TAP a goose to fire. The Bread Blaster only works half the time!' : '🍞 TAP a goose to blast it out of the game!') + '</div>';
+      } else h = dark ? '<div class="bt">🌑 Lights out…</div><div>Somebody is picking who to blast in the dark…</div>' : '<div class="bt">It landed on ' + esc(tg.name) + '!</div><div>' + esc(tg.name) + ' is picking who to blast…</div>';
     }
     else if (G.stage === 'pick') {
       if (G.target === me) { h = '<div class="bt">It landed on YOU!</div><div class="row"><button class="go" id="sbtr">🤔 Truth</button><button class="go red" id="sbda">😈 Dare</button></div>'; bind.push(['sbtr', () => act.pick('truth')], ['sbda', () => act.pick('dare')]); }
@@ -378,7 +406,6 @@
       bind.push(['sbagain', () => again()], ['sbmenu', () => close()]);
     }
     c.innerHTML = h; for (const [id, fn] of bind) { const b = $(id); if (b) b.addEventListener('click', fn); }
-    c.querySelectorAll('button[data-v]').forEach((b) => b.addEventListener('click', () => act.shoot(+b.dataset.v)));
     const ia = $('sbans'); if (ia) { ia.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('sbdone').click(); }); ia.addEventListener('keyup', (e) => e.stopPropagation()); setTimeout(() => ia.focus(), 50); }
   }
   function again() {
@@ -408,10 +435,10 @@
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     const d = document.createElement('div'); d.id = 'sbt';
     d.innerHTML = `<canvas id="sbgl"></canvas><canvas id="sbcv"></canvas><div id="sbtop"></div><button id="sbquit" title="Leave">☰</button><div id="sbcard"></div>
-      <div class="panel" id="sblobby"><div class="card"><h2>🍾 Spin the Bottle</h2><div class="sub">A party game for 3 to 8 geese, with bots or online. All cartoon fun: the Bread Blaster only fires toast.</div>
+      <div class="panel" id="sblobby"><div class="card"><h2>🍾 Spin the Bottle</h2><div class="sub">A party game for 3 to 16 geese, with bots or online. All cartoon fun: the Bread Blaster only fires toast.</div>
         <div class="row"><b>Mode</b><span class="chip on" data-mode="tod">🤔 Truth or Dare</span><span class="chip" data-mode="elim">🎯 Eliminator</span><span class="chip" data-mode="lights">🌑 Lights Out</span><span class="chip" data-mode="luck">🎲 Lucky Blaster</span></div>
         <div id="sbmdesc" style="font-size:13px;opacity:.8;margin:-2px 0 4px"></div>
-        <div class="row"><b>Geese</b><span class="chip" data-n="4">4</span><span class="chip on" data-n="5">5</span><span class="chip" data-n="6">6</span><span class="chip" data-n="8">8</span><span style="font-size:12px;opacity:.7">(bots fill the circle)</span></div>
+        <div class="row"><b>Geese</b><span class="chip" data-n="4">4</span><span class="chip on" data-n="5">5</span><span class="chip" data-n="6">6</span><span class="chip" data-n="8">8</span><span class="chip" data-n="10">10</span><span class="chip" data-n="12">12</span><span class="chip" data-n="16">16</span><span style="font-size:12px;opacity:.7">(bots fill the circle)</span></div>
         <div class="row"><button class="go" id="sbstart">▶ Play with bots</button><button class="go alt" id="sbback">Back</button></div>
         <h4 style="margin:10px 0 2px">👥 Online with friends</h4>
         <div class="row"><input id="sbword" maxlength="24" placeholder="room word (same for everyone)" style="font-size:16px;padding:9px 12px;border-radius:10px;border:3px solid #dfe3f1;width:210px"><button class="go" id="sbjoin">Join / create</button><button class="go alt" id="sbquick">🎲 Random lobby</button></div>
@@ -420,9 +447,13 @@
     document.body.appendChild(d);
     dom = { root: d, cv: $('sbcv'), gl: $('sbgl'), lobby: $('sblobby') };
     d.querySelectorAll('[data-n]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-n]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); osel.n = +c.dataset.n; }));
-    const MDESC = { tod: 'Spin, Truth or Dare, the others vote. Most 🍞 wins.', elim: 'When the bottle lands on you, pick a goose to blast out with the Bread Blaster. Last goose standing wins!', lights: 'The lights go out when the bottle lands. The geese are shuffled and unnamed: pick a shape in the dark (you might hit yourself!).', luck: 'Like Eliminator, but the Bread Blaster only works 50% of the time. Click… or BOOM?' };
+    const MDESC = { tod: 'Spin, Truth or Dare, the others vote. Most 🍞 wins.', elim: 'When the bottle lands on you, tap a goose to blast out with the Bread Blaster. Last goose standing wins!', lights: 'The lights go out when the bottle lands. Everything goes pitch black and nobody sees who the bottle landed on or who got hit. Tap a shape in the dark (you might hit yourself!).', luck: 'Like Eliminator, but the Bread Blaster only works 50% of the time. Click… or BOOM?' };
     const setMode = (m) => { osel.mode = m; d.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x.dataset.mode === m)); $('sbmdesc').textContent = MDESC[m]; };
     d.querySelectorAll('[data-mode]').forEach((c) => c.addEventListener('click', () => setMode(c.dataset.mode))); setMode(osel.mode);
+    const hitAt = (e) => { const cv = dom.cv, rc = cv.getBoundingClientRect(), k = cv.width / Math.max(1, rc.width), x = (e.clientX - rc.left) * k, y = (e.clientY - rc.top) * k; let best = null, bd = 1e9; for (const q of hits) { const dd = Math.hypot(x - q.x, y - q.y); if (dd < q.r * 1.25 && dd < bd) { bd = dd; best = q; } } return best; };
+    dom.cv.addEventListener('pointerdown', (e) => { if (!canShoot()) return; const q = hitAt(e); if (q) { hov = q.v; act.shoot(q.v); } });
+    dom.cv.addEventListener('pointermove', (e) => { if (!canShoot()) { hov = null; dom.cv.style.cursor = ''; return; } const q = hitAt(e); hov = q ? q.v : null; dom.cv.style.cursor = q ? 'crosshair' : ''; });
+    dom.cv.addEventListener('pointerleave', () => { hov = null; });
     $('sbstart').addEventListener('click', () => { if (room) room.leave(); newGame({ n: osel.n, mode: osel.mode }); showPanel(null); begin(); });
     $('sbback').addEventListener('click', () => close());
     $('sbquit').addEventListener('click', () => { if (G) { if (room) room.leave(); G = null; showPanel('lobby'); renderRoster([]); } else close(); });
