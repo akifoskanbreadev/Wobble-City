@@ -2,6 +2,8 @@
  * Spin the Bottle (goose edition): a friendly party game for 3 to 8 geese, solo with bots or online (Room, host runs the rules).
  * The bottle spins and points at a goose. They pick Truth or Dare (all silly and clean), answer, and the others vote 👍 / 👎.
  * A 👍 majority earns a point; skipping earns a 🐔. Everyone spins in turn. Most points wins.
+ * Three more modes use the same bottle: 🎯 Eliminator (the goose it lands on picks someone to blast out with the Bread Blaster, last goose standing wins),
+ * 🌑 Lights Out (the blaster shot happens in the dark: the geese are shuffled and unnamed) and 🎲 Lucky Blaster (the blaster only works 50% of the time).
  *   Bottle.init({ save, award })   Bottle.open()   Bottle.close()
  */
 (function (root) {
@@ -31,6 +33,7 @@
   ];
   const BOT_SAY = ['Honk honk! 🪿', 'Bread. Always bread. 🍞', 'I plead the goose-fifth!', 'Quack... I mean HONK.', 'Once chased a butterfly for three hours.', '🌊🪿🍞✨', 'That is a secret between me and the pond.', 'Ten out of ten, would honk again.'];
 
+  const MODE_ICON = { tod: '🤔', elim: '🎯', lights: '🌑', luck: '🎲' };
   const CSS = `
   #sbt{position:fixed;inset:0;z-index:72;background:#2a1b3d;display:none;font-family:system-ui,sans-serif;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
   #sbt canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -64,16 +67,16 @@
     const names = NAMES.slice().sort(() => Math.random() - 0.5), P = [];
     for (let i = 0; i < n; i++) {
       const h = hum && hum[i];
-      P.push({ id: i, name: h ? h.name : i === 0 && !hum ? myName() : names[i], look: h ? (h.net === 0 ? myLook() : cleanLook(h.look)) : i === 0 ? myLook() : randLook(), bot: !h && !(i === 0 && !hum), net: h ? h.net : (i === 0 && !hum ? 0 : -1), pts: 0, chick: 0 });
+      P.push({ alive: true, id: i, name: h ? h.name : i === 0 && !hum ? myName() : names[i], look: h ? (h.net === 0 ? myLook() : cleanLook(h.look)) : i === 0 ? myLook() : randLook(), bot: !h && !(i === 0 && !hum), net: h ? h.net : (i === 0 && !hum ? 0 : -1), pts: 0, chick: 0 });
     }
-    G = { online: !!hum, host: true, me: 0, players: P, turn: (Math.random() * n) | 0, round: 1, rounds: n * 2, stage: 'idle', stT: 0, target: -1, a: 0, a1: 0, dur: 3.4, seq: 0, kind: '', prompt: '', ans: '', skipped: false, votes: {}, vd: {}, msg: '', t: 0 };
+    G = { mode: ['tod', 'elim', 'lights', 'luck'].includes(o.mode) ? o.mode : 'tod', perm: [], shot: null, online: !!hum, host: true, me: 0, players: P, turn: (Math.random() * n) | 0, round: 1, rounds: (['elim', 'lights', 'luck'].includes(o.mode) ? 999 : n * 2), stage: 'idle', stT: 0, target: -1, a: 0, a1: 0, dur: 3.4, seq: 0, kind: '', prompt: '', ans: '', skipped: false, votes: {}, vd: {}, msg: '', t: 0 };
     lastKey = '';
   }
-  const pub = () => ({ stage: G.stage, turn: G.turn, round: G.round, rounds: G.rounds, target: G.target, a1: G.a1, dur: G.dur, seq: G.seq, kind: G.kind, prompt: G.prompt, ans: G.ans, skipped: G.skipped, votes: G.votes, msg: G.msg, pts: G.players.map((p) => p.pts), chick: G.players.map((p) => p.chick), bots: G.players.map((p) => (p.bot ? 1 : 0)) });
+  const pub = () => ({ stage: G.stage, turn: G.turn, round: G.round, rounds: G.rounds, target: G.target, a1: G.a1, dur: G.dur, seq: G.seq, kind: G.kind, prompt: G.prompt, ans: G.ans, skipped: G.skipped, votes: G.votes, msg: G.msg, mode: G.mode, perm: G.perm, shot: G.shot, alive: G.players.map((p) => (p.alive ? 1 : 0)), pts: G.players.map((p) => p.pts), chick: G.players.map((p) => p.chick), bots: G.players.map((p) => (p.bot ? 1 : 0)) });
   function snap() { if (G.online && room) room.toAll({ k: 'st', s: pub() }); lastKey = ''; }
   function apply(s) {       // guest: take the host's snapshot
-    const was = G.seq; G.stage = s.stage; G.turn = s.turn; G.round = s.round; G.rounds = s.rounds; G.target = s.target; G.a1 = s.a1; G.dur = s.dur; G.kind = s.kind; G.prompt = s.prompt; G.ans = s.ans; G.skipped = s.skipped; G.votes = s.votes || {}; G.msg = s.msg;
-    s.pts.forEach((v, i) => { if (G.players[i]) { G.players[i].pts = v; G.players[i].chick = s.chick[i]; G.players[i].bot = !!s.bots[i]; } });
+    const was = G.seq; G.stage = s.stage; G.turn = s.turn; G.round = s.round; G.rounds = s.rounds; G.target = s.target; G.a1 = s.a1; G.dur = s.dur; G.kind = s.kind; G.prompt = s.prompt; G.ans = s.ans; G.skipped = s.skipped; G.votes = s.votes || {}; G.msg = s.msg; G.mode = s.mode || 'tod'; G.perm = s.perm || []; G.shot = s.shot || null;
+    s.pts.forEach((v, i) => { if (G.players[i]) { G.players[i].pts = v; G.players[i].chick = s.chick[i]; G.players[i].bot = !!s.bots[i]; G.players[i].alive = s.alive ? !!s.alive[i] : true; } });
     if (s.seq !== was) { G.seq = s.seq; G.spinFrom = G.a; G.spinT = 0; }
     G.stT = 0; lastKey = '';
   }
@@ -81,7 +84,7 @@
   // ------------------------------------------------------------------ the rules (host / solo)
   function doSpin() {
     if (G.stage !== 'idle') return;
-    const n = G.players.length; let t; do { t = (Math.random() * n) | 0; } while (t === G.turn);
+    const n = G.players.length; let t, guard = 0; do { t = (Math.random() * n) | 0; } while ((t === G.turn || !G.players[t].alive) && ++guard < 200);
     const th = -Math.PI / 2 + (2 * Math.PI * t) / n, cur = ((G.a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     let a1 = th + 2 * Math.PI * (4 + ((Math.random() * 3) | 0)) + (Math.random() - 0.5) * (Math.PI / n) * 0.7; a1 += Math.ceil((G.a - a1) / (2 * Math.PI)) * 2 * Math.PI;
     G.target = t; G.a1 = a1; G.seq++; G.spinFrom = G.a; G.spinT = 0; G.dur = 3.4; G.stage = 'spin'; G.stT = 0; G.kind = ''; G.prompt = ''; G.ans = ''; G.skipped = false; G.votes = {}; G.msg = '';
@@ -104,24 +107,47 @@
     const need = G.players.filter((p, k) => k !== G.target).length;
     if (Object.keys(G.votes).length >= need) tally(); else snap();
   }
+  const shuffled = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const aliveIdx = () => G.players.map((p, i) => (p.alive ? i : -1)).filter((i) => i >= 0);
+  function toShoot() {                        // the bottle has landed: in the shooting modes the goose it landed on blasts someone
+    G.stage = 'shoot'; G.stT = 0; G.perm = G.mode === 'lights' ? shuffled(aliveIdx()) : []; G.shot = null; tone(180, 0.3, 'sawtooth', 0.04); snap();
+  }
+  function doShoot(v) {                       // v: a player index (a slot number in Lights Out, where nobody can see who is who)
+    if (G.stage !== 'shoot') return; v = +v;
+    const from = G.target, vic = G.mode === 'lights' ? G.perm[v] : v;
+    if (vic == null || !G.players[vic] || !G.players[vic].alive || (vic === from && G.mode !== 'lights')) return;
+    const hit = G.mode === 'luck' ? Math.random() < 0.5 : true, S = G.players, f = S[from], t = S[vic];
+    G.shot = { from, to: vic, hit };
+    if (hit) { t.alive = false; G.msg = vic === from ? '🍞 ' + f.name + ' blasted THEMSELVES in the dark!' : '🍞 ' + f.name + ' blasted ' + t.name + ' out!'; tone(140, 0.4, 'square', 0.06); tone(90, 0.5, 'sawtooth', 0.05); }
+    else { G.msg = '💨 CLICK! ' + f.name + '\'s blaster jammed. ' + t.name + ' is safe!'; tone(500, 0.08); tone(420, 0.12); }
+    G.stage = 'result'; G.stT = 0; snap();
+  }
   function tally() {
     const up = Object.values(G.votes).filter((v) => v === 1).length, dn = Object.values(G.votes).filter((v) => v === 0).length, t = G.players[G.target];
     if (up >= dn && up + dn > 0) { t.pts++; G.msg = '👍 ' + up + ' – ' + dn + ' 👎  ' + t.name + ' scores a point!'; tone(880, 0.2); tone(1100, 0.25); } else { G.msg = '👎 ' + up + ' – ' + dn + ' 👎  No point this time.'; tone(220, 0.3, 'sawtooth', 0.04); }
     G.stage = 'result'; G.stT = 0; snap();
   }
   function nextTurn() {
+    if (G.mode !== 'tod') {
+      const left = aliveIdx(); G.round++;
+      if (left.length <= 1) { G.stage = 'over'; G.stT = 0; G.target = left[0] != null ? left[0] : -1; snap(); finish(); return; }
+      let k = G.turn; do { k = (k + 1) % G.players.length; } while (!G.players[k].alive);
+      G.turn = k; G.stage = 'idle'; G.stT = 0; G.target = -1; G.msg = ''; G.shot = null; snap(); return;
+    }
     G.round++;
     if (G.round > G.rounds) { G.stage = 'over'; G.stT = 0; snap(); finish(); return; }
     G.turn = (G.turn + 1) % G.players.length; G.stage = 'idle'; G.stT = 0; G.target = -1; G.msg = ''; snap();
   }
   function finish() {
     if (!opts || !opts.award) return; const me = G.players[G.me]; if (!me) return; const best = Math.max(...G.players.map((p) => p.pts));
+    if (G.mode !== 'tod') { opts.award(me.alive ? 30 : 6); return; }
     opts.award(me.pts === best && best > 0 ? 25 : 8);
   }
   function hostTick(dt) {
     const g = G; g.stT += dt; const sp = g.players[g.turn], t = g.players[g.target];
     if (g.stage === 'idle') { if (sp.bot && g.stT > 1.3) doSpin(); }
-    else if (g.stage === 'spin') { if (g.stT >= g.dur) { g.stage = 'pick'; g.stT = 0; tone(520, 0.15); snap(); } }
+    else if (g.stage === 'shoot') { if (t.bot && g.stT > 1.9) { if (g.mode === 'lights') doShoot((Math.random() * g.perm.length) | 0); else { const c = aliveIdx().filter((k) => k !== g.target); doShoot(c[(Math.random() * c.length) | 0]); } } else if (g.stT > 30) { if (g.mode === 'lights') doShoot((Math.random() * g.perm.length) | 0); else { const c = aliveIdx().filter((k) => k !== g.target); doShoot(c[(Math.random() * c.length) | 0]); } } }
+    else if (g.stage === 'spin') { if (g.stT >= g.dur) { if (g.mode === 'tod') { g.stage = 'pick'; g.stT = 0; tone(520, 0.15); snap(); } else toShoot(); } }
     else if (g.stage === 'pick') { if (t.bot && g.stT > 1.4) doPick(Math.random() < 0.5 ? 'truth' : 'dare'); else if (g.stT > 30) doPick('truth'); }
     else if (g.stage === 'task') { if (t.bot && g.stT > 2.6) doDone(Math.random() < 0.88 ? rnd(BOT_SAY) : '', Math.random() >= 0.88); else if (g.stT > 70) doDone('', true); }
     else if (g.stage === 'vote') {
@@ -131,7 +157,7 @@
   }
 
   // ------------------------------------------------------------------ network (guests send intentions, the host decides)
-  const PREFIX = 'wobble-bottle-v1-', osel = { n: 5 };
+  const PREFIX = 'wobble-bottle-v1-', osel = { n: 5, mode: 'tod' };
   const status = (t, bad) => { const e = $('sbstat'); if (e) { e.textContent = t; e.style.color = bad ? '#c62835' : ''; } };
   function setupRoom() {
     if (room || !root.Room) return;
@@ -153,14 +179,14 @@
   function startOnline() {
     if (!room || !room.isHost() || (G && G.online)) return;
     const hum = room.list().map((e) => ({ net: e.id, name: clean(e.name || 'Goose', 14) || 'Goose', look: e.look }));
-    newGame({ humans: hum, n: Math.max(osel.n, hum.length) });
+    newGame({ humans: hum, n: Math.max(osel.n, hum.length), mode: osel.mode });
     G.players.forEach((p, i) => { if (p.net > 0) room.toOne(p.net, { k: 'start', i, ps: G.players.map((q) => ({ name: q.name, look: q.look })), s: pub() }); });
     showPanel(null); begin();
   }
   function onNet(from, m) {
     if (!m || !m.k) return;
     if (m.k === 'start' && !(room && room.isHost())) {
-      G = { online: true, host: false, me: m.i, players: m.ps.map((p, i) => ({ id: i, name: clean(p.name, 14), look: cleanLook(p.look), bot: false, net: -1, pts: 0, chick: 0 })), turn: 0, round: 1, rounds: 10, stage: 'idle', stT: 0, target: -1, a: 0, a1: 0, dur: 3.4, seq: 0, votes: {}, vd: {}, msg: '' };
+      G = { online: true, host: false, me: m.i, players: m.ps.map((p, i) => ({ alive: true, id: i, name: clean(p.name, 14), look: cleanLook(p.look), bot: false, net: -1, pts: 0, chick: 0 })), turn: 0, round: 1, rounds: 10, stage: 'idle', stT: 0, target: -1, a: 0, a1: 0, dur: 3.4, seq: 0, votes: {}, vd: {}, msg: '' };
       apply(m.s); showPanel(null); begin(); return;
     }
     if (m.k === 'st' && G && !G.host) { apply(m.s); return; }
@@ -168,6 +194,7 @@
     const idx = G.players.findIndex((p) => p.net === from); if (idx < 0) return;
     if (m.k === 'spin' && G.stage === 'idle' && idx === G.turn) doSpin();
     else if (m.k === 'pick' && G.stage === 'pick' && idx === G.target) doPick(m.c);
+    else if (m.k === 'shoot' && G.stage === 'shoot' && idx === G.target) doShoot(m.v);
     else if (m.k === 'done' && G.stage === 'task' && idx === G.target) doDone(m.text, !!m.skip);
     else if (m.k === 'vote') doVote(idx, !!m.v);
     else if (m.k === 'again' && G.stage === 'over') { /* host decides */ }
@@ -175,6 +202,7 @@
   // what the local player does: the host applies it directly, a guest asks the host
   const act = {
     spin() { if (G.host) { if (G.turn === G.me) doSpin(); } else room.send({ k: 'spin' }); },
+    shoot(v) { if (G.host) { if (G.target === G.me) doShoot(v); } else room.send({ k: 'shoot', v }); },
     pick(c) { if (G.host) { if (G.target === G.me) doPick(c); } else room.send({ k: 'pick', c }); },
     done(text, skip) { if (G.host) { if (G.target === G.me) doDone(text, skip); } else room.send({ k: 'done', text, skip }); },
     vote(v) { if (G.host) doVote(G.me, v); else { G.votes[G.me] = v ? 1 : 0; lastKey = ''; room.send({ k: 'vote', v: v ? 1 : 0 }); } },
@@ -203,26 +231,44 @@
     else if (G.stage !== 'idle' || G.a === 0) { if (G.stage !== 'idle') G.a = G.a1; }
     if (G.stage === 'idle' && G.a1 && Math.abs(G.a - G.a1) > 0.001) G.a = G.a1;
     const t = G.time || 0;
-    G.players.forEach((p, i) => {
-      const th = -Math.PI / 2 + (2 * Math.PI * i) / n, px = cx + Math.cos(th) * R, py = cy + Math.sin(th) * R + gw * 0.6;
-      const isSp = i === G.turn && G.stage !== 'over', isT = i === G.target && ['pick', 'task', 'vote', 'result'].includes(G.stage);
+    const dark = G.mode === 'lights' && G.stage === 'shoot', posOf = (k, m) => { const th = -Math.PI / 2 + (2 * Math.PI * k) / m; return [cx + Math.cos(th) * R, cy + Math.sin(th) * R + gw * 0.6, th]; };
+    const drawOne = (p, i, px, py, th, named) => {
+      const isSp = i === G.turn && G.stage !== 'over' && !dark, isT = i === G.target && ['pick', 'task', 'vote', 'result', 'shoot'].includes(G.stage) && !dark;
+      if (!p.alive && !dark) {                                  // blasted out: just a slice of toast left
+        c.globalAlpha = 0.6; c.font = Math.round(34 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = '#fff'; c.fillText('🍞', px, py); c.globalAlpha = 1;
+        c.font = '800 ' + Math.round(12 * dpr) + 'px system-ui'; c.fillStyle = 'rgba(255,255,255,.55)'; c.fillText(p.name + ' (out)', px, py + 18 * dpr); return;
+      }
       if (isSp || isT) { c.fillStyle = isT ? 'rgba(255,90,90,' + (0.35 + 0.2 * Math.sin(t * 6)) + ')' : 'rgba(255,214,60,.3)'; c.beginPath(); c.ellipse(px, py, gw * 0.9, gw * 0.35, 0, 0, 7); c.fill(); }
       let ok = false;
-      if (root.GooseArt && p.look) { try { root.GooseArt.draw(c, px, py, p.look, { w: gw * 0.62, face: Math.cos(th) > 0.2 ? -1 : 1, t, moving: isT && G.stage === 'result' && !G.skipped }); ok = true; } catch (e) { ok = false; } }
+      if (root.GooseArt && p.look) { try { root.GooseArt.draw(c, px, py, p.look, { w: gw * 0.62, face: Math.cos(th) > 0.2 ? -1 : 1, t, moving: isT && G.stage === 'result' && !G.skipped && G.mode === 'tod' }); ok = true; } catch (e) { ok = false; } }
       if (!ok) { c.fillStyle = '#fff'; c.beginPath(); c.ellipse(px, py - gw * 0.3, gw * 0.4, gw * 0.3, 0, 0, 7); c.fill(); }
+      if (!named) return;
       c.font = '800 ' + Math.round(13 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 3 * dpr; c.strokeStyle = '#000'; c.fillStyle = i === G.me ? '#ffe27a' : '#fff';
       const lab = p.name + (i === G.me ? ' (you)' : ''); c.strokeText(lab, px, py + 16 * dpr); c.fillText(lab, px, py + 16 * dpr);
-      c.font = '700 ' + Math.round(12 * dpr) + 'px system-ui'; const sc = '🍞 ' + p.pts + (p.chick ? '  🐔 ' + p.chick : ''); c.strokeText(sc, px, py + 30 * dpr); c.fillText(sc, px, py + 30 * dpr);
+      if (G.mode === 'tod') { c.font = '700 ' + Math.round(12 * dpr) + 'px system-ui'; const sc = '🍞 ' + p.pts + (p.chick ? '  🐔 ' + p.chick : ''); c.strokeText(sc, px, py + 30 * dpr); c.fillText(sc, px, py + 30 * dpr); }
       if (isSp) { c.font = Math.round(16 * dpr) + 'px system-ui'; c.fillText('🍾', px + gw * 0.55, py - gw * 0.9); }
-    });
+    };
+    if (dark) {
+      const m = G.perm.length; G.perm.forEach((pi, k) => { const [px, py, th] = posOf(k, m); drawOne(G.players[pi], pi, px, py, th, false); });
+      c.fillStyle = 'rgba(4,2,12,.93)'; c.fillRect(0, 0, w, h);
+      G.perm.forEach((pi, k) => { const [px, py] = posOf(k, m); c.font = '900 ' + Math.round(20 * dpr) + 'px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ffe27a'; c.fillText(String(k + 1), px, py - gw * 0.5); });
+    } else G.players.forEach((p, i) => { const [px, py, th] = posOf(i, n); drawOne(p, i, px, py, th, true); });
+    // the Bread Blaster shot: a slice of bread flies from the shooter to the target
+    if (G.shot && G.stage === 'result' && G.mode !== 'tod') {
+      const a = posOf(G.shot.from, n), b = posOf(G.shot.to, n), k = Math.min(1, G.stT / 0.7);
+      c.font = Math.round(30 * dpr) + 'px system-ui'; c.textAlign = 'center';
+      if (G.shot.hit) { c.fillText('🍞', a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k - gw * 0.4); if (k >= 1) { c.globalAlpha = Math.max(0, 1 - (G.stT - 0.7) * 1.4); c.fillText('💥', b[0], b[1] - gw * 0.5); c.globalAlpha = 1; } }
+      else { c.globalAlpha = Math.max(0, 1 - G.stT * 0.7); c.fillText('💨', a[0], a[1] - gw * 0.5); c.globalAlpha = 1; }
+    }
     bottle(c, cx, cy, G.a, Math.max(0.5, R / 150) * dpr * 0.9 * (dpr > 1 ? 1 : 1));
     c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 5 * dpr, 0, 7); c.fill();
   }
 
   // ------------------------------------------------------------------ UI cards
   function card() {
-    if (!G) return; const me = G.me, sp = G.players[G.turn], tg = G.players[G.target], key = [G.stage, G.turn, G.round, G.target, G.votes[me], G.kind, G.skipped, G.msg].join('|');
-    $('sbtop').textContent = G.stage === 'over' ? '🏁 Game over!' : 'Round ' + Math.min(G.round, G.rounds) + ' / ' + G.rounds + ' · 🍾 ' + sp.name + '\'s spin';
+    if (!G) return; const me = G.me, sp = G.players[G.turn], tg = G.players[G.target], key = [G.stage, G.turn, G.round, G.target, G.votes[me], G.kind, G.skipped, G.msg, G.players.map((p) => (p.alive ? 1 : 0)).join('')].join('|');
+    const left = G.players.filter((p) => p.alive).length;
+    $('sbtop').textContent = G.stage === 'over' ? '🏁 Game over!' : G.mode === 'tod' ? 'Round ' + Math.min(G.round, G.rounds) + ' / ' + G.rounds + ' · 🍾 ' + sp.name + '\'s spin' : MODE_ICON[G.mode] + ' ' + left + ' geese left · 🍾 ' + sp.name + '\'s spin';
     if (key === lastKey) return; lastKey = key;
     const c = $('sbcard'); let h = '';
     const bind = [];
@@ -230,6 +276,15 @@
       if (G.turn === me) { h = '<div class="bt">Your turn!</div><div class="row"><button class="go" id="sbspin">🍾 SPIN THE BOTTLE</button></div>'; bind.push(['sbspin', () => act.spin()]); }
       else h = '<div class="bt">Waiting for ' + esc(sp.name) + ' to spin…</div>';
     } else if (G.stage === 'spin') h = '<div class="bt">🍾 Spinning…</div>';
+    else if (G.stage === 'shoot') {
+      const dark = G.mode === 'lights';
+      if (G.target === me) {
+        h = '<div class="bt">It landed on YOU!</div><div>' + (dark ? '🌑 The lights went out! Pick a shape in the dark… you might even hit yourself!' : G.mode === 'luck' ? '🎲 Pick a goose. The Bread Blaster only works half the time!' : '🍞 Pick a goose to blast out of the game!') + '</div><div class="row">';
+        if (dark) G.perm.forEach((pi, k) => { h += '<button class="go red" data-v="' + k + '">🌑 ' + (k + 1) + '</button>'; });
+        else G.players.forEach((p, k) => { if (p.alive && k !== me) h += '<button class="go red" data-v="' + k + '">🎯 ' + esc(p.name) + '</button>'; });
+        h += '</div>';
+      } else h = '<div class="bt">It landed on ' + esc(tg.name) + '!</div><div>' + (dark ? '🌑 Lights out… ' : '') + esc(tg.name) + ' is picking who to blast…</div>';
+    }
     else if (G.stage === 'pick') {
       if (G.target === me) { h = '<div class="bt">It landed on YOU!</div><div class="row"><button class="go" id="sbtr">🤔 Truth</button><button class="go red" id="sbda">😈 Dare</button></div>'; bind.push(['sbtr', () => act.pick('truth')], ['sbda', () => act.pick('dare')]); }
       else h = '<div class="bt">It landed on ' + esc(tg.name) + '!</div><div>Choosing Truth or Dare…</div>';
@@ -243,21 +298,24 @@
       if (G.target === me) h += '<div>The others are voting…</div>';
       else if (G.votes[me] != null) h += '<div>You voted ' + (G.votes[me] ? '👍' : '👎') + '. Waiting for the others…</div>';
       else { h += '<div class="row"><button class="go grn" id="sbup">👍 Nice!</button><button class="go red" id="sbdn">👎 Meh</button></div>'; bind.push(['sbup', () => act.vote(1)], ['sbdn', () => act.vote(0)]); }
-    } else if (G.stage === 'result') h = '<div class="bt">' + esc(G.msg) + '</div>';
+    } else if (G.stage === 'result' && G.mode !== 'tod') h = '<div class="bt">' + esc(G.msg) + '</div>';
+    else if (G.stage === 'result') h = '<div class="bt">' + esc(G.msg) + '</div>';
     else if (G.stage === 'over') {
+      if (G.mode !== 'tod') { const w = G.players.find((p) => p.alive); h = '<div class="bt">🏆 ' + (w ? esc(w.name) + ' is the last goose standing!' : 'Nobody survived!') + '</div>' + (G.mode === 'luck' ? '<div>The Bread Blaster has spoken.</div>' : '') + '<div class="row">' + (G.host ? '<button class="go" id="sbagain">▶ Play again</button>' : '') + '<button class="go alt" id="sbmenu">Menu</button></div>'; bind.push(['sbagain', () => again()], ['sbmenu', () => close()]); c.innerHTML = h; for (const [id, fn] of bind) { const b = $(id); if (b) b.addEventListener('click', fn); } return; }
       const order = G.players.map((p, i) => ({ p, i })).sort((a, b) => b.p.pts - a.p.pts); const best = order[0].p.pts;
       h = '<div class="bt">🏆 ' + (order.filter((o) => o.p.pts === best).map((o) => esc(o.p.name)).join(' & ')) + ' win' + (order.filter((o) => o.p.pts === best).length > 1 ? '' : 's') + '!</div>' + order.map((o) => '<div>' + esc(o.p.name) + ' — 🍞 ' + o.p.pts + (o.p.chick ? ' · 🐔 ' + o.p.chick : '') + '</div>').join('');
       h += '<div class="row">' + (G.host ? '<button class="go" id="sbagain">▶ Play again</button>' : '') + '<button class="go alt" id="sbmenu">Menu</button></div>';
       bind.push(['sbagain', () => again()], ['sbmenu', () => close()]);
     }
     c.innerHTML = h; for (const [id, fn] of bind) { const b = $(id); if (b) b.addEventListener('click', fn); }
+    c.querySelectorAll('button[data-v]').forEach((b) => b.addEventListener('click', () => act.shoot(+b.dataset.v)));
     const ia = $('sbans'); if (ia) { ia.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('sbdone').click(); }); ia.addEventListener('keyup', (e) => e.stopPropagation()); setTimeout(() => ia.focus(), 50); }
   }
   function again() {
     if (!G || !G.host) return;
-    if (G.online && room && room.isHost()) { const hum = G.players.filter((p) => p.net >= 0).map((p) => ({ net: p.net, name: p.name, look: p.look })); const n = G.players.length; newGame({ humans: hum, n });
+    if (G.online && room && room.isHost()) { const hum = G.players.filter((p) => p.net >= 0).map((p) => ({ net: p.net, name: p.name, look: p.look })); const n = G.players.length; newGame({ humans: hum, n, mode: G.mode });
       G.players.forEach((p, i) => { if (p.net > 0) room.toOne(p.net, { k: 'start', i, ps: G.players.map((q) => ({ name: q.name, look: q.look })), s: pub() }); }); begin(); }
-    else { const n = G.players.length; newGame({ n }); begin(); }
+    else { const n = G.players.length; newGame({ n, mode: G.mode }); begin(); }
   }
 
   // ------------------------------------------------------------------ shell
@@ -280,7 +338,9 @@
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     const d = document.createElement('div'); d.id = 'sbt';
     d.innerHTML = `<canvas id="sbcv"></canvas><div id="sbtop"></div><button id="sbquit" title="Leave">☰</button><div id="sbcard"></div>
-      <div class="panel" id="sblobby"><div class="card"><h2>🍾 Spin the Bottle</h2><div class="sub">Spin, land on a goose, Truth or Dare (silly and clean!), then the others vote. Most 🍞 wins.</div>
+      <div class="panel" id="sblobby"><div class="card"><h2>🍾 Spin the Bottle</h2><div class="sub">A party game for 3 to 8 geese, with bots or online. All cartoon fun: the Bread Blaster only fires toast.</div>
+        <div class="row"><b>Mode</b><span class="chip on" data-mode="tod">🤔 Truth or Dare</span><span class="chip" data-mode="elim">🎯 Eliminator</span><span class="chip" data-mode="lights">🌑 Lights Out</span><span class="chip" data-mode="luck">🎲 Lucky Blaster</span></div>
+        <div id="sbmdesc" style="font-size:13px;opacity:.8;margin:-2px 0 4px"></div>
         <div class="row"><b>Geese</b><span class="chip" data-n="4">4</span><span class="chip on" data-n="5">5</span><span class="chip" data-n="6">6</span><span class="chip" data-n="8">8</span><span style="font-size:12px;opacity:.7">(bots fill the circle)</span></div>
         <div class="row"><button class="go" id="sbstart">▶ Play with bots</button><button class="go alt" id="sbback">Back</button></div>
         <h4 style="margin:10px 0 2px">👥 Online with friends</h4>
@@ -290,7 +350,10 @@
     document.body.appendChild(d);
     dom = { root: d, cv: $('sbcv'), lobby: $('sblobby') };
     d.querySelectorAll('[data-n]').forEach((c) => c.addEventListener('click', () => { d.querySelectorAll('[data-n]').forEach((x) => x.classList.remove('on')); c.classList.add('on'); osel.n = +c.dataset.n; }));
-    $('sbstart').addEventListener('click', () => { if (room) room.leave(); newGame({ n: osel.n }); showPanel(null); begin(); });
+    const MDESC = { tod: 'Spin, Truth or Dare, the others vote. Most 🍞 wins.', elim: 'When the bottle lands on you, pick a goose to blast out with the Bread Blaster. Last goose standing wins!', lights: 'The lights go out when the bottle lands. The geese are shuffled and unnamed: pick a shape in the dark (you might hit yourself!).', luck: 'Like Eliminator, but the Bread Blaster only works 50% of the time. Click… or BOOM?' };
+    const setMode = (m) => { osel.mode = m; d.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x.dataset.mode === m)); $('sbmdesc').textContent = MDESC[m]; };
+    d.querySelectorAll('[data-mode]').forEach((c) => c.addEventListener('click', () => setMode(c.dataset.mode))); setMode(osel.mode);
+    $('sbstart').addEventListener('click', () => { if (room) room.leave(); newGame({ n: osel.n, mode: osel.mode }); showPanel(null); begin(); });
     $('sbback').addEventListener('click', () => close());
     $('sbquit').addEventListener('click', () => { if (G) { if (room) room.leave(); G = null; showPanel('lobby'); renderRoster([]); } else close(); });
     $('sbjoin').addEventListener('click', () => { setupRoom(); try { localStorage.setItem('wobbleBottleWord', $('sbword').value); } catch (e) { /* ignore */ } if (room) room.join($('sbword').value); else status('Online play is not available (could not load the matchmaking library).', true); });

@@ -126,3 +126,6 @@ New 🎉 Fun tab (works on yourself, selected players or everyone): emoji rains 
 
 ### Spin the Bottle 🍾
 New party mode in the menu: 4 to 8 geese stand in a circle wearing their real avatars. Spin the bottle, it lands on a goose, they pick Truth or Dare (silly and clean prompts, typed answers are word-filtered), and the others vote 👍 or 👎. A 👍 majority earns a 🍞 point, skipping earns a 🐔. Everyone spins in turn; most points wins bread. Play solo with bots, or online via a room word or a random lobby (the host runs the rules, bots fill empty places and take over if someone leaves).
+
+### Spin the Bottle: shooting modes
+Pick a mode in the lobby: 🤔 Truth or Dare, 🎯 Eliminator (when the bottle lands on you, pick a goose to blast out with the cartoon Bread Blaster; last goose standing wins), 🌑 Lights Out (the shot happens in the dark: the geese are shuffled and unnamed, you pick a number and might hit yourself) and 🎲 Lucky Blaster (the blaster only works 50% of the time). Blasted geese turn into a slice of toast. All work solo with bots or online.
