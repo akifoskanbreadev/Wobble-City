@@ -95,6 +95,7 @@
     o = o || {}; const L = get(key, null), kk = o.k != null ? o.k : L.k, dim = Math.min(1, o.dim != null ? o.dim : L.dim), c = o.col || L.col, cap = (v) => Math.min(0.92, v);
     R.lightCol = [cap(c[0] / 255 * (0.5 + kk) * dim), cap(c[1] / 255 * (0.5 + kk) * dim), cap(c[2] / 255 * (0.5 + kk) * dim)];
     R.ambCol = [cap((0.6 + 0.35 * c[0] / 255) * dim), cap((0.6 + 0.35 * c[1] / 255) * dim), cap((0.6 + 0.35 * c[2] / 255) * dim)];
+    if (o.amt != null) { const q = o.amt, mx = (v) => 1 + (v - 1) * q; R.lightCol = R.lightCol.map(mx); R.ambCol = R.ambCol.map(mx); }   // amt: how much of the tint to use (0.1 = 10%)
     R.lightDir = o.dir || (key === 'sunset' || key === 'pirate' ? [0.8, 0.45, 0.3] : [0.45, 0.85, 0.3]);
   }
   root.Light = { get, post2d, apply3d, tex, TABLE: T };
