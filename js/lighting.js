@@ -92,9 +92,9 @@
   }
   // 3D: the colour of the sun/lamp, a tinted ambient and a direction (low and warm for dusk, high for noon)
   function apply3d(R, key, o) {
-    o = o || {}; const L = get(key, null), kk = o.k != null ? o.k : L.k, dim = o.dim != null ? o.dim : L.dim, c = o.col || L.col;
-    R.lightCol = [c[0] / 255 * (0.55 + kk) * dim * 1.0, c[1] / 255 * (0.55 + kk) * dim, c[2] / 255 * (0.55 + kk) * dim];
-    R.ambCol = [(0.62 + 0.38 * c[0] / 255) * dim, (0.62 + 0.38 * c[1] / 255) * dim, (0.62 + 0.38 * c[2] / 255) * dim];
+    o = o || {}; const L = get(key, null), kk = o.k != null ? o.k : L.k, dim = Math.min(1, o.dim != null ? o.dim : L.dim), c = o.col || L.col, cap = (v) => Math.min(0.92, v);
+    R.lightCol = [cap(c[0] / 255 * (0.5 + kk) * dim), cap(c[1] / 255 * (0.5 + kk) * dim), cap(c[2] / 255 * (0.5 + kk) * dim)];
+    R.ambCol = [cap((0.6 + 0.35 * c[0] / 255) * dim), cap((0.6 + 0.35 * c[1] / 255) * dim), cap((0.6 + 0.35 * c[2] / 255) * dim)];
     R.lightDir = o.dir || (key === 'sunset' || key === 'pirate' ? [0.8, 0.45, 0.3] : [0.45, 0.85, 0.3]);
   }
   root.Light = { get, post2d, apply3d, tex, TABLE: T };

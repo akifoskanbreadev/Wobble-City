@@ -127,7 +127,12 @@
       drawFrame(cam, dm) {
         R.resize();
         const s = R.sky;
-        gl.clearColor(s[0], s[1], s[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        if (R.skyTop) {   // a real sky: deeper at the top, fading to the fog colour at the horizon (a CSS gradient behind the transparent canvas)
+          const f = (v) => v.map((q) => Math.round(q * 255)).join(','), key = f(R.skyTop) + '|' + f(s);
+          if (R._sk !== key) { R._sk = key; canvas.style.background = 'linear-gradient(rgb(' + f(R.skyTop) + ') 0%, rgb(' + f(s) + ') 56%)'; }
+          gl.clearColor(0, 0, 0, 0);
+        } else { if (R._sk) { R._sk = ''; canvas.style.background = ''; } gl.clearColor(s[0], s[1], s[2], 1); }
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const mvp = mul(persp(cam.fov || 1.0, canvas.width / canvas.height, 0.2, 400), look(cam.eye, cam.at));
         gl.uniformMatrix4fv(loc.m, false, new Float32Array(mvp)); gl.uniform3fv(loc.e, new Float32Array(cam.eye));
         gl.uniform3fv(loc.l, new Float32Array(R.lightDir)); gl.uniform3fv(loc.lc, new Float32Array(R.lightCol)); gl.uniform3fv(loc.ac, new Float32Array(R.ambCol)); gl.uniform3fv(loc.f, new Float32Array(s)); gl.uniform2fv(loc.fog, new Float32Array([R.fogNear, R.fogFar]));

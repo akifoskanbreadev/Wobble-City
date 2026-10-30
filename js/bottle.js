@@ -37,6 +37,7 @@
   const CSS = `
   #sbt{position:fixed;inset:0;z-index:72;background:#2a1b3d;display:none;font-family:system-ui,sans-serif;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
   #sbt canvas{position:absolute;inset:0;width:100%;height:100%}
+  #sbt::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,.45) 100%)}
   #sbt .panel{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,10,30,.85);overflow:auto;padding:14px;z-index:3}
   #sbt .card{background:#fff;color:#1b1f33;border-radius:20px;padding:16px 18px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.4);max-height:100%;overflow:auto}
   #sbt h2{margin:0 0 4px;font-size:24px}#sbt .sub{opacity:.7;font-size:14px;margin-bottom:8px}

@@ -24,7 +24,7 @@
   // ------------------------------------------------------------------ DOM
   const CSS = `
   #h3{position:fixed;inset:0;z-index:70;background:#111;display:none;touch-action:none;user-select:none;-webkit-user-select:none;font-family:system-ui,sans-serif;color:#fff}
-  #h3 canvas{position:absolute;inset:0;width:100%;height:100%}#h3 #h3hud{pointer-events:none}
+  #h3 canvas{position:absolute;inset:0;width:100%;height:100%}#h3::after{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 58%,rgba(10,10,20,.38) 100%)}#h3 #h3hud{pointer-events:none}
   #h3 .b{position:absolute;border-radius:50%;border:3px solid rgba(255,255,255,.85);background:rgba(30,30,40,.45);color:#fff;font-weight:800;display:none;align-items:center;justify-content:center;text-align:center;font-size:15px;touch-action:none}
   #h3 #h3act{right:max(18px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom));width:104px;height:104px;background:rgba(255,155,47,.9);color:#1b1b1b;flex-direction:column;line-height:1.1}
   #h3 #h3jump{right:calc(max(18px,env(safe-area-inset-right)) + 118px);bottom:max(30px,env(safe-area-inset-bottom));width:70px;height:70px}
@@ -152,7 +152,7 @@
     const map = MAPS.build(mi, seed);
     R = R || E.create(dom.gl);
     if (!R) { $('h3gl-warn').textContent = 'Your device does not support WebGL, so the 3D mode cannot start.'; return; }
-    R.sky = E.rgb(map.sky); if (window.Light) window.Light.apply3d(R, map.theme && map.theme.id); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
+    R.sky = E.rgb(map.sky); R.skyTop = E.rgb(map.sky).map((v, i) => Math.max(0, Math.min(1, v * (map.night ? 0.45 : 0.82) + (map.night ? 0 : [-0.12, -0.02, 0.1][i])))); if (window.Light) window.Light.apply3d(R, map.theme && map.theme.id); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
     const sv = api.save();
     let ps = [], me, n, seekers;
     if (opts.setup) {                                   // an online game: everybody builds the same cast from the host's setup
@@ -498,6 +498,7 @@
     // everything is built from smooth ellipsoids, so the goose is actually round
     const ball = (dx, cy, dz, rx, rY, rz, cl) => m.ball(x + dx * co + dz * si, y + cy, z - dx * si + dz * co, rx, rY, rz, cl, ry);
     const sh = col(X.sh, c.leg);
+    if (G && G.map && G.map.theme) m.ball(x, (p.ground ? y : 0) + 0.04, z, 0.8, 0.012, 1.0, E.shade(G.map.theme.g[0], 0.74), ry, 14, 2);   // soft shadow on the ground
     ball(0.3, 0.27, s * 0.8, 0.09, 0.27, 0.09, c.leg); ball(-0.3, 0.27, -s * 0.8, 0.09, 0.27, 0.09, c.leg);          // legs
     ball(0.3, 0.06, s * 0.8 + 0.18, 0.2, 0.07, 0.3, sh); ball(-0.3, 0.06, -s * 0.8 + 0.18, 0.2, 0.07, 0.3, sh);   // webbed feet
     const bob = mv ? Math.abs(Math.sin(p.anim)) * 0.06 : 0, by = 1.0 + bob;

@@ -617,7 +617,9 @@
     if (!G || !dom) return; const cv = dom.cv, dpr = Math.min(2, root.devicePixelRatio || 1), cw = cv.clientWidth, ch = cv.clientHeight;
     if (cv.width !== Math.floor(cw * dpr) || cv.height !== Math.floor(ch * dpr)) { cv.width = Math.floor(cw * dpr); cv.height = Math.floor(ch * dpr); }
     const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cw, ch);
-    drawWorld(c, cw, ch, Math.min(cw / 760, ch / 520) * 1.0); drawHud(c, cw, ch);
+    drawWorld(c, cw, ch, Math.min(cw / 760, ch / 520) * 1.0);
+    if (root.Light) { try { root.Light.post2d(c, cv.width, cv.height, 'space', null, performance.now() / 1000); } catch (e) { /* ignore */ } c.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    drawHud(c, cw, ch);
     if (G.task) { const tc = dom.tcv.getContext('2d'); tc.setTransform(dom.tcv.width / 400, 0, 0, dom.tcv.height / 300, 0, 0); tc.fillStyle = '#1b2236'; tc.fillRect(0, 0, 400, 300); tc.lineCap = 'butt'; G.task.t.draw(tc); if (G.task.t.done) { tc.fillStyle = 'rgba(76,217,100,.35)'; tc.fillRect(0, 0, 400, 300); tc.fillStyle = '#fff'; tc.font = '900 34px system-ui'; tc.textAlign = 'center'; tc.fillText('✓ DONE', 200, 160); } }
     updateButtons();
   }

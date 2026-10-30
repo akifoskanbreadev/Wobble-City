@@ -748,6 +748,11 @@
     for (let x = x1; x >= x0; x -= 8) ctx.lineTo(x, Math.max(surf(x), botAt(x)));
     ctx.closePath(); ctx.fill();
     ctx.save(); ctx.clip();
+    { // the sky and the sun reflected in the surface, strongest at the top and fading with depth
+      const L = window.Light ? window.Light.get(level.theme, level.weather) : { col: [255, 240, 200], k: 0.5 }, rg = ctx.createLinearGradient(0, w.y - 4, 0, w.y + 70);
+      rg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.28 + L.k * 0.25) + ')'); rg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = rg; ctx.fillRect(x0, w.y - 6, x1 - x0, 80);
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; for (let x = Math.floor(x0 / 37) * 37; x < x1; x += 37) { const q = Math.sin(x * 3.7) * 9301, r2 = q - Math.floor(q), a2 = Math.sin(wt * 2.2 + x * 0.31); if (a2 > 0.2) ctx.fillRect(x + r2 * 20, surf(x) + 5 + r2 * 18, 10 + a2 * 14, 1.6); }   // wavering glints
+    }
     // caustic light ribbons
     ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(220,255,240,.14)';
     for (let k = 0; k < 5; k++) {
