@@ -152,7 +152,7 @@
     const map = MAPS.build(mi, seed);
     R = R || E.create(dom.gl);
     if (!R) { $('h3gl-warn').textContent = 'Your device does not support WebGL, so the 3D mode cannot start.'; return; }
-    R.sky = E.rgb(map.sky); R.skyTop = E.rgb(map.sky).map((v, i) => Math.max(0, Math.min(1, v * (map.night ? 0.45 : 0.82) + (map.night ? 0 : [-0.12, -0.02, 0.1][i])))); if (window.Light) window.Light.apply3d(R, map.theme && map.theme.id); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
+    R.texture = false; R.sky = E.rgb(map.sky); R.skyTop = E.rgb(map.sky).map((v, i) => Math.max(0, Math.min(1, v * (map.night ? 0.45 : 0.82) + (map.night ? 0 : [-0.12, -0.02, 0.1][i])))); if (window.Light) window.Light.apply3d(R, map.theme && map.theme.id); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
     const sv = api.save();
     let ps = [], me, n, seekers;
     if (opts.setup) {                                   // an online game: everybody builds the same cast from the host's setup

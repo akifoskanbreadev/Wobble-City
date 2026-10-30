@@ -76,15 +76,15 @@
   function mul(a, b) { const o = new Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; }
 
   // ----------------------------------------------------------------- renderer
-  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;uniform vec3 uLC;uniform vec3 uAC;varying vec3 vC;varying float vD;varying vec3 vP;varying vec3 vSp;' +
+  const VS = 'attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uM;uniform vec3 uE;uniform vec3 uL;uniform vec3 uLC;uniform vec3 uAC;uniform float uT;varying vec3 vC;varying float vD;varying vec3 vP;varying vec3 vSp;' +
     'void main(){gl_Position=uM*vec4(aP,1.0);vec3 L=normalize(uL);float d=max(dot(aN,L),0.0);vec3 lit=uAC*(0.58+0.12*aN.y)+uLC*(0.42*d);' +
-    'float ao=mix(0.7,1.0,smoothstep(0.0,1.8,aP.y));if(abs(aN.y)<0.5)lit*=ao;' +                               // walls and legs darken towards the floor (ambient occlusion)
+    'float ao=mix(0.7,1.0,smoothstep(0.0,1.8,aP.y));if(abs(aN.y)<0.5)lit*=mix(1.0,ao,uT);' +                               // walls and legs darken towards the floor (ambient occlusion)
     'vC=aC*lit;vD=distance(aP,uE);vP=aP;' +
-    'vec3 Hh=normalize(L+normalize(uE-aP));vSp=uLC*pow(max(dot(normalize(aN),Hh),0.0),28.0)*0.22;}';          // a soft shine on smooth shapes
+    'vec3 Hh=normalize(L+normalize(uE-aP));vSp=uLC*pow(max(dot(normalize(aN),Hh),0.0),28.0)*0.22*uT;}';          // a soft shine on smooth shapes
   const FS = '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n' +
-    'varying vec3 vC;varying float vD;varying vec3 vP;varying vec3 vSp;uniform vec3 uF;uniform vec2 uFog;' +
+    'varying vec3 vC;varying float vD;varying vec3 vP;varying vec3 vSp;uniform float uT;uniform vec3 uF;uniform vec2 uFog;' +
     'float h(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}' +
-    'void main(){vec3 q=floor(vP*3.0);float g=0.955+0.09*h(q);float big=0.97+0.06*h(floor(vP*0.35));' +                // fine grain + broad patchiness = a real surface instead of flat colour
+    'void main(){vec3 q=floor(vP*3.0);float g=mix(1.0,0.955+0.09*h(q),uT);float big=mix(1.0,0.97+0.06*h(floor(vP*0.35)),uT);' +                // fine grain + broad patchiness = a real surface instead of flat colour
     'vec3 c=vC*g*big+vSp;float f=smoothstep(uFog.x,uFog.y,vD);gl_FragColor=vec4(mix(c,uF,f),1.0);}';
 
   function create(canvas) {
@@ -98,7 +98,7 @@
     const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr);
     if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return null;
     gl.useProgram(pr);
-    const loc = { p: gl.getAttribLocation(pr, 'aP'), n: gl.getAttribLocation(pr, 'aN'), c: gl.getAttribLocation(pr, 'aC'), m: gl.getUniformLocation(pr, 'uM'), e: gl.getUniformLocation(pr, 'uE'), l: gl.getUniformLocation(pr, 'uL'), f: gl.getUniformLocation(pr, 'uF'), fog: gl.getUniformLocation(pr, 'uFog'), lc: gl.getUniformLocation(pr, 'uLC'), ac: gl.getUniformLocation(pr, 'uAC') };
+    const loc = { p: gl.getAttribLocation(pr, 'aP'), n: gl.getAttribLocation(pr, 'aN'), c: gl.getAttribLocation(pr, 'aC'), m: gl.getUniformLocation(pr, 'uM'), e: gl.getUniformLocation(pr, 'uE'), l: gl.getUniformLocation(pr, 'uL'), f: gl.getUniformLocation(pr, 'uF'), fog: gl.getUniformLocation(pr, 'uFog'), lc: gl.getUniformLocation(pr, 'uLC'), ac: gl.getUniformLocation(pr, 'uAC'), tx: gl.getUniformLocation(pr, 'uT') };
     gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     const mk = () => ({ vb: gl.createBuffer(), ib: gl.createBuffer(), count: 0 });
     const stat = mk(), dyn = mk();
@@ -116,7 +116,7 @@
     }
     const R = {
       gl, sky: [0.6, 0.8, 1], fogNear: 40, fogFar: 130,
-      lightDir: [0.45, 0.85, 0.3], lightCol: [1, 1, 1], ambCol: [1, 1, 1],   // the soft light: its direction, colour (x intensity) and the ambient colour (x intensity)
+      texture: true, lightDir: [0.45, 0.85, 0.3], lightCol: [1, 1, 1], ambCol: [1, 1, 1],   // the soft light: its direction, colour (x intensity) and the ambient colour (x intensity)
       setStatic(m) { upload(stat, m, gl.STATIC_DRAW); },
       resize() {
         const dpr = Math.min(2, root.devicePixelRatio || 1), w = Math.max(2, Math.floor(canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
@@ -135,7 +135,7 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const mvp = mul(persp(cam.fov || 1.0, canvas.width / canvas.height, 0.2, 400), look(cam.eye, cam.at));
         gl.uniformMatrix4fv(loc.m, false, new Float32Array(mvp)); gl.uniform3fv(loc.e, new Float32Array(cam.eye));
-        gl.uniform3fv(loc.l, new Float32Array(R.lightDir)); gl.uniform3fv(loc.lc, new Float32Array(R.lightCol)); gl.uniform3fv(loc.ac, new Float32Array(R.ambCol)); gl.uniform3fv(loc.f, new Float32Array(s)); gl.uniform2fv(loc.fog, new Float32Array([R.fogNear, R.fogFar]));
+        gl.uniform3fv(loc.l, new Float32Array(R.lightDir)); gl.uniform3fv(loc.lc, new Float32Array(R.lightCol)); gl.uniform3fv(loc.ac, new Float32Array(R.ambCol)); gl.uniform1f(loc.tx, R.texture ? 1 : 0); gl.uniform3fv(loc.f, new Float32Array(s)); gl.uniform2fv(loc.fog, new Float32Array([R.fogNear, R.fogFar]));
         draw(stat);
         if (dm) { upload(dyn, dm, gl.DYNAMIC_DRAW); draw(dyn); }
         R.mvp = mvp;

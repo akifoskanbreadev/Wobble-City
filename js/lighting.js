@@ -65,12 +65,12 @@
     // the soft light: a tinted wash, strongest near the sun
     c.globalCompositeOperation = 'soft-light';
     let gr = c.createRadialGradient(sx, sy, 0, sx, sy, s * 1.05);
-    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + Math.min(1, L.k * 0.375) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',' + L.k * 0.126 + ')');
+    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + Math.min(1, L.k * 0.25) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',' + L.k * 0.084 + ')');
     c.fillStyle = gr; c.fillRect(0, 0, W, H);
     // sun bloom
     c.globalCompositeOperation = 'screen';
     gr = c.createRadialGradient(sx, sy, 0, sx, sy, s * 0.55);
-    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + (0.066 * L.k + 0.01 * Math.sin(t * 0.7)) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + (0.044 * L.k + 0.007 * Math.sin(t * 0.7)) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
     c.fillStyle = gr; c.fillRect(0, 0, W, H);
     // dim the whole scene a little where the light is weak, and tint the corners
     c.globalCompositeOperation = 'source-over';
@@ -81,13 +81,13 @@
     // slanting shafts of light from the sun (not in blizzards and storms, where the sky is closed)
     if (!(wx && (wx.whiteout || wx.storm)) && key !== 'dungeon' && key !== 'cavern' && key !== 'space') {
       c.globalCompositeOperation = 'screen';
-      for (let i = 0; i < 4; i++) { const a0 = 0.9 + i * 0.28 + Math.sin(t * 0.15 + i) * 0.03, wd = 0.07 + 0.02 * (i % 2), x2 = sx + Math.cos(a0) * s * 1.2, y2 = sy + Math.sin(a0) * s * 1.2, x3 = sx + Math.cos(a0 + wd) * s * 1.2, y3 = sy + Math.sin(a0 + wd) * s * 1.2; const rg = c.createLinearGradient(sx, sy, x2, y2); rg.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + 0.03 * L.k + ')'); rg.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(sx, sy); c.lineTo(x2, y2); c.lineTo(x3, y3); c.closePath(); c.fill(); }
+      for (let i = 0; i < 4; i++) { const a0 = 0.9 + i * 0.28 + Math.sin(t * 0.15 + i) * 0.03, wd = 0.07 + 0.02 * (i % 2), x2 = sx + Math.cos(a0) * s * 1.2, y2 = sy + Math.sin(a0) * s * 1.2, x3 = sx + Math.cos(a0 + wd) * s * 1.2, y3 = sy + Math.sin(a0 + wd) * s * 1.2; const rg = c.createLinearGradient(sx, sy, x2, y2); rg.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + 0.02 * L.k + ')'); rg.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(sx, sy); c.lineTo(x2, y2); c.lineTo(x3, y3); c.closePath(); c.fill(); }
     }
     // drifting specks of light in the air (pollen, dust, ice glitter) in the colour of the light
     c.globalCompositeOperation = 'screen';
     for (const m of motes) { const x = ((m.x * W + Math.sin(t * 0.3 * m.s + m.p) * 30 + t * 6 * m.s) % W + W) % W, y = ((m.y * H + Math.cos(t * 0.25 * m.s + m.p) * 20 - t * 4 * m.s) % H + H) % H, a = (0.18 + 0.2 * Math.sin(t * 1.3 + m.p)) * L.k; c.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + Math.max(0, a) + ')'; c.beginPath(); c.arc(x, y, (1 + m.s * 1.4) * (W / 900 + 0.4), 0, 7); c.fill(); }
     // fine film grain
-    c.globalCompositeOperation = 'overlay'; c.globalAlpha = 0.022; c.fillStyle = c.createPattern(tex('grain', 128), 'repeat'); c.fillRect(0, 0, W, H); c.globalAlpha = 1;
+    c.globalCompositeOperation = 'overlay'; c.globalAlpha = 0.014; c.fillStyle = c.createPattern(tex('grain', 128), 'repeat'); c.fillRect(0, 0, W, H); c.globalAlpha = 1;
     c.restore();
   }
   // 3D: the colour of the sun/lamp, a tinted ambient and a direction (low and warm for dusk, high for noon)
