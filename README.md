@@ -137,3 +137,4 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - **Shooting modes**: when the bottle lands on you, just TAP a goose to shoot it. In Eliminator and Lucky Blaster you can see the blaster in the shooter's wing, aiming around the circle.
 - **Lights Out**: pitch black, nobody is told who the bottle landed on or who got hit; the lights only come back at the next spin.
 - **Six new minigames** (`js/minigames3.js`): 🫧 Bubble Pop, 🃏 Memory Match, 🎨 Colour Clash, 🏁 Goose Race (tap left and right to beat three bots), 🍞 Perfect Toast, 🎈 Balloon Pump (push your luck). They appear in the minigame menu with the others.
+- **Soft light and shadows**: a gentle (about 20%) coloured light over 2D levels, Chameleon and Among Us (icy blue-white for snow, warm for meadow, and so on), plus soft shadows under the goose, trees and props, and under the geese in 3D hide and seek. No grain or textures.

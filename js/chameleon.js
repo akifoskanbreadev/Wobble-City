@@ -726,8 +726,10 @@
     if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#1b1f33'; c.fillRect(0, 0, cv.width, cv.height);
     const s = viewScale(); c.setTransform(s.k * dpr, 0, 0, s.k * dpr, s.ox * dpr, s.oy * dpr); c.save(); c.beginPath(); c.rect(0, 0, W, H); c.clip();
-    if (G) { drawScene(); drawHud(); } else { c.fillStyle = '#2a3050'; c.fillRect(0, 0, W, H); }
+    if (G) { drawScene(); } else { c.fillStyle = '#2a3050'; c.fillRect(0, 0, W, H); }
     c.restore();
+    if (G && window.Light) { try { window.Light.post2d(c, cv.width, cv.height, 'suburb', null, performance.now() / 1000); } catch (e) { /* ignore */ } }
+    c.setTransform(1, 0, 0, 1, 0, 0); c.save(); c.setTransform(s.k * dpr, 0, 0, s.k * dpr, s.ox * dpr, s.oy * dpr); c.beginPath(); c.rect(0, 0, W, H); c.clip(); if (G) drawHud(); c.restore();
   }
   function frame(now) {
     raf = requestAnimationFrame(frame); const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!opened || !cv) return;

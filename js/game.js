@@ -682,6 +682,7 @@
     drawTrail();
     drawChasers(ctx); ENEMIES.draw(ctx, enemies, levelClock, enemyDead); ENEMIES.drawShots(ctx, enemies, levelClock); drawStormWorld(world.time);
     if (boss && bossPhase !== 'door') BOSS.draw(ctx, boss, clock);
+    { const gc = goose.center(), gy = window.Decor.groundAt(level, gc.x); if (gy != null && gy > gc.y - 30 && gy < gc.y + 260) { const dd = Math.max(0, gy - gc.y - 30), a = Math.max(0, 0.28 - dd / 900); ctx.fillStyle = 'rgba(10,14,20,' + a + ')'; ctx.beginPath(); ctx.ellipse(gc.x, gy + 1, 34 - Math.min(14, dd / 14), 6, 0, 0, 7); ctx.fill(); } }   // soft shadow on the ground
     drawGoose(ctx, goose, window.Battle.active() ? window.Battle.equip(lookEquip()) : lookEquip(), save.skin);
     if (window.Chungas) window.Chungas.draw(ctx, (c2, g2, e2, s2) => drawGoose(c2, g2, e2, s2));
     if (window.Battle.active()) window.Battle.drawWorld(ctx, clock);
@@ -1006,6 +1007,7 @@
       drawWorld();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       drawWeather();
+      if (window.Light && level) { try { window.Light.post2d(ctx, canvas.width, canvas.height, level.theme, level.weather, clock); } catch (e) { /* ignore */ } }
       if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
       if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
       drawAimHint();

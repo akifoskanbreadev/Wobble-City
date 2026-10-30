@@ -121,10 +121,16 @@
     tuft(c, p, t) { const th = p.theme; const col = th === 'cavern' ? '#b58aff' : th === 'space' ? '#c4c9de' : th === 'factory' ? '#8a9099' : th === 'sky' ? '#7fe063' : th === 'jungle' ? '#2f9a3a' : th === 'snow' ? '#eef8ff' : th === 'desert' ? '#c9a45a' : th === 'candy' ? '#ff9fd6' : th === 'lava' ? '#5a2a22' : th === 'night' ? '#58bd88' : '#5fc24c'; c.strokeStyle = col; c.lineWidth = 2.2; c.lineCap = 'round'; for (let i = -2; i <= 2; i++) { const h = 8 + (3 - Math.abs(i)) * 3 + ((i * 7 + p.a) % 3), sw = Math.sin(t * 2 + i + p.x * 0.01) * 1.5; c.beginPath(); c.moveTo(i * 3, 0); c.quadraticCurveTo(i * 3 + sw, -h * 0.6, i * 4 + sw * 2, -h); c.stroke(); } },
   };
 
+  const TALL = { oak: 100, birch: 100, autumn: 96, pine: 110, palm: 100, deadtree: 60, charred: 44, cactus: 64, pillar: 56, lamp: 76, lantern: 60, torch: 50, cabin: 40, igloo: 30, snowman: 50, lollipop: 70, cane: 52, gumdrop: 28, cupcake: 40, cone: 56, donut: 30, haystack: 34, bush: 26, rock: 22, fence: 34, sign: 46, grave: 40, crystal: 40, mushroom: 24, obsidian: 44, vent: 22, skulls: 22, bones: 20, ribs: 16 };
   function draw(c, list, camX, VW, t) {
     for (const p of list) {
       if (p.x < camX - 120 || p.x > camX + VW + 120) continue;
       const f = DRAW[p.k]; if (!f) continue;
+      if (p.y !== undefined && !(p.air)) {   // a soft shadow on the ground, stretched away from the sun (up on the right)
+        const h = (TALL[p.k] || 26) * p.s, w = Math.max(14, h * 0.55 + 12) * p.s;
+        c.save(); c.translate(p.x - h * 0.28, p.y + 1); c.scale(1, 0.18); const g = c.createRadialGradient(0, 0, 0, 0, 0, w + h * 0.35);
+        g.addColorStop(0, 'rgba(10,15,25,.32)'); g.addColorStop(1, 'rgba(10,15,25,0)'); c.fillStyle = g; c.beginPath(); c.arc(0, 0, w + h * 0.35, 0, 7); c.fill(); c.restore();
+      }
       c.save(); c.translate(p.x, p.y); c.scale(p.s * p.f, p.s); c.lineCap = 'round'; c.lineJoin = 'round';
       f(c, p, t); c.restore();
     }
