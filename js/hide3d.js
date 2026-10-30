@@ -24,7 +24,7 @@
   // ------------------------------------------------------------------ DOM
   const CSS = `
   #h3{position:fixed;inset:0;z-index:70;background:#111;display:none;touch-action:none;user-select:none;-webkit-user-select:none;font-family:system-ui,sans-serif;color:#fff}
-  #h3 canvas{position:absolute;inset:0;width:100%;height:100%}#h3::after{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 58%,rgba(10,10,20,.38) 100%)}#h3 #h3hud{pointer-events:none}
+  #h3 canvas{position:absolute;inset:0;width:100%;height:100%}#h3 #h3hud{pointer-events:none}
   #h3 .b{position:absolute;border-radius:50%;border:3px solid rgba(255,255,255,.85);background:rgba(30,30,40,.45);color:#fff;font-weight:800;display:none;align-items:center;justify-content:center;text-align:center;font-size:15px;touch-action:none}
   #h3 #h3act{right:max(18px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom));width:104px;height:104px;background:rgba(255,155,47,.9);color:#1b1b1b;flex-direction:column;line-height:1.1}
   #h3 #h3jump{right:calc(max(18px,env(safe-area-inset-right)) + 118px);bottom:max(30px,env(safe-area-inset-bottom));width:70px;height:70px}
@@ -152,7 +152,7 @@
     const map = MAPS.build(mi, seed);
     R = R || E.create(dom.gl);
     if (!R) { $('h3gl-warn').textContent = 'Your device does not support WebGL, so the 3D mode cannot start.'; return; }
-    R.texture = false; R.sky = E.rgb(map.sky); R.skyTop = E.rgb(map.sky).map((v, i) => Math.max(0, Math.min(1, v * (map.night ? 0.45 : 0.82) + (map.night ? 0 : [-0.12, -0.02, 0.1][i])))); if (window.Light) window.Light.apply3d(R, map.theme && map.theme.id); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
+    R.texture = false; R.sky = E.rgb(map.sky); R.skyTop = null; R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
     const sv = api.save();
     let ps = [], me, n, seekers;
     if (opts.setup) {                                   // an online game: everybody builds the same cast from the host's setup
