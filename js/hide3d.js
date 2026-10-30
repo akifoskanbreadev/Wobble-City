@@ -152,7 +152,7 @@
     const map = MAPS.build(mi, seed);
     R = R || E.create(dom.gl);
     if (!R) { $('h3gl-warn').textContent = 'Your device does not support WebGL, so the 3D mode cannot start.'; return; }
-    R.sky = E.rgb(map.sky); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
+    R.detail = true; R.sky = E.rgb(map.sky); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
     const sv = api.save();
     let ps = [], me, n, seekers;
     if (opts.setup) {                                   // an online game: everybody builds the same cast from the host's setup
@@ -553,7 +553,7 @@
     // roofs (the one you are under is lifted off)
     const inB = bAt(me.x, me.z);
     g.map.roofs.forEach((r, i) => { if (inB === i && !hid) return; m.box(r.x, r.y, r.z, r.w, r.h, r.d, r.c); });
-    for (const p of g.ps) if (p.hidden < 0 && !(p.id !== me.id && g.online && p.away) && !(p.invis && p.id !== me.id)) modelBoxes(m, p);
+    m.plain = true; for (const p of g.ps) if (p.hidden < 0 && !(p.id !== me.id && g.online && p.away) && !(p.invis && p.id !== me.id)) modelBoxes(m, p); m.plain = false;   // geese stay smooth and clean
     if (me.role === 'hider' && me.hidden < 0) for (const s of g.spots) if (!s.cover && s.occ < 0 && dist2(me.x, me.z, s.dx, s.dz) < 18) { const k = 1 + Math.sin(g.clock * 4) * 0.08; m.box(s.dx, 0.02, s.dz, 1.5 * k, 0.06, 1.5 * k, '#ff9a2f'); m.box(s.dx, 0.08, s.dz, 0.9, 0.06, 0.9, '#ffd27a'); }
     // puffs (a leafy "rustle" where someone just hid) and search rings
     for (const f of g.puffs) { f.t += dt; for (let i = 0; i < 4; i++) { const a = i * 1.57 + f.t * 3; m.box(f.x + Math.cos(a) * (0.6 + f.t), 2.4 + f.t * 1.5 + i * 0.1, f.z + Math.sin(a) * (0.6 + f.t), 0.25, 0.25, 0.25, '#ffffff'); } }
