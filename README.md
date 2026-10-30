@@ -132,11 +132,8 @@ Pick a mode in the lobby: 🤔 Truth or Dare, 🎯 Eliminator (when the bottle l
 
 Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with cards and chips, bar stools, ceiling fan, beams, moonlit windows, update board) with a glass 3D bottle spinning on the table. The geese stay flat 2D sprites sitting on the stools, with floating number-badge name plates. If a device has no WebGL it falls back to the flat 2D table.
 
-## Soft light and Spin the Bottle update
-- **Soft light** (`js/lighting.js`): every level theme, weather and 3D map has its own light colour and strength. Meadow is warm gold, desert hot orange, snow and blizzards icy blue-white, night cool and dim, candy pink, storms grey-blue. 2D levels get a tinted soft-light wash, a sun glow and a vignette; the 3D modes feed the same colours into the engine.
+## Spin the Bottle update
 - **Spin the Bottle**: up to 16 geese (bots fill the circle), faster full-circle spins, and the Bread Blaster flies much faster.
 - **Shooting modes**: when the bottle lands on you, just TAP a goose to shoot it. In Eliminator and Lucky Blaster you can see the blaster in the shooter's wing, aiming around the circle.
-- **Lights Out**: pitch black, nobody is told who the bottle landed on or who got hit; the lights only come back on at the next spin.
-- **Realistic look pass**: speckled earth and stone textures, swaying grass blades, soft shadows under the goose, horizon haze, slanting light shafts, drifting specks of light and fine film grain in 2D levels; the 3D modes get surface grain, darker lower walls (ambient occlusion) and a soft shine on rounded shapes. The geese stay cartoon.
+- **Lights Out**: pitch black, nobody is told who the bottle landed on or who got hit; the lights only come back at the next spin.
 - **Six new minigames** (`js/minigames3.js`): 🫧 Bubble Pop, 🃏 Memory Match, 🎨 Colour Clash, 🏁 Goose Race (tap left and right to beat three bots), 🍞 Perfect Toast, 🎈 Balloon Pump (push your luck). They appear in the minigame menu with the others.
-- **More realism**: soft ground shadows under trees, rocks and props; ponds reflect the sky and sun with wavering glints; the 3D modes have a real sky gradient, soft shadows under geese and a vignette; Chameleon and Among Us get the same soft light and grain.

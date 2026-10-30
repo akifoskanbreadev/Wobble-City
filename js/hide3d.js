@@ -152,7 +152,7 @@
     const map = MAPS.build(mi, seed);
     R = R || E.create(dom.gl);
     if (!R) { $('h3gl-warn').textContent = 'Your device does not support WebGL, so the 3D mode cannot start.'; return; }
-    R.texture = false; R.detail = true; if (window.Light) window.Light.apply3d(R, map.theme && map.theme.id, { amt: 0.1 }); R.sky = E.rgb(map.sky); R.skyTop = null; R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
+    R.sky = E.rgb(map.sky); R.fogNear = map.night ? 30 : 45; R.fogFar = map.night ? 95 : 135; R.setStatic(map.mesh);
     const sv = api.save();
     let ps = [], me, n, seekers;
     if (opts.setup) {                                   // an online game: everybody builds the same cast from the host's setup
@@ -498,7 +498,6 @@
     // everything is built from smooth ellipsoids, so the goose is actually round
     const ball = (dx, cy, dz, rx, rY, rz, cl) => m.ball(x + dx * co + dz * si, y + cy, z - dx * si + dz * co, rx, rY, rz, cl, ry);
     const sh = col(X.sh, c.leg);
-    if (G && G.map && G.map.theme) m.ball(x, (p.ground ? y : 0) + 0.04, z, 0.8, 0.012, 1.0, E.shade(G.map.theme.g[0], 0.74), ry, 14, 2);   // soft shadow on the ground
     ball(0.3, 0.27, s * 0.8, 0.09, 0.27, 0.09, c.leg); ball(-0.3, 0.27, -s * 0.8, 0.09, 0.27, 0.09, c.leg);          // legs
     ball(0.3, 0.06, s * 0.8 + 0.18, 0.2, 0.07, 0.3, sh); ball(-0.3, 0.06, -s * 0.8 + 0.18, 0.2, 0.07, 0.3, sh);   // webbed feet
     const bob = mv ? Math.abs(Math.sin(p.anim)) * 0.06 : 0, by = 1.0 + bob;

@@ -37,7 +37,6 @@
   const CSS = `
   #sbt{position:fixed;inset:0;z-index:72;background:#2a1b3d;display:none;font-family:system-ui,sans-serif;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
   #sbt canvas{position:absolute;inset:0;width:100%;height:100%}
-  #sbt::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,.45) 100%)}
   #sbt .panel{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,10,30,.85);overflow:auto;padding:14px;z-index:3}
   #sbt .card{background:#fff;color:#1b1f33;border-radius:20px;padding:16px 18px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.4);max-height:100%;overflow:auto}
   #sbt h2{margin:0 0 4px;font-size:24px}#sbt .sub{opacity:.7;font-size:14px;margin-bottom:8px}
@@ -281,7 +280,7 @@
     B(0, 8.6, 0, 0.12, 2.6, 0.12, '#6a4a22'); O(0, 8.4, 0, 0.55, 0.3, 0.55, '#c9972b', 14, 8);
     for (let q = 0; q < 4; q++) { const a = t * 1.1 + q * Math.PI / 2; B(Math.cos(a) * 1.9, 8.55, Math.sin(a) * 1.9, 3.2, 0.07, 0.6, '#7a5028', -a); }
     for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + 0.78; O(Math.cos(a) * 0.55, 8.05, Math.sin(a) * 0.55, 0.2, 0.2, 0.2, '#fff0b0', 8, 6); }
-    gl3.sky = dark ? [0.0, 0.0, 0.01] : [0.1, 0.07, 0.05]; gl3.fogNear = 40 * (WR / 4.3); gl3.fogFar = 90 * (WR / 4.3); if (root.Light) root.Light.apply3d(gl3, dark ? 'tavernDark' : 'tavern');
+    gl3.sky = dark ? [0.0, 0.0, 0.01] : [0.1, 0.07, 0.05]; gl3.fogNear = 40 * (WR / 4.3); gl3.fogFar = 90 * (WR / 4.3);
     gl3.drawFrame({ eye: [CAM.eye[0] + Math.sin(t * 0.3) * 0.5, CAM.eye[1], CAM.eye[2]], at: CAM.at, fov: CAM.fov }, m);
   }
   function draw() {
