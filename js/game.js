@@ -580,12 +580,26 @@
     ctx.beginPath(); ctx.moveTo(pts[i0][0], bottom);
     for (let i = i0; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
+    if (window.Light) { ctx.save(); ctx.clip(); ctx.globalAlpha = ice ? 0.18 : 0.42; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], bottom - miny + 20); ctx.globalAlpha = 1; ctx.restore(); }   // speckled earth
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
     window.Decor.terrainDetail(ctx, pts, i0, i1, level.theme, ice, camX, VW, clock);
     ctx.strokeStyle = ice ? '#eaf8ff' : th.grass; ctx.lineWidth = 12; trace(6); ctx.stroke();
     ctx.strokeStyle = ice ? '#ffffff' : th.grass2; ctx.lineWidth = 5; trace(3); ctx.stroke();
     ctx.strokeStyle = INK; ctx.lineWidth = 3; trace(0); ctx.stroke();
+    if (!ice) grassBlades(pts, i0, i1);
+  }
+  // little blades of grass along the top of the ground, swaying, in a light and a dark shade
+  function grassBlades(pts, i0, i1) {
+    ctx.lineCap = 'round';
+    for (let i = i0; i < i1; i++) {
+      const x0 = pts[i][0], y0 = pts[i][1], x1 = pts[i + 1][0], y1 = pts[i + 1][1], dx = x1 - x0; if (dx < 1) continue;
+      for (let x = x0 + 3; x < x1; x += 9) {
+        const q = Math.sin(x * 12.9898) * 43758.5453, r = q - Math.floor(q), y = y0 + (y1 - y0) * ((x - x0) / dx), hgt = 5 + r * 9, sw = Math.sin(clock * 1.8 + x * 0.05) * 2.2 + (r - 0.5) * 3;
+        ctx.strokeStyle = r > 0.5 ? th.grass2 : th.grass; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.quadraticCurveTo(x + sw * 0.4, y - hgt * 0.6, x + sw, y - hgt); ctx.stroke();
+      }
+    }
+    ctx.lineCap = 'butt';
   }
 
   function drawSolid(s) {
@@ -617,7 +631,9 @@
         ctx.beginPath(); ctx.moveTo(s.x, y); ctx.lineTo(s.x + s.w, y); ctx.stroke();
         for (let x = s.x + (r % 2 ? bw / 2 : 0); x < s.x + s.w; x += bw) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke(); }
       }
-      ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(s.x, s.y, 5, s.h); ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(s.x, s.y, 5, s.h);
+      if (window.Light) { ctx.globalAlpha = 0.4; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(s.x, s.y, s.w, s.h); ctx.globalAlpha = 1; }
+      ctx.restore();
     }
     ctx.fillStyle = th.grass; ctx.fillRect(s.x, s.y, s.w, 12);
     ctx.fillStyle = th.grass2; ctx.fillRect(s.x, s.y, s.w, 5);
@@ -730,6 +746,11 @@
     for (let x = x1; x >= x0; x -= 8) ctx.lineTo(x, Math.max(surf(x), botAt(x)));
     ctx.closePath(); ctx.fill();
     ctx.save(); ctx.clip();
+    { // the sky and the sun reflected in the surface, strongest at the top and fading with depth
+      const L = window.Light ? window.Light.get(level.theme, level.weather) : { col: [255, 240, 200], k: 0.5 }, rg = ctx.createLinearGradient(0, w.y - 4, 0, w.y + 70);
+      rg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.28 + L.k * 0.25) + ')'); rg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = rg; ctx.fillRect(x0, w.y - 6, x1 - x0, 80);
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; for (let x = Math.floor(x0 / 37) * 37; x < x1; x += 37) { const q = Math.sin(x * 3.7) * 9301, r2 = q - Math.floor(q), a2 = Math.sin(wt * 2.2 + x * 0.31); if (a2 > 0.2) ctx.fillRect(x + r2 * 20, surf(x) + 5 + r2 * 18, 10 + a2 * 14, 1.6); }   // wavering glints
+    }
     // caustic light ribbons
     ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(220,255,240,.14)';
     for (let k = 0; k < 5; k++) {
@@ -766,6 +787,10 @@
       ctx.beginPath(); ctx.ellipse(lx, ly, 17, 5, 0, 0.35, Math.PI * 2 - 0.1); ctx.lineTo(lx, ly); ctx.closePath(); ctx.fill(); ctx.stroke();
       if (r > 0.6) { ctx.fillStyle = '#ffd1e6'; ctx.beginPath(); ctx.ellipse(lx + 3, ly - 5, 4, 5, 0, 0, 7); ctx.fill(); }
     }
+    // soft foam band along the surface
+    ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 9; ctx.beginPath();
+    for (let x = x0, pen = false; x <= x1; x += 8) { if (!wetAt(x)) { pen = false; continue; } const y = surf(x) + 4; if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
+    ctx.stroke(); ctx.lineCap = 'butt';
     // surface sparkle + edge
     ctx.strokeStyle = 'rgba(235,255,250,.9)'; ctx.lineWidth = 2.5; ctx.beginPath();
     for (let x = x0, pen = false; x <= x1; x += 8) { if (!wetAt(x)) { pen = false; continue; } const y = surf(x); if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y); }
