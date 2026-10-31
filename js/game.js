@@ -562,6 +562,7 @@
     if (decor) window.Decor.drawFar(ctx, decor.far, level.theme, cx, W, H, S, th, base - 20 * S);
     hills(0.2, th.h1, 70, 0.004, base - 40 * S);
     hills(0.45, th.h2, 50, 0.007, base + 10 * S);
+    if (window.Light) { const L = window.Light.get(level && level.theme, level && level.weather), hz = ctx.createLinearGradient(0, base - 160 * S, 0, base + 70 * S); hz.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); hz.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.12 + L.k * 0.3) + ')'); ctx.fillStyle = hz; ctx.fillRect(0, base - 160 * S, W, 230 * S); }   // atmospheric haze at the horizon
   }
 
   function drawTerrain(t) {
@@ -580,6 +581,7 @@
     ctx.beginPath(); ctx.moveTo(pts[i0][0], bottom);
     for (let i = i0; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
+    if (window.Light) { const L = window.Light.get(level.theme, level.weather); ctx.save(); ctx.clip(); const lg = ctx.createLinearGradient(0, miny, 0, miny + 90); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], 130); const sg = ctx.createLinearGradient(0, miny + 180, 0, miny + 520); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = sg; ctx.fillRect(pts[i0][0], miny + 180, pts[i1][0] - pts[i0][0], bottom - miny); ctx.restore(); }   // sunlit top edge, deeper shade below
     if (window.Light) { ctx.save(); ctx.clip(); ctx.globalAlpha = ice ? 0.18 : 0.42; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], bottom - miny + 20); ctx.globalAlpha = 1; ctx.restore(); }   // speckled earth
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
@@ -624,6 +626,7 @@
     const dg = ctx.createLinearGradient(0, s.y, 0, s.y + Math.min(s.h, 300));
     dg.addColorStop(0, th.d1); dg.addColorStop(1, th.d2);
     ctx.fillStyle = dg; ctx.fillRect(s.x, s.y, s.w, s.h);
+    if (window.Light) { const L = window.Light.get(level.theme, level.weather), lg = ctx.createLinearGradient(0, s.y, 0, s.y + Math.min(s.h, 80)); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(s.x, s.y, s.w, Math.min(s.h, 80)); }
     if (s.h > 30) {   // stone-block texture
       ctx.save(); ctx.beginPath(); ctx.rect(s.x, s.y, s.w, s.h); ctx.clip(); ctx.strokeStyle = 'rgba(0,0,0,.16)'; ctx.lineWidth = 2;
       const bh = 26, bw = 46;

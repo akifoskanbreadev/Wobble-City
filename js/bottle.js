@@ -280,7 +280,7 @@
     B(0, 8.6, 0, 0.12, 2.6, 0.12, '#6a4a22'); O(0, 8.4, 0, 0.55, 0.3, 0.55, '#c9972b', 14, 8);
     for (let q = 0; q < 4; q++) { const a = t * 1.1 + q * Math.PI / 2; B(Math.cos(a) * 1.9, 8.55, Math.sin(a) * 1.9, 3.2, 0.07, 0.6, '#7a5028', -a); }
     for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + 0.78; O(Math.cos(a) * 0.55, 8.05, Math.sin(a) * 0.55, 0.2, 0.2, 0.2, '#fff0b0', 8, 6); }
-    gl3.sky = dark ? [0.0, 0.0, 0.01] : [0.1, 0.07, 0.05]; gl3.fogNear = 40 * (WR / 4.3); gl3.fogFar = 90 * (WR / 4.3);
+    gl3.ao = true; gl3.shine = true; gl3.tint = dark ? [1, 1, 1] : [1.25, 1.0, 0.75]; gl3.sky = dark ? [0.0, 0.0, 0.01] : [0.1, 0.07, 0.05]; gl3.fogNear = 40 * (WR / 4.3); gl3.fogFar = 90 * (WR / 4.3);
     gl3.drawFrame({ eye: [CAM.eye[0] + Math.sin(t * 0.3) * 0.5, CAM.eye[1], CAM.eye[2]], at: CAM.at, fov: CAM.fov }, m);
   }
   function draw() {

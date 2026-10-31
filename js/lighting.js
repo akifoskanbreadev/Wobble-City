@@ -92,5 +92,7 @@
     R.ambCol = [cap((0.6 + 0.35 * c[0] / 255) * dim), cap((0.6 + 0.35 * c[1] / 255) * dim), cap((0.6 + 0.35 * c[2] / 255) * dim)];
     R.lightDir = o.dir || (key === 'sunset' || key === 'pirate' ? [0.8, 0.45, 0.3] : [0.45, 0.85, 0.3]);
   }
-  root.Light = { get, post2d, apply3d, tex, TABLE: T };
+  // a gentle colour multiplier for the 3D renderer: amt 0.3 = a subtle hint of the map's light colour
+  function tint3d(key, amt) { const c = get(key, null).col, a = amt == null ? 0.3 : amt, av = (c[0] + c[1] + c[2]) / 765; return c.map((v) => 1 + (v / 255 - av) * a * 2); }
+  root.Light = { tint3d, get, post2d, apply3d, tex, TABLE: T };
 })(typeof window !== 'undefined' ? window : globalThis);
