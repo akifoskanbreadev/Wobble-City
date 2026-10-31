@@ -1034,16 +1034,20 @@
       camX += (tx - camX) * k; camY += (ty - camY) * k;
       hudT += real;
       if (state === 'play' && hudT > 0.08) { hudT = 0; updateHud(); }
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      drawSky(camX, camY);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      drawWorld();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      drawWeather();
-      if (window.Light && level) { try { window.Light.post2d(ctx, canvas.width, canvas.height, level.theme, level.weather); } catch (e) { /* ignore */ } }
-      if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
-      if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
-      drawAimHint();
+      // a full-screen mode (Chameleon, Among Us, 3D hide and seek, Spin the Bottle) is covering the game: don't waste time drawing the level behind it
+      const covered = ['ch', 'crew', 'h3', 'sbt'].some((id) => { const e = document.getElementById(id); return e && e.style.display && e.style.display !== 'none'; });
+      if (!covered) {
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        drawSky(camX, camY);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        drawWorld();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        drawWeather();
+        if (window.Light && level) { try { window.Light.post2d(ctx, canvas.width, canvas.height, level.theme, level.weather); } catch (e) { /* ignore */ } }
+        if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
+        if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
+        drawAimHint();
+      }
     }
     if (state === 'store') drawStorePreview();
     requestAnimationFrame(frame);
