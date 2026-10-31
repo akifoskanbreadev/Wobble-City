@@ -148,3 +148,8 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - Its honk is `assets/jelly-honk.mp3`.
 - **Everyone hears everyone's honks**: a honk is sent to the other players (`hk` message) and plays with that player's own honk sound, including the jellyfish one.
 - The jellyfish bell now follows the real jelly soft body (squashes and wobbles on bonks and landings like the other jelly skins), flies faster and steers more easily, and swims much faster in water. Head admins get the Avatars tab too, without the jellyfish (owner only).
+
+## More stuff (js/more5.js)
+- **24 new skins**: Sunset, Ocean, Forest, Blossom, Chocolate, Bubblegum, Pumpkin, Snow, Checker, Starry, Love, Cloud, Emerald, Ruby, Amethyst, Silver, Bee, Ladybug, Panda, Muddy, Midnight, Mango, Static and Rainbow Stripe geese.
+- **21 new clothes**: hats (chef, party cone, propeller, cowboy, flower crown, antlers, halo, bucket), glasses (heart, monocle, 3D, star), neckwear (ribbon, scarf, lei, jingle bell) and shoes (cowboy boots, hi-tops, wellies, clown shoes, rocket boots).
+- **5 new minigames**: 🔨 Bread Whack, 🧺 Bread Catch, 🎵 Simon Honk, 🧱 Block Stack, ⚡ Quick Draw.
