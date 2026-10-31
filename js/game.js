@@ -140,8 +140,9 @@
     o.start(t0); o.stop(t0 + dur + 0.05);
   }
   const snd = {
-    honk: () => {
-      const id = save.skin, vo = save.equip && save.equip.voice && BY_ID[save.equip.voice];
+    honk: (skinId, voiceId) => {
+      const id = skinId || save.skin, vid = voiceId === undefined ? (save.equip && save.equip.voice) : voiceId, vo = vid && BY_ID[vid];
+      if (SKINS.BY_ID[id] && SKINS.BY_ID[id].honkSrc && window.Avatars) { if (save.sound !== false) window.Avatars.honk(id); return; }
       if (vo && vo.voice) { vo.voice.forEach((v) => tone(v[0], v[1], v[2], v[3], v[4], v[5])); return; }
       if (id === 'chicken') { tone('square', 700, 500, 0.08, 0.12); tone('square', 640, 420, 0.1, 0.12, 0.12); }                       // bok bok
       else if (id === 'duck' || id === 'rubberduck') { tone('sawtooth', 520, 380, 0.14, 0.14); tone('sawtooth', 500, 360, 0.14, 0.14, 0.17); }   // quack
@@ -167,7 +168,7 @@
   };
 
   // ---------------------------------------------------------------- state
-  const input = { atkQueue: false, left: false, right: false, kLeft: false, kRight: false, flapHeld: false, flapQueue: false, honkQueue: false, padAim: null, mouseAim: null };
+  const input = { atkQueue: false, left: false, right: false, kLeft: false, kRight: false, kDown: false, flapHeld: false, flapQueue: false, honkQueue: false, padAim: null, mouseAim: null };
   const keys = new Set();
   let slow = false;
   let state = 'title';                 // title | play | done | store | mgmenu | mg | mgdone
@@ -181,14 +182,14 @@
     el.textContent = msg; el.classList.add('show'); toastT = secs || 3;
   }
 
-  let decor = null;
+  let decor = null, flyOn = null;
   let chasers = [], trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0, lastVy = 0;
   let bolt = null, nextBolt = 6, hailOn = false;
   let mech = null, boss = null, bossPhase = null, eggPos = null, wxInfo = { a: 0, warn: 0, dir: 0 };
   function loadLevel(i, custom) {
     levelIdx = i; level = custom || LEVELS[i];
     world = new World();
-    world.gscale = gravK();
+    world.gscale = gravK(); flyOn = null;
     trailP = [];
     decor = window.Decor.generate(level, custom ? 0 : i);
     enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? -1 : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
@@ -238,6 +239,30 @@
     goose.reset(checkpoint.x, checkpoint.y);
     const c = goose.center();
     camX = c.x - VW * 0.4; camY = c.y - VH * 0.58;
+  }
+
+  // Swap to another avatar at once, even in the middle of a level: the old body is taken out of the physics world and a new
+  // one is built where the old one was.
+  function swapGoose() {
+    if (!goose || !world) return;
+    const old = goose, c = old.center(), v = old.velocity(), set = new Set([].concat(old.body, old.hips, old.feet, old.neck || []));
+    world.particles = world.particles.filter((p) => !set.has(p)); world.links = world.links.filter((l) => !set.has(l.a) && !set.has(l.b));
+    old.apply = function () {};
+    goose = new Goose(world, c.x, c.y, gooseOpts());
+    goose.facing = old.facing; goose.stamina = old.stamina;
+    for (const q of goose.body.concat(goose.hips, goose.feet, goose.neck)) { q.vx = v.x; q.vy = v.y; }
+    if (level && level.weather) { for (const q of goose.neck) q.wk = 3.5; for (const q of goose.body) q.wk = 0.9; for (const q of goose.feet) q.wk = 0.15; }
+    flyOn = null;
+  }
+  function useAvatar(av) {
+    if (!av || !SKINS.BY_ID[av.skin]) return false;
+    save.skin = av.skin; save.skins[av.skin] = true; save.equip = Object.assign({}, av.equip || {}); save.tint = Object.assign({}, av.tint || {});
+    persist();
+    if (state === 'play') swapGoose(); else if (goose && (state === 'title' || state === 'menu')) { try { loadLevel(state === 'title' ? pick : levelIdx); } catch (e) { /* ignore */ } }
+    try { refreshMenu(); } catch (e) { /* ignore */ }
+    if (window.MP && window.MP.relook) window.MP.relook();
+    try { window.dispatchEvent(new CustomEvent('wobble-avatar', { detail: { skin: save.skin } })); } catch (e) { /* ignore */ }
+    return true;
   }
 
   // ---------------------------------------------------------------- level tick
@@ -421,9 +446,18 @@
     const flap = frz ? false : input.flapQueue;
     input.flapQueue = false;
     if (flap && goose.stamina >= 1 && goose.flapCd <= 0) snd.flap();
-    if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); honkText = 0.7; if (boss && bossPhase === 'fight' && state === 'play') { BOSS.honkClear(boss, goose.head); if (BOSS.honkHits(boss, goose.head, goose.facing)) bossHurt(BOSS.hit(boss)); } }
+    if (input.honkQueue) { input.honkQueue = false; goose.honk(); snd.honk(); if (window.MP && window.MP.honked) window.MP.honked(); honkText = 0.7; if (boss && bossPhase === 'fight' && state === 'play') { BOSS.honkClear(boss, goose.head); if (BOSS.honkHits(boss, goose.head, goose.facing)) bossHurt(BOSS.hit(boss)); } }
     const wasWet = goose.swimming;
-    goose.update(STEP, { move, flap, glide: input.flapHeld, aim });
+    const fly = !!(SKINS.BY_ID[save.skin] || {}).fly;
+    if (fly !== flyOn) { flyOn = fly; if (world) { world.gscale = fly ? 0.0001 : gravK(); world.buoy = fly ? 0 : null; } const np = document.querySelector('#neckpad span'); if (np) np.textContent = fly ? 'FLY' : 'NECK'; }
+    goose.update(STEP, fly ? { move: 0, flap: false, glide: false, aim: null } : { move, flap, glide: input.flapHeld, aim });
+    if (fly && !frz) {   // a flying avatar (the golden jellyfish): the stick (or the arrows / flap button) steers it in any direction
+      const sp = 300 * FX().speed * (has('speed') ? 1.6 : 1); let tx = 0, ty = 0;
+      if (aim) { tx = aim.x * sp; ty = aim.y * sp; } else { tx = move * sp; ty = ((input.flapHeld ? -1 : 0) + (input.kDown ? 1 : 0)) * sp * 0.85; }
+      if (!tx && !ty) ty = Math.sin(levelClock * 3) * 16;
+      const kk = Math.min(1, 4.5 * STEP);
+      for (const q of goose.body.concat(goose.hips, goose.feet, goose.neck || [])) { q.vx += (tx - q.vx) * kk; q.vy += (ty - q.vy) * kk; }
+    }
     if (window.Chungas) window.Chungas.tick(goose, STEP);
     if (FX().fly && input.flapHeld) for (const q of goose.body.concat(goose.feet, goose.neck || [])) { q.vy = Math.max(-420, q.vy - 55); }
     world.step(STEP);
@@ -839,6 +873,7 @@
   function drawGoose(cx, g, equip, skin) {
     equip = equip || {};
     const sk = typeof skin === 'object' && skin ? skin : (SKINS.BY_ID[skin] || SKINS.BY_ID.goose);
+    if (sk.jellyfish && window.Avatars) { window.Avatars.draw(cx, g, sk); return; }
     const c = g.center(), A = g.axes();
     const ang = Math.atan2(A.uy, A.ux), f = g.facing, n = g.neck, nN = n.length;
     const it = (cat) => (equip[cat] ? BY_ID[equip[cat]] : null);
@@ -991,7 +1026,7 @@
     }
     const hx = hf.map((q) => q * 28 * sw), hy = 8 * sh;
     return {
-      facing: 1, flapT: 0, honkT: 0, neck: n, head: n[n.length - 1],
+      key: 'fake', facing: 1, flapT: 0, honkT: 0, neck: n, head: n[n.length - 1],
       hips: hx.map((q) => ({ x: q, y: hy })), feet: hx.map((q) => ({ x: q, y: hy + 30 * lm })),
       center: () => ({ x: 0, y: 0 }), axes: () => ({ ux: 1, uy: 0, vx: 0, vy: 1 }),
     };
@@ -1168,7 +1203,7 @@
   window.addEventListener('pointermove', (e) => { if (mouseDown && e.pointerType === 'mouse') mouseAimFrom(e); });
   window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') { mouseDown = false; input.mouseAim = null; } });
 
-  const keymap = { ArrowLeft: 'kLeft', KeyA: 'kLeft', ArrowRight: 'kRight', KeyD: 'kRight' };
+  const keymap = { ArrowLeft: 'kLeft', KeyA: 'kLeft', ArrowRight: 'kRight', KeyD: 'kRight', ArrowDown: 'kDown', KeyS: 'kDown' };
   const isTyping = (t) => !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   window.addEventListener('keydown', (e) => {
     if (isTyping(e.target)) return;
@@ -1193,7 +1228,7 @@
     if (keymap[e.code]) input[keymap[e.code]] = false;
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') input.flapHeld = false;
   });
-  const releaseAll = () => { input.left = input.right = input.kLeft = input.kRight = input.flapHeld = false; keys.clear(); };
+  const releaseAll = () => { input.left = input.right = input.kLeft = input.kRight = input.kDown = input.flapHeld = false; keys.clear(); };
   window.addEventListener('blur', releaseAll);
   document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); last = performance.now(); });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1453,7 +1488,7 @@
   hold($('btnAtk'), () => { input.atkQueue = true; }, () => {});
   $('mpBtn').addEventListener('click', () => { audio(); window.MP.open(); });
   window.Hide3D.init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
-  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, thumb: avatarThumb, ctl: { toMenu: () => { try { showMenu(); } catch (e) { /* ignore */ } }, applyFx: () => applyFxLive(), honk: () => { input.honkQueue = true; }, win: () => { if (state === 'play') finishLevel(); else toast('Start a level first.', 2); }, respawn: () => { if (goose && state === 'play') respawn(); }, refill: () => { if (goose) goose.stamina = 99; }, killEnemies: () => { enemies = []; }, toEgg: () => { if (goose && level && state === 'play') { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } }, randTp: () => { if (goose && level && state === 'play') { const dx = (Math.random() - 0.5) * 900, dy = -Math.random() * 300; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } } }, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
+  window.Owner.init({ save: () => save, persist, refreshMenu, applyCodes, thumb: avatarThumb, ctl: { useAvatar: (av) => useAvatar(av), toMenu: () => { try { showMenu(); } catch (e) { /* ignore */ } }, applyFx: () => applyFxLive(), honk: () => { input.honkQueue = true; }, win: () => { if (state === 'play') finishLevel(); else toast('Start a level first.', 2); }, respawn: () => { if (goose && state === 'play') respawn(); }, refill: () => { if (goose) goose.stamina = 99; }, killEnemies: () => { enemies = []; }, toEgg: () => { if (goose && level && state === 'play') { const dx = level.egg[0] - 80 - goose.center().x, dy = level.egg[1] - 30 - goose.center().y; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } }, randTp: () => { if (goose && level && state === 'play') { const dx = (Math.random() - 0.5) * 900, dy = -Math.random() * 300; for (const p of goose.body.concat(goose.feet, goose.neck || [])) { p.x += dx; p.y += dy; p.ox = p.x; p.oy = p.y; } } } }, CHEATS, GIFTS, levelCount: () => LEVELS.length, ownAll: () => { for (const k of SKINS.LIST) save.skins[k.id] = true; for (const it of ITEMS) save.owned[it.id] = true; } });
   window.Account.init({ rank: () => (save.cheats.admin ? 'admin' : ''), look: () => ({ skin: save.skin, equip: save.equip, tint: save.tint }), thumb: avatarThumb, where: () => (document.getElementById('h3') && document.getElementById('h3').style.display !== 'none' ? '3D hide' : document.getElementById('crew') && document.getElementById('crew').style.display !== 'none' ? 'Among Us' : document.getElementById('ch') && document.getElementById('ch').style.display !== 'none' ? 'Chameleon' : state === 'play' ? 'level ' + (levelIdx + 1) : state === 'mg' ? 'minigame' : 'menu') });
   $('accBtn').addEventListener('click', () => { audio(); window.Account.open(); });
   if (window.Tweaks) window.Tweaks.onChange = () => { try { applyPhys(); } catch (e) { /* ignore */ } };
@@ -1483,7 +1518,7 @@
     if (window[m] && window[m].init) window[m].init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
     $(b).addEventListener('click', () => { audio(); if (window[m] && window[m].open) window[m].open(); });
   });
-  window.MP.init({ save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
+  window.MP.init({ honk: (sk, vo) => snd.honk(sk, vo), save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
     setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },
     appendMgText: (t) => { $('mgDoneText').textContent += t; } });
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
@@ -1541,7 +1576,8 @@
     lk = lk || {}; const sk = (lk.skin && SKINS.BY_ID[lk.skin]) ? lk.skin : 'goose';
     const cv = document.createElement('canvas'); cv.width = cv.height = px * 2; cv.style.width = cv.style.height = px + 'px';
     const c = cv.getContext('2d'), fg = fakeGoose(0, sk), ft = fitFor(fg, sk), k = Math.min(0.36, 0.36 * ft.s * 1.25) * (px * 2 / 96);
-    c.translate(px + ft.ox * k, px * 1.55); c.scale(k, k);
+    let kk = k, ty = px * 1.55; if ((SKINS.BY_ID[sk] || {}).jellyfish) { kk = px * 2 / 165; ty = px * 0.78; }
+    c.translate(px + (kk === k ? ft.ox * k : 0), ty); c.scale(kk, kk);
     const eq = Object.assign({}, lk.equip || {}); delete eq.skin; if (lk.tint) eq._tint = lk.tint;
     try { drawGoose(c, fg, eq, sk); } catch (e) { /* ignore */ }
     return cv;

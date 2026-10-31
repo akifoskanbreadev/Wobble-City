@@ -141,3 +141,9 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - **3D hide and seek textures**: every object has its own material built into it, not one texture over the screen: wood grain and planks, laid brick, stone blocks and paving, roof tiles, siding, grass blades, clusters of leaves on trees and bushes, sparkling snow and sand. Edges are worn darker, and the geese stay smooth.
 - **Back again**: horizon haze, sunlit ground tops with deeper shade below, a sky gradient and a very subtle per-map light colour in 3D hide and seek, and a warm lamp tint plus darker lower walls and soft shine in the Spin the Bottle tavern.
 - **Meccha Chameleon**: hiders can now keep painting while the seekers are looking (tap 🎨 PAINT, above the whistle button). Changes show up for the others after a moment, online too. Close the panel to walk again; you can't paint once you've been tagged.
+
+## Avatars (owner panel)
+- New **🧑‍🎤 Avatars** tab in the owner panel: save your current look under a name, or pick a preset. Tapping an avatar switches to it **instantly**, even in the middle of a level (the old body is swapped for a new one where you were) and everyone online sees the change at once.
+- **Golden Jellyfish** preset (`js/avatars.js`): no face, a wobbly jelly bell (springs for squash and lean), dangly tentacles that sway and trail behind when it swims, and it **flies** with the stick (the NECK pad turns into FLY; arrows / WASD / flap also work).
+- Its honk is `assets/jelly-honk.mp3`.
+- **Everyone hears everyone's honks**: a honk is sent to the other players (`hk` message) and plays with that player's own honk sound, including the jellyfish one.

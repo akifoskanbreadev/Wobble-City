@@ -244,7 +244,7 @@
       '<div id="ownMsg" style="text-align:center;font-weight:700;min-height:20px;margin-top:6px;white-space:pre-wrap"></div>' +
       '<div class="row" style="margin-top:6px;justify-content:center"><button class="big small-btn ghost" id="ownList">All codes</button><button class="big small-btn ghost" id="ownResign">Lock &amp; sign out</button><button class="big small-btn ghost" id="ownClose">Close</button></div></div>';
     document.body.appendChild(box);
-    const tabs = [['dash', '📊 Overview'], ['players', '👥 Players'], ['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['fun', '🎉 Fun'], ['locks', '🔒 Locks']].concat(head ? [] : [['ban', '⛔ Bans']], [['friend', '🧡 Head admins'], ['mods', '🛡 Moderators'], ['log', '📜 Log']]);
+    const tabs = [['dash', '📊 Overview'], ['players', '👥 Players'], ['tools', '🛠 Tools'], ['troll', '😈 Troll'], ['pranks', '🎭 Pranks'], ['fun', '🎉 Fun'], ['avatars', '🧑‍🎤 Avatars'], ['locks', '🔒 Locks']].concat(head ? [] : [['ban', '⛔ Bans']], [['friend', '🧡 Head admins'], ['mods', '🛡 Moderators'], ['log', '📜 Log']]);
     for (const [id, l] of tabs) { const b = document.createElement('button'); b.className = tab === id ? 'big small-btn' : 'sec'; b.style.cssText = 'font-size:13px;padding:5px 9px'; b.textContent = l; b.addEventListener('click', () => { tab = id; open(mode); }); el('ownTabs').appendChild(b); }
     if (['tools', 'troll', 'pranks', 'fun'].includes(tab)) {
       for (const [v, l] of [['me', 'Just me'], ['sel', 'Selected players (' + sel.size + ')'], ['all', 'Everyone']]) { const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:4px;align-items:center'; const r = document.createElement('input'); r.type = 'radio'; r.name = 'ownwho'; r.checked = who === v; r.addEventListener('change', () => { who = v; el('ownTgt').textContent = v === 'me' ? 'just me' : v === 'all' ? 'EVERYONE' : sel.size + ' selected'; }); lb.append(r, document.createTextNode(l)); el('ownWho').appendChild(lb); }
@@ -338,6 +338,25 @@
         say('🎲 Chaos sent to ' + on.length + ' players!');
       });
       tb(g, '🧹 Stop everything', () => sendSay({ k: 'resetfx' }));
+    } else if (tab === 'avatars') {
+      const sv = A.save(), Av = window.Avatars, same = (a) => a.skin === sv.skin && JSON.stringify(a.equip || {}) === JSON.stringify(sv.equip || {}) && JSON.stringify(a.tint || {}) === JSON.stringify(sv.tint || {});
+      const use = (a) => { try { if (A.ctl.useAvatar(a)) { open(mode); say('✨ Now using ' + a.name); } else say('That avatar is not available.', true); } catch (e) { say('Could not switch: ' + e.message, true); } };
+      const card = (a, del) => {
+        const d = document.createElement('div'); d.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;width:96px;padding:6px 4px;border:3px solid ' + (same(a) ? '#ffb300' : 'rgba(0,0,0,.15)') + ';border-radius:14px;background:rgba(255,255,255,.55);cursor:pointer';
+        try { const th = A.thumb({ skin: a.skin, equip: a.equip, tint: a.tint }, 64); th.style.pointerEvents = 'none'; d.appendChild(th); } catch (e) { /* ignore */ }
+        const l = document.createElement('div'); l.style.cssText = 'font-size:12px;font-weight:700;text-align:center;word-break:break-word'; l.textContent = a.name; d.appendChild(l);
+        const u = document.createElement('div'); u.style.cssText = 'font-size:11px;opacity:.7'; u.textContent = same(a) ? '✓ in use' : 'tap to use'; d.appendChild(u);
+        if (del) { const x = document.createElement('button'); x.className = 'sec'; x.textContent = '🗑'; x.title = 'Delete'; x.style.cssText = 'position:absolute;top:2px;right:2px;font-size:12px;padding:1px 5px'; x.addEventListener('click', (e) => { e.stopPropagation(); sv.avatars = (sv.avatars || []).filter((q) => q.id !== a.id); A.persist(); open(mode); }); d.appendChild(x); }
+        d.addEventListener('click', () => use(a)); return d;
+      };
+      h4('Presets'); let g = grid(); for (const p of (Av ? Av.PRESETS : [])) g.appendChild(card(p, false));
+      hint('The golden jellyfish has no face, wobbles like jelly, has dangly tentacles that sway, and flies: steer with the stick (or arrows / WASD). Its honk is the sound you picked.');
+      h4('Save your current look'); const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;align-items:center'; const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 18; inp.placeholder = 'Name this avatar'; inp.style.cssText = 'flex:1;font-size:14px;padding:6px'; row.appendChild(inp);
+      const sb = document.createElement('button'); sb.className = 'big small-btn'; sb.textContent = '💾 Save'; sb.addEventListener('click', () => {
+        sv.avatars = sv.avatars || []; if (sv.avatars.length >= 24) return say('You can keep up to 24 avatars. Delete one first.', true);
+        const nm = (inp.value || '').trim() || 'Avatar ' + (sv.avatars.length + 1); sv.avatars.push({ id: 'a' + Date.now().toString(36), name: nm, skin: sv.skin, equip: Object.assign({}, sv.equip), tint: Object.assign({}, sv.tint || {}) }); A.persist(); open(mode); say('💾 Saved "' + nm + '"');
+      }); row.appendChild(sb); body.appendChild(row);
+      h4('Your saved avatars'); g = grid(); const list = sv.avatars || []; if (!list.length) hint('Nothing saved yet. Dress your goose how you like, then save it here.'); for (const a of list) g.appendChild(card(a, true));
     } else if (tab === 'pranks') {
       const grp = {}; for (const p of root.Pranks.LIST) (grp[p.group] = grp[p.group] || []).push(p);
       for (const gname of Object.keys(grp)) { h4(gname); const g = grid(); for (const p of grp[gname]) tb(g, p.label, async () => { if (who === 'me') close(); await sendSay({ k: 'prank', id: p.id }); }); }

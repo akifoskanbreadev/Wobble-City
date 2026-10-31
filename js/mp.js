@@ -125,6 +125,8 @@
       case 'welcome': myId = m.id; isHost = false; connected = true; ui(); break;
       case 'busy': busyMsg = m.why; break;
       case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {}, ready: false }; sendRoster(); } break;
+      case 'look': if (isHost && roster[from]) { roster[from].skin = m.skin; roster[from].equip = m.equip || {}; sendRoster(); } break;
+      case 'hk': { if (isHost) { m.id = from; toAll(m, from); } const r = roster[m.id]; if (m.id !== myId && api && api.honk) api.honk(r && r.skin, r && r.equip ? r.equip.voice || null : null); break; }
       case 'ready': if (isHost && roster[from]) { roster[from].ready = !!m.v; sendRoster(); } break;
       case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {}, ready: !!r.ready }; }); if (m.sel) sel = m.sel; for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
       case 'chat': if (isHost) { m.id = from; toAll(m, from); } chatIn(m); break;
@@ -143,6 +145,11 @@
       default: break;
     }
   }
+  function relook() {   // I changed avatar: tell everyone, so they see and hear the new one at once
+    if (!connected || !api) return;
+    if (isHost) { roster[0] = Object.assign(roster[0] || {}, mine()); sendRoster(); } else toHost({ t: 'look', skin: api.save().skin, equip: mine().equip });
+  }
+  function honked() { if (connected) broadcast({ t: 'hk' }); }
   function setPose(m) {
     if (m.id === myId) return;
     const t = { c: m.c, n: m.n, hp: m.hp, ft: m.ft, f: m.f, fl: m.fl, ho: m.ho, a: m.a };
@@ -383,7 +390,7 @@
         if (M.mode === 'hide' && iSeek && !M.seekers.includes(id)) show = M.phase !== 'hide' && !inBush(lv, g.c[0], g.c[1]) && Math.hypot(g.c[0] - (api.goose().center().x), g.c[1] - (api.goose().center().y)) < 420;
         if (!show) continue;
         const o = (p) => ({ x: p[0], y: p[1] }), neck = g.n.map(o), r = roster[id] || { skin: 'goose', equip: {} };
-        const fake = { facing: g.f, flapT: g.fl, honkT: g.ho, neck, head: neck[neck.length - 1], hips: g.hp.map(o), feet: g.ft.map(o), center: () => ({ x: g.c[0], y: g.c[1] }), axes: () => ({ ux: g.a[0], uy: g.a[1], vx: g.a[2], vy: g.a[3] }) };
+        const fake = { key: 'p' + id, facing: g.f, flapT: g.fl, honkT: g.ho, neck, head: neck[neck.length - 1], hips: g.hp.map(o), feet: g.ft.map(o), center: () => ({ x: g.c[0], y: g.c[1] }), axes: () => ({ ux: g.a[0], uy: g.a[1], vx: g.a[2], vy: g.a[3] }) };
         ctx.save(); ctx.globalAlpha = M.mode === 'race' ? 0.8 : 1; api.drawGoose(ctx, fake, r.equip, r.skin); ctx.restore();
         ctx.save(); ctx.font = '800 14px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2b2118'; ctx.lineWidth = 4;
         const label = 'P' + (id + 1) + (M.mode === 'tag' && M.it === id ? ' · IT!' : M.mode === 'hide' && M.seekers.includes(id) ? ' · 🔍' : ''); const y = neck[neck.length - 1].y - 26;
@@ -520,7 +527,7 @@
   }
 
   const peersList = () => Object.keys(ghosts).map(Number).filter((id) => id !== myId && M.ids.includes(id)).map((id) => { const t = ghosts[id].cur || ghosts[id].tgt, n = t.n || []; return { id, c: t.c, hd: n.length ? n[n.length - 1] : t.c, f: t.f }; });
-  root.MP = { chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
+  root.MP = { relook, honked, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
               bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
               peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, arenaQuick, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };
