@@ -199,7 +199,6 @@
   }
 
   const add = (o) => MG.list.push(Object.assign({ theme: 'meadow', deco: 'farm' }, o));
-  add({ id: 'm7snake', name: 'Goose Snake', icon: '🐍', desc: 'Guide the goose train to the bread without crashing.', theme: 'meadow', fmt: (s) => s + ' bread', reward: (s) => s * 3, create: createSnake });
   add({ id: 'm7slide', name: 'Slide Puzzle', icon: '🧩', desc: 'Slide the tiles into order using as few moves as you can.', theme: 'candy', fmt: (s) => s + ' pts', reward: (s) => Math.floor(s / 4), create: createSlide });
   add({ id: 'm7fish', name: 'Fish Drop', icon: '🎣', desc: 'Time your hook to catch fish. The deep ones are worth the most.', theme: 'ocean', fmt: (s) => s + ' pts', reward: (s) => s * 2, create: createFish });
   add({ id: 'm7toss', name: 'Egg Toss', icon: '🥚', desc: 'Throw eggs into the basket. Mind the wind.', theme: 'sky', fmt: (s) => s + ' pts', reward: (s) => s * 2, create: createToss });

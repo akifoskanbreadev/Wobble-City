@@ -267,7 +267,7 @@
     place();
     const turn = (d) => { const last = q.length ? q[q.length - 1] : dir; if (d[0] === -last[0] && d[1] === -last[1]) return; if (q.length < 3) q.push(d); };
     const rel = (s) => { const last = q.length ? q[q.length - 1] : dir; turn(s < 0 ? [last[1], -last[0]] : [-last[1], last[0]]); };
-    host.controls([{ label: '↶', side: 'L', down: () => rel(-1) }, { label: '↷', side: 'R', big: true, down: () => rel(1) }]);
+    host.controls([{ label: '◀', side: 'L', big: true, down: () => turn([-1, 0]) }, { label: '▶', side: 'L', big: true, down: () => turn([1, 0]) }, { label: '▲', side: 'R', big: true, down: () => turn([0, -1]) }, { label: '▼', side: 'R', big: true, down: () => turn([0, 1]) }]);   // four arrows
     return {
       key(code, down) {
         if (!down) return code.startsWith('Arrow') || 'WASD'.includes(code.slice(3));

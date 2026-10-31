@@ -45,7 +45,7 @@
     ['mgCatch', '🧺', 'Safe Hands', 'Score 40 in Bread Catch.', (s) => best(s, 'm5catch'), 40, 40],
     ['mgSimon', '🎵', 'Good Ear', 'Score 80 in Simon Honk.', (s) => best(s, 'm5simon'), 80, 40],
     ['mgStack', '🧱', 'Skyscraper', 'Stack 20 blocks in Block Stack.', (s) => best(s, 'm5stack'), 20, 50],
-    ['mgDraw', '⚡', 'Fastest Beak', 'Score 350 in Quick Draw.', (s) => best(s, 'm5draw'), 350, 50],
+    ['mgDraw', '⚡', 'Fastest Beak', 'Score 350 in Quick Draw.', (s) => best(s, 'draw'), 350, 50],
     ['mgDodge', '🚀', 'Rock Dancer', 'Survive 30 s in Asteroid Dodge.', (s) => best(s, 'm6dodge'), 300, 50],
     ['mgBal', '⚖️', 'Steady Beak', 'Balance for 40 s in Wobble Balance.', (s) => best(s, 'm6balance'), 400, 60],
     ['mgMath', '🔢', 'Goose Genius', 'Get 20 right in Quick Maths.', (s) => best(s, 'm6maths'), 100, 50],

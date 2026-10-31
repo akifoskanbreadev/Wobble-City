@@ -252,5 +252,4 @@
   add({ id: 'm5catch', name: 'Bread Catch', icon: '🧺', desc: 'Slide the goose to catch falling bread. Rocks cost a life.', theme: 'sky', fmt: (s) => s + ' pts', reward: (s) => s * 2, create: createCatch });
   add({ id: 'm5simon', name: 'Simon Honk', icon: '🎵', desc: 'Watch the pattern, then copy it. It gets longer every round.', theme: 'night', fmt: (s) => s + ' pts', reward: (s) => s, create: createSimon });
   add({ id: 'm5stack', name: 'Block Stack', icon: '🧱', desc: 'Drop sliding blocks to build the tallest tower you can.', theme: 'sunset', fmt: (s) => s + ' blocks', reward: (s) => s * 3, create: createStack });
-  add({ id: 'm5draw', name: 'Quick Draw', icon: '⚡', desc: 'Five rounds: tap the instant the screen turns green. Too early scores nothing.', theme: 'desert', fmt: (s) => s + ' pts', reward: (s) => Math.floor(s / 3), create: createDraw });
 })(window);
