@@ -582,7 +582,7 @@
     for (let i = i0; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i1][0], bottom); ctx.closePath(); ctx.fill();
     if (window.Light) { const L = window.Light.get(level.theme, level.weather); ctx.save(); ctx.clip(); const lg = ctx.createLinearGradient(0, miny, 0, miny + 90); lg.addColorStop(0, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',' + (0.1 + L.k * 0.3) + ')'); lg.addColorStop(1, 'rgba(' + (L.col[0] | 0) + ',' + (L.col[1] | 0) + ',' + (L.col[2] | 0) + ',0)'); ctx.fillStyle = lg; ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], 130); const sg = ctx.createLinearGradient(0, miny + 180, 0, miny + 520); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = sg; ctx.fillRect(pts[i0][0], miny + 180, pts[i1][0] - pts[i0][0], bottom - miny); ctx.restore(); }   // sunlit top edge, deeper shade below
-    if (window.Light) { ctx.save(); ctx.clip(); ctx.globalAlpha = ice ? 0.18 : 0.42; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], bottom - miny + 20); ctx.globalAlpha = 1; ctx.restore(); }   // speckled earth
+    if (window.Light) { ctx.save(); ctx.clip(); ctx.globalAlpha = ice ? 0.18 : 0.42; ctx.fillStyle = window.Light.pat(ctx, 'dirt', 160); ctx.fillRect(pts[i0][0], miny - 20, pts[i1][0] - pts[i0][0], bottom - miny + 20); ctx.globalAlpha = 1; ctx.restore(); }   // speckled earth
     const trace = (dy) => { ctx.beginPath(); ctx.moveTo(pts[i0][0], pts[i0][1] + dy); for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i][0], pts[i][1] + dy); };
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
     window.Decor.terrainDetail(ctx, pts, i0, i1, level.theme, ice, camX, VW, clock);
@@ -592,14 +592,19 @@
     if (!ice) grassBlades(pts, i0, i1);
   }
   // little blades of grass along the top of the ground, swaying, in a light and a dark shade
-  function grassBlades(pts, i0, i1) {
-    ctx.lineCap = 'round';
-    for (let i = i0; i < i1; i++) {
-      const x0 = pts[i][0], y0 = pts[i][1], x1 = pts[i + 1][0], y1 = pts[i + 1][1], dx = x1 - x0; if (dx < 1) continue;
-      for (let x = x0 + 3; x < x1; x += 9) {
-        const q = Math.sin(x * 12.9898) * 43758.5453, r = q - Math.floor(q), y = y0 + (y1 - y0) * ((x - x0) / dx), hgt = 5 + r * 9, sw = Math.sin(clock * 1.8 + x * 0.05) * 2.2 + (r - 0.5) * 3;
-        ctx.strokeStyle = r > 0.5 ? th.grass2 : th.grass; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.quadraticCurveTo(x + sw * 0.4, y - hgt * 0.6, x + sw, y - hgt); ctx.stroke();
+  function grassBlades(pts, i0, i1) {   // two batched paths (light and dark blades) instead of a stroke per blade
+    ctx.lineCap = 'round'; ctx.lineWidth = 1.6;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.strokeStyle = pass ? th.grass2 : th.grass; ctx.beginPath();
+      for (let i = i0; i < i1; i++) {
+        const x0 = pts[i][0], y0 = pts[i][1], x1 = pts[i + 1][0], y1 = pts[i + 1][1], dx = x1 - x0; if (dx < 1) continue;
+        for (let x = x0 + 3; x < x1; x += 9) {
+          const q = Math.sin(x * 12.9898) * 43758.5453, r = q - Math.floor(q); if ((r > 0.5) !== (pass === 1)) continue;
+          const y = y0 + (y1 - y0) * ((x - x0) / dx), hgt = 5 + r * 9, sw = Math.sin(clock * 1.8 + x * 0.05) * 2.2 + (r - 0.5) * 3;
+          ctx.moveTo(x, y + 2); ctx.quadraticCurveTo(x + sw * 0.4, y - hgt * 0.6, x + sw, y - hgt);
+        }
       }
+      ctx.stroke();
     }
     ctx.lineCap = 'butt';
   }
@@ -635,7 +640,7 @@
         for (let x = s.x + (r % 2 ? bw / 2 : 0); x < s.x + s.w; x += bw) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke(); }
       }
       ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(s.x, s.y, 5, s.h);
-      if (window.Light) { ctx.globalAlpha = 0.4; ctx.fillStyle = ctx.createPattern(window.Light.tex('dirt', 160), 'repeat'); ctx.fillRect(s.x, s.y, s.w, s.h); ctx.globalAlpha = 1; }
+      if (window.Light) { ctx.globalAlpha = 0.4; ctx.fillStyle = window.Light.pat(ctx, 'dirt', 160); ctx.fillRect(s.x, s.y, s.w, s.h); ctx.globalAlpha = 1; }
       ctx.restore();
     }
     ctx.fillStyle = th.grass; ctx.fillRect(s.x, s.y, s.w, 12);
@@ -1035,7 +1040,7 @@
       drawWorld();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       drawWeather();
-      if (window.Light && level) { try { window.Light.post2d(ctx, canvas.width, canvas.height, level.theme, level.weather, clock); } catch (e) { /* ignore */ } }
+      if (window.Light && level) { try { window.Light.post2d(ctx, canvas.width, canvas.height, level.theme, level.weather); } catch (e) { /* ignore */ } }
       if (has('disco')) { ctx.globalCompositeOperation = 'overlay'; ctx.fillStyle = 'hsl(' + ((performance.now() / 8) % 360) + ',90%,55%)'; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
       if (window.MP) window.MP.drawOverlay(ctx, canvas.width, canvas.height);
       drawAimHint();

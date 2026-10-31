@@ -59,32 +59,33 @@
     return (texCache[k] = cv);
   }
   const motes = []; for (let i = 0; i < 38; i++) motes.push({ x: Math.random(), y: Math.random(), s: 0.4 + Math.random(), p: Math.random() * 6 });
-  function post2d(c, W, H, key, wx, t) {
-    const L = get(key, wx), s = Math.max(W, H), r = L.col[0] | 0, g = L.col[1] | 0, b = L.col[2] | 0, sx = W * 0.8, sy = H * 0.2;
-    c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-    // the soft light: a tinted wash, strongest near the sun
-    c.globalCompositeOperation = 'soft-light';
-    let gr = c.createRadialGradient(sx, sy, 0, sx, sy, s * 1.05);
-    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + Math.min(1, L.k * 0.25) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',' + L.k * 0.084 + ')');
-    c.fillStyle = gr; c.fillRect(0, 0, W, H);
-    // sun bloom
-    c.globalCompositeOperation = 'screen';
-    gr = c.createRadialGradient(sx, sy, 0, sx, sy, s * 0.55);
-    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + (0.044 * L.k + 0.007 * Math.sin(t * 0.7)) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
-    c.fillStyle = gr; c.fillRect(0, 0, W, H);
-    // dim the whole scene a little where the light is weak, and tint the corners
-    c.globalCompositeOperation = 'source-over';
-    const v = L.vig, dimA = Math.max(0, (1 - L.dim) * 0.45);
-    gr = c.createRadialGradient(W / 2, H / 2, s * 0.32, W / 2, H / 2, s * 0.85);
-    gr.addColorStop(0, 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + dimA + ')'); gr.addColorStop(1, 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + (0.34 + dimA) + ')');
-    c.fillStyle = gr; c.fillRect(0, 0, W, H);
-    // slanting shafts of light from the sun (not in blizzards and storms, where the sky is closed)
-    if (!(wx && (wx.whiteout || wx.storm)) && key !== 'dungeon' && key !== 'cavern' && key !== 'space') {
-      c.globalCompositeOperation = 'screen';
-      for (let i = 0; i < 4; i++) { const a0 = 0.9 + i * 0.28 + Math.sin(t * 0.15 + i) * 0.03, wd = 0.07 + 0.02 * (i % 2), x2 = sx + Math.cos(a0) * s * 1.2, y2 = sy + Math.sin(a0) * s * 1.2, x3 = sx + Math.cos(a0 + wd) * s * 1.2, y3 = sy + Math.sin(a0 + wd) * s * 1.2; const rg = c.createLinearGradient(sx, sy, x2, y2); rg.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + 0.02 * L.k + ')'); rg.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(sx, sy); c.lineTo(x2, y2); c.lineTo(x3, y3); c.closePath(); c.fill(); }
+  // The overlay is drawn ONCE into two small off-screen layers (rebuilt only when the screen size, theme or weather changes),
+  // then stamped on with one cheap drawImage each. Re-drawing big gradients every frame made the game stutter.
+  const lay = { key: '', soft: null, scr: null, vig: null };
+  function build(W, H, key, wx) {
+    const L = get(key, wx), s = Math.max(W, H), r = L.col[0] | 0, g = L.col[1] | 0, b = L.col[2] | 0, sx = W * 0.8, sy = H * 0.2, mk = () => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; return cv; };
+    const A = mk(), B = mk(), C = mk(); let c = A.getContext('2d'), gr = c.createRadialGradient(sx, sy, 0, sx, sy, s * 1.05);
+    gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + Math.min(1, L.k * 0.25) + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',' + L.k * 0.084 + ')'); c.fillStyle = gr; c.fillRect(0, 0, W, H);   // soft-light wash
+    c = B.getContext('2d'); gr = c.createRadialGradient(sx, sy, 0, sx, sy, s * 0.55); gr.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + 0.044 * L.k + ')'); gr.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)'); c.fillStyle = gr; c.fillRect(0, 0, W, H);   // sun bloom
+    if (!(wx && (wx.whiteout || wx.storm)) && key !== 'dungeon' && key !== 'cavern' && key !== 'space') {   // slanting shafts of light (not in blizzards and storms)
+      for (let i = 0; i < 4; i++) { const a0 = 0.9 + i * 0.28, wd = 0.07 + 0.02 * (i % 2), x2 = sx + Math.cos(a0) * s * 1.2, y2 = sy + Math.sin(a0) * s * 1.2, x3 = sx + Math.cos(a0 + wd) * s * 1.2, y3 = sy + Math.sin(a0 + wd) * s * 1.2; const rg = c.createLinearGradient(sx, sy, x2, y2); rg.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + 0.02 * L.k + ')'); rg.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(sx, sy); c.lineTo(x2, y2); c.lineTo(x3, y3); c.closePath(); c.fill(); }
     }
+    c = C.getContext('2d'); const v = L.vig, dimA = Math.max(0, (1 - L.dim) * 0.45); gr = c.createRadialGradient(W / 2, H / 2, s * 0.32, W / 2, H / 2, s * 0.85);
+    gr.addColorStop(0, 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + dimA + ')'); gr.addColorStop(1, 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + (0.34 + dimA) + ')'); c.fillStyle = gr; c.fillRect(0, 0, W, H);   // corner tint
+    lay.soft = A; lay.scr = B; lay.vig = C;
+  }
+  function post2d(c, W, H, key, wx) {
+    W = Math.round(W); H = Math.round(H); const k = W + 'x' + H + key + (wx ? (wx.whiteout ? 'w' : '') + (wx.storm ? 's' : '') + (wx.snow ? 'n' : '') + (wx.rain ? 'r' : '') : '');
+    if (lay.key !== k) { lay.key = k; build(W, H, key, wx); }
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'soft-light'; c.drawImage(lay.soft, 0, 0);
+    c.globalCompositeOperation = 'screen'; c.drawImage(lay.scr, 0, 0);
+    c.globalCompositeOperation = 'source-over'; c.drawImage(lay.vig, 0, 0);
     c.restore();
   }
+  // a cached fill pattern for a given context (creating a pattern every frame for every platform is slow)
+  const patCache = new WeakMap();
+  function pat(c, kind, size) { let m = patCache.get(c); if (!m) { m = {}; patCache.set(c, m); } const k = kind + size; return m[k] || (m[k] = c.createPattern(tex(kind, size), 'repeat')); }
   // 3D: the colour of the sun/lamp, a tinted ambient and a direction (low and warm for dusk, high for noon)
   function apply3d(R, key, o) {
     o = o || {}; const L = get(key, null), kk = o.k != null ? o.k : L.k, dim = Math.min(1, o.dim != null ? o.dim : L.dim), c = o.col || L.col, cap = (v) => Math.min(0.92, v);
@@ -94,5 +95,5 @@
   }
   // a gentle colour multiplier for the 3D renderer: amt 0.3 = a subtle hint of the map's light colour
   function tint3d(key, amt) { const c = get(key, null).col, a = amt == null ? 0.3 : amt, av = (c[0] + c[1] + c[2]) / 765; return c.map((v) => 1 + (v / 255 - av) * a * 2); }
-  root.Light = { tint3d, get, post2d, apply3d, tex, TABLE: T };
+  root.Light = { pat, tint3d, get, post2d, apply3d, tex, TABLE: T };
 })(typeof window !== 'undefined' ? window : globalThis);
