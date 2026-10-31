@@ -288,7 +288,7 @@
     const p = pByNet(from); if (!G || !p) return;
     switch (m.k) {
       case 'pos': if (p.role === 'hider' && !p.tagged && (G.ph === 'prep' || G.ph === 'seek') || p.role === 'seeker' && G.ph === 'seek') { p.x = clamp(+m.x || p.x, 40, WW - 40); p.face = m.f < 0 ? -1 : 1; if (POSES.includes(m.pose)) p.pose = m.pose; p.mv = !!m.mv; p.invis = !!m.iv; } break;
-      case 'paint': if (G.ph === 'prep' && p.role === 'hider') { loadPaint(p, m.img); } break;
+      case 'paint': if ((G.ph === 'prep' || G.ph === 'seek') && p.role === 'hider' && !p.tagged) { loadPaint(p, m.img); if (G.ph === 'seek') toNet({ k: 'paintu', i: p.i, img: m.img }); } break;
       case 'ready': if (p.role === 'hider') p.ready = true; break;
       case 'tag': hostTag(p, +m.wx); break;
       case 'ping': hostPing(p); break;
@@ -298,6 +298,7 @@
   }
   function fromHost(m) {
     switch (m.k) {
+      case 'paintu': if (G && G.ps[m.i] && G.ps[m.i] !== me()) loadPaint(G.ps[m.i], m.img); break;
       case 'start': {
         const first = !G || G.round !== m.round || !G.online; const keep = G && G.online ? G : null;
         const ps = m.ps.map((d, i) => { const p = newPlayer(i, { name: d.n, net: d.net, bot: !!d.bot, role: d.role, x: d.x, tot: d.tot }); return p; });
@@ -324,7 +325,7 @@
 
   // ================================================================== host rules
   function startSeek() {
-    const g = G; g.ph = 'seek'; g.t = seekT(); g.el = 0; g.ui = g.ui === 'pick' ? 'walk' : g.ui;
+    const g = G; g.ph = 'seek'; g.t = seekT(); g.el = 0; g.ui = 'walk';
     for (const p of g.ps) { if (p.role === 'hider') { if (!p.P && p.bot) autoPaint(p, g.stage, 0.6); p.ready = true; p.ai = null; } else p.ai = { mode: 'sweep', tx: rnd(400, WW - 200), wait: 0, target: null, react: 0, look: 0 }; }
     const paints = {}; if (g.online) for (const p of g.ps) if (p.role === 'hider') paints[p.i] = p.P ? p.P.toDataURL('image/png') : null;
     if (g.online) toNet({ k: 'seek', paints }, true);
@@ -430,7 +431,7 @@
     const tcam = clamp(m.x - W / 2 + m.face * 90, 0, WW - W); g.cam += (tcam - g.cam) * Math.min(1, dt * 5);
     if (g.ph === 'prep' && g.t <= 0 && !g.host && !m.sent && m.role === 'hider') sendPaint(true);
     if (g.ph === 'prep' && !g.host && g.t < 1.2 && m.role === 'hider' && !m.sent) sendPaint(true);
-    if (g.ui === 'paint' && m.role === 'hider' && g.ph !== 'prep') { g.ui = 'walk'; layoutUI(); }
+    if (g.ui === 'paint' && m.role === 'hider' && (m.tagged || g.ph === 'end')) { g.ui = 'walk'; layoutUI(); }
     if (m.role === 'hider' && (g.ph === 'prep' || g.ph === 'seek')) { g.myBT = (g.myBT || 0) - dt; if (g.myBT <= 0) { g.myBT = 0.5; if (m.sprDirty || !m.spr) buildSpr(m); if (!g.host || true) m.blend = blendOf(m.spr, g.stage, m.x, m.pose, m.face); } }
   }
   function sendPaint(final) { const m = me(); if (!G || G.host || !room) return; room.send({ k: 'paint', img: m.P ? m.P.toDataURL('image/png') : null }); if (final) { m.sent = true; room.send({ k: 'ready' }); } }
@@ -473,7 +474,8 @@
   function bindPaint() {
     const e = $('chPcv'), pos = (ev) => { const r = e.getBoundingClientRect(); return [(ev.clientX - r.left) / r.width * PW, (ev.clientY - r.top) / r.height * PH]; };
     e.addEventListener('pointerdown', (ev) => {
-      ev.preventDefault(); const m = me(); if (!m || m.role !== 'hider' || G.ph !== 'prep') return; const [x, y] = pos(ev);
+      ev.preventDefault(); const m = me(); if (!m || m.role !== 'hider' || m.tagged || (G.ph !== 'prep' && G.ph !== 'seek')) return; const [x, y] = pos(ev);   // you can keep painting while the seekers are looking
+      
       if (paintSt.tool === 'bucket') return bucket(x, y); if (paintSt.tool === 'dropper') { dropper(x, y); return; }
       pushUndo(m); paintSt.drawing = true; paintSt.lx = x; paintSt.ly = y; try { e.setPointerCapture(ev.pointerId); } catch (x2) { /* ignore */ } paintAt(x, y, x, y);
     });
@@ -496,7 +498,7 @@
   }
   let meterT = 0, sendT = 0;
   const updateMeterSoon = () => { clearTimeout(meterT); meterT = setTimeout(() => { const m = me(); if (!m || !G) return; if (m.sprDirty || !m.spr) buildSpr(m); m.blend = blendOf(m.spr, G.stage, m.x, m.pose, m.face); updateMeter(); }, 60); sendPaintSoon(); };
-  const sendPaintSoon = () => { clearTimeout(sendT); sendT = setTimeout(() => { if (G && !G.host && room && G.ph === 'prep') sendPaint(false); }, 900); };
+  const sendPaintSoon = () => { clearTimeout(sendT); sendT = setTimeout(() => { if (!G || !room) return; if (G.ph === 'prep' && !G.host) sendPaint(false); else if (G.ph === 'seek') { const m = me(); if (!m || !m.P || m.role !== 'hider' || m.tagged) return; const img = m.P.toDataURL('image/png'); if (G.host) toNet({ k: 'paintu', i: m.i, img }); else room.send({ k: 'paint', img }); } }, 600); };
   function doReady() {
     const m = me(); if (!G || !m || m.role !== 'hider' || G.ph !== 'prep') return; ensureP(m); m.ready = true; G.ui = 'walk';
     if (!G.host) { sendPaint(true); } toast('Ready! Waiting for the others…'); layoutUI();
@@ -597,7 +599,7 @@
       if (n === 1) tagLocal(m.x + m.face * 45); else if (n === 2) { if (G.host) hostPing(m); else room.send({ k: 'ping' }); }
     } else {
       if (n === 2 && (G.ph === 'prep' || G.ph === 'seek') && !m.tagged) { m.pose = POSES[(POSES.indexOf(m.pose) + 1) % 3]; m.sprDirty = m.sprDirty; updateMeterSoon(); layoutUI(); beep(300, 0.05); }
-      else if (n === 3 && G.ph === 'prep') { G.ui = G.ui === 'paint' ? 'walk' : 'paint'; layoutUI(); if (G.ui === 'paint') { redrawEditor(); refreshAround(); updateMeter(); } }
+      else if (n === 3 && (G.ph === 'prep' || G.ph === 'seek') && !m.tagged) { G.ui = G.ui === 'paint' ? 'walk' : 'paint'; layoutUI(); if (G.ui === 'paint') { redrawEditor(); refreshAround(); updateMeter(); } }
       else if (n === 4 || (n === 1 && G.ph === 'prep')) doReady();
     }
   }
@@ -659,10 +661,10 @@
     const walk = play && g.ui !== 'paint' && !(seeker && g.ph === 'prep');
     sh('chL', walk && (seeker ? g.ph === 'seek' : hider), '◀'); sh('chR', walk && (seeker ? g.ph === 'seek' : hider), '▶'); sh('chExit', !!g && !g.over || !!g);
     sh('chA1', seeker && g.ph === 'seek', 'TAG<br>(Space)'); sh('chA2', (seeker && g.ph === 'seek') || (hider && g.ui !== 'paint'), seeker ? '🔔 PING<br>(E)' : (m ? PSH[m.pose].n + '<br>(Q)' : ''));
-    sh('chA3', hider && g.ph === 'prep' && g.ui !== 'pick', '🎨<br>PAINT'); sh('chA4', hider && g.ph === 'prep' && g.ui !== 'paint' && g.ui !== 'pick', '✔<br>READY');
+    sh('chA3', hider && (g.ph === 'prep' || g.ph === 'seek') && g.ui !== 'pick', '🎨<br>PAINT'); $('chA3').style.bottom = g && g.ph === 'seek' ? '198px' : '';   // above the whistle button while seeking sh('chA4', hider && g.ph === 'prep' && g.ui !== 'paint' && g.ui !== 'pick', '✔<br>READY');
     if (hider && g.ph === 'prep' && g.ui !== 'paint') { $('chA1').style.display = 'none'; }
     dom.title.style.display = G ? 'none' : 'flex'; dom.end.style.display = g && g.over ? 'flex' : 'none'; dom.pause.style.display = paused ? 'flex' : 'none';
-    dom.paint.style.display = g && g.ui === 'paint' && hider && g.ph === 'prep' ? 'flex' : 'none';
+    dom.paint.style.display = g && g.ui === 'paint' && hider && (g.ph === 'prep' || g.ph === 'seek') ? 'flex' : 'none'; { const rb = $('chPReady'); if (rb) rb.style.display = g && g.ph === 'seek' ? 'none' : ''; }
     if (dom.paint.style.display === 'flex') { redrawEditor(); refreshAround(); updateMeter(); $('chPoseP').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.pose === m.pose)); }
     sh('chA5', play && m && g.ph === 'seek' && !m.tagged, '🎵<br>WHISTLE<br>(W)'); buildOwn();
     $('chA1').style.fontSize = '14px';
