@@ -165,9 +165,9 @@
       destroy() { o1(); o2(); },
       key(code, down) { if (code === 'ArrowLeft' || code === 'KeyA') { kL = down ? 1 : 0; return true; } if (code === 'ArrowRight' || code === 'KeyD') { kR = down ? 1 : 0; return true; } return false; },
       update(dt) {
-        if (over) return; t += dt; const input = (kR - kL) || tilt, push = Math.sin(t * 1.3) * 0.5 + Math.sin(t * 2.9 + 1) * 0.35 + (t * 0.01) * Math.sin(t * 5);
-        av += (input * 2.2 + push * (0.8 + t * 0.03) - ang * 1.5 - av * 1.2) * dt; ang = clamp(ang + av * dt, -0.6, 0.6);
-        bv += Math.sin(ang) * 520 * dt - bv * 0.4 * dt; bx += bv * dt;
+        if (over) return; t += dt; const input = (kR - kL) || tilt, push = Math.sin(t * 1.1) * 0.4 + Math.sin(t * 2.3 + 1) * 0.25;
+        av += (input * 14 + push * (0.6 + Math.min(1.2, t * 0.012)) * 9 - ang * 6 - av * 5) * dt; ang = clamp(ang + av * dt, -0.5, 0.5);
+        bv += Math.sin(ang) * 520 * dt - bv * 0.9 * dt; bx += bv * dt;
         if (Math.abs(bx) > 300) { over = true; host.snd.ouch(); host.end(Math.floor(t * 10), 'You balanced for ' + t.toFixed(1) + ' seconds'); return; }
         host.hud({ title: 'Wobble Balance', text: t.toFixed(1) + ' s' });
       },
