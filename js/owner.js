@@ -340,7 +340,7 @@
       tb(g, '🧹 Stop everything', () => sendSay({ k: 'resetfx' }));
     } else if (tab === 'avatars') {
       const sv = A.save(), Av = window.Avatars, same = (a) => a.skin === sv.skin && JSON.stringify(a.equip || {}) === JSON.stringify(sv.equip || {}) && JSON.stringify(a.tint || {}) === JSON.stringify(sv.tint || {});
-      const use = (a) => { try { if (A.ctl.useAvatar(a)) { open(mode); say('✨ Now using ' + a.name); } else say('That avatar is not available.', true); } catch (e) { say('Could not switch: ' + e.message, true); } };
+      const use = (a) => { if (head && a.skin === 'golden_jelly') return say('The golden jellyfish is owner only.', true); try { if (A.ctl.useAvatar(a)) { open(mode); say('✨ Now using ' + a.name); } else say('That avatar is not available.', true); } catch (e) { say('Could not switch: ' + e.message, true); } };
       const card = (a, del) => {
         const d = document.createElement('div'); d.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;width:96px;padding:6px 4px;border:3px solid ' + (same(a) ? '#ffb300' : 'rgba(0,0,0,.15)') + ';border-radius:14px;background:rgba(255,255,255,.55);cursor:pointer';
         try { const th = A.thumb({ skin: a.skin, equip: a.equip, tint: a.tint }, 64); th.style.pointerEvents = 'none'; d.appendChild(th); } catch (e) { /* ignore */ }
@@ -349,14 +349,14 @@
         if (del) { const x = document.createElement('button'); x.className = 'sec'; x.textContent = '🗑'; x.title = 'Delete'; x.style.cssText = 'position:absolute;top:2px;right:2px;font-size:12px;padding:1px 5px'; x.addEventListener('click', (e) => { e.stopPropagation(); sv.avatars = (sv.avatars || []).filter((q) => q.id !== a.id); A.persist(); open(mode); }); d.appendChild(x); }
         d.addEventListener('click', () => use(a)); return d;
       };
-      h4('Presets'); let g = grid(); for (const p of (Av ? Av.PRESETS : [])) g.appendChild(card(p, false));
-      hint('The golden jellyfish has no face, wobbles like jelly, has dangly tentacles that sway, and flies: steer with the stick (or arrows / WASD). Its honk is the sound you picked.');
+      h4('Presets'); let g = grid(); for (const p of (Av ? Av.PRESETS : [])) if (!(head && p.skin === 'golden_jelly')) g.appendChild(card(p, false));
+      if (!head) hint('The golden jellyfish has no face, wobbles like jelly, has dangly tentacles that sway, and flies: steer with the stick (or arrows / WASD). Its honk is the sound you picked.');
       h4('Save your current look'); const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;align-items:center'; const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 18; inp.placeholder = 'Name this avatar'; inp.style.cssText = 'flex:1;font-size:14px;padding:6px'; row.appendChild(inp);
       const sb = document.createElement('button'); sb.className = 'big small-btn'; sb.textContent = '💾 Save'; sb.addEventListener('click', () => {
         sv.avatars = sv.avatars || []; if (sv.avatars.length >= 24) return say('You can keep up to 24 avatars. Delete one first.', true);
         const nm = (inp.value || '').trim() || 'Avatar ' + (sv.avatars.length + 1); sv.avatars.push({ id: 'a' + Date.now().toString(36), name: nm, skin: sv.skin, equip: Object.assign({}, sv.equip), tint: Object.assign({}, sv.tint || {}) }); A.persist(); open(mode); say('💾 Saved "' + nm + '"');
       }); row.appendChild(sb); body.appendChild(row);
-      h4('Your saved avatars'); g = grid(); const list = sv.avatars || []; if (!list.length) hint('Nothing saved yet. Dress your goose how you like, then save it here.'); for (const a of list) g.appendChild(card(a, true));
+      h4('Your saved avatars'); g = grid(); const list = sv.avatars || []; if (!list.length) hint('Nothing saved yet. Dress your goose how you like, then save it here.'); for (const a of list) if (!(head && a.skin === 'golden_jelly')) g.appendChild(card(a, true));
     } else if (tab === 'pranks') {
       const grp = {}; for (const p of root.Pranks.LIST) (grp[p.group] = grp[p.group] || []).push(p);
       for (const gname of Object.keys(grp)) { h4(gname); const g = grid(); for (const p of grp[gname]) tb(g, p.label, async () => { if (who === 'me') close(); await sendSay({ k: 'prank', id: p.id }); }); }

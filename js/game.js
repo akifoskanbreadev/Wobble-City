@@ -452,10 +452,11 @@
     if (fly !== flyOn) { flyOn = fly; if (world) { world.gscale = fly ? 0.0001 : gravK(); world.buoy = fly ? 0 : null; } const np = document.querySelector('#neckpad span'); if (np) np.textContent = fly ? 'FLY' : 'NECK'; }
     goose.update(STEP, fly ? { move: 0, flap: false, glide: false, aim: null } : { move, flap, glide: input.flapHeld, aim });
     if (fly && !frz) {   // a flying avatar (the golden jellyfish): the stick (or the arrows / flap button) steers it in any direction
-      const sp = 300 * FX().speed * (has('speed') ? 1.6 : 1); let tx = 0, ty = 0;
+      const sw = goose.swimming, sp = (sw ? 560 : 380) * FX().speed * (has('speed') ? 1.6 : 1); let tx = 0, ty = 0;   // quick in water, easy to steer
       if (aim) { tx = aim.x * sp; ty = aim.y * sp; } else { tx = move * sp; ty = ((input.flapHeld ? -1 : 0) + (input.kDown ? 1 : 0)) * sp * 0.85; }
       if (!tx && !ty) ty = Math.sin(levelClock * 3) * 16;
-      const kk = Math.min(1, 4.5 * STEP);
+      else if (!aim && input.flapHeld && tx) ty = -sp * 0.5;
+      const kk = Math.min(1, (sw ? 9 : 7) * STEP);
       for (const q of goose.body.concat(goose.hips, goose.feet, goose.neck || [])) { q.vx += (tx - q.vx) * kk; q.vy += (ty - q.vy) * kk; }
     }
     if (window.Chungas) window.Chungas.tick(goose, STEP);

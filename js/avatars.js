@@ -40,16 +40,28 @@
   const NS = 9, SEGS = 9, ST = {};
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   function mkState() {
-    const s = { x: null, y: null, vx: 0, vy: 0, sq: 0, sqv: 0, ang: 0, av: 0, ph: Math.random() * 6, t: 0, last: 0, hk: false, st: [] };
+    const s = { x: null, y: null, vx: 0, vy: 0, sq: 0, sqv: 0, ang: 0, av: 0, sxm: 1, sym: 1, rot: 0, ph: Math.random() * 6, t: 0, last: 0, hk: false, st: [] };
     for (let i = 0; i < NS; i++) { const L = (i === 2 || i === NS - 3) ? 1.5 : 1, seg = (8 + 3 * Math.cos(i * 1.7)) * L, pts = []; for (let j = 0; j <= SEGS; j++) pts.push({ x: 0, y: 0, ox: 0, oy: 0 }); s.st.push({ seg, pts, arm: L > 1 }); }
     return s;
   }
   const R = 38, LIP = 7;
   function anchor(s, cx0, cy0, i) {   // where strand i hangs from, in world space
-    const lx = (-0.82 + 1.64 * (i / (NS - 1))) * R * (1 + s.sq * 0.5), ly = (LIP + 1) * (1 - s.sq * 0.75), ca = Math.cos(s.ang), sa = Math.sin(s.ang);
+    const lx = (-0.82 + 1.64 * (i / (NS - 1))) * R * s.sxm, ly = (LIP + 1) * s.sym, ca = Math.cos(s.rot), sa = Math.sin(s.rot);
     return { x: cx0 + lx * ca - ly * sa, y: cy0 + lx * sa + ly * ca };
   }
   function hang(s, c) { for (let i = 0; i < NS; i++) { const a = anchor(s, c.x, c.y, i), S0 = s.st[i]; S0.pts.forEach((p, j) => { p.x = p.ox = a.x + Math.sin(j * 0.6 + i) * j * 0.5; p.y = p.oy = a.y + j * S0.seg; }); } }
+  // the bell takes its shape from the real soft body when there is one (so it squashes and wobbles on bonks and landings like the
+  // other jelly skins); other players' avatars use the spring squash alone
+  function shape(s, g) {
+    let sx = 1 + s.sq * 0.5, sy = 1 - s.sq * 0.75, rot = s.ang;
+    const b = g.body;
+    if (b && b.length === 4) {
+      const d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y), w = (d(b[0], b[1]) + d(b[3], b[2])) / 2, h = (d(b[0], b[3]) + d(b[1], b[2])) / 2;
+      sx *= clamp(Math.pow(w / 56, 1.15), 0.7, 1.35); sy *= clamp(Math.pow(h / 26, 1.15), 0.7, 1.4);
+      rot += Math.atan2(b[1].y - b[0].y, b[1].x - b[0].x) * 0.8;
+    }
+    s.sxm = sx; s.sym = sy; s.rot = rot;
+  }
   function update(s, c, g, key) {
     const now = performance.now(); let dt = (now - s.last) / 1000; s.last = now;
     if (s.x == null || dt > 0.5 || Math.hypot(c.x - s.x, c.y - s.y) > 260) { s.x = c.x; s.y = c.y; s.vx = s.vy = 0; hang(s, c); return; }
@@ -62,6 +74,7 @@
     const tgt = Math.sin(s.ph) * 0.1;
     s.sqv += (-95 * (s.sq - tgt) - 8 * s.sqv - clamp((s.vy - pvy) / dt, -4000, 4000) * 0.0004) * dt; s.sq = clamp(s.sq + s.sqv * dt, -0.45, 0.6);
     const ta = clamp(s.vx / 700, -0.4, 0.4); s.av += (-70 * (s.ang - ta) - 7 * s.av) * dt; s.ang += s.av * dt;   // leans into the way it moves, with a wobble
+    shape(s, g);
     // tentacles: each point trails along where the bell has just been (lag) on top of a gently swaying hang, so they stream behind
     // when it swims and dangle and sway when it hovers
     s.acc = (s.acc || 0) + dt; s.hist = s.hist || []; while (s.acc >= 1 / 60) { s.acc -= 1 / 60; s.hist.push({ x: c.x, y: c.y }); if (s.hist.length > 40) s.hist.shift(); }
@@ -79,7 +92,7 @@
   function draw(cx, g, sk) {
     const c = g.center(), key = g.key || 'me';
     let s = ST[key]; if (!s) s = ST[key] = mkState();
-    if (key === 'fake') { s.x = c.x; s.y = c.y; s.sq = 0; s.ang = 0; s.ph = 0.6; hang(s, c); } else update(s, c, g, key);
+    if (key === 'fake') { s.x = c.x; s.y = c.y; s.sq = 0; s.ang = 0; s.ph = 0.6; shape(s, g); hang(s, c); } else update(s, c, g, key);
     cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round';
     // soft golden glow
     const gl = cx.createRadialGradient(c.x, c.y - 6, 6, c.x, c.y - 6, 78); gl.addColorStop(0, 'rgba(255,214,70,.30)'); gl.addColorStop(1, 'rgba(255,214,70,0)'); cx.fillStyle = gl; cx.beginPath(); cx.arc(c.x, c.y - 6, 78, 0, 7); cx.fill();
@@ -94,7 +107,7 @@
     }
     cx.globalAlpha = 1;
     // the bell
-    cx.translate(c.x, c.y); cx.rotate(s.ang); cx.scale(1 + s.sq * 0.5, 1 - s.sq * 0.75);
+    cx.translate(c.x, c.y); cx.rotate(s.rot); cx.scale(s.sxm, s.sym);
     const H = 35, n = 8, step = (2 * R) / n;
     cx.beginPath(); cx.moveTo(-R, LIP); cx.bezierCurveTo(-R, -H * 1.35, R, -H * 1.35, R, LIP);
     for (let k = 0; k < n; k++) { const x = R - k * step; cx.quadraticCurveTo(x - step / 2, LIP + 9, x - step, LIP); }

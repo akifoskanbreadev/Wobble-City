@@ -147,3 +147,4 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - **Golden Jellyfish** preset (`js/avatars.js`): no face, a wobbly jelly bell (springs for squash and lean), dangly tentacles that sway and trail behind when it swims, and it **flies** with the stick (the NECK pad turns into FLY; arrows / WASD / flap also work).
 - Its honk is `assets/jelly-honk.mp3`.
 - **Everyone hears everyone's honks**: a honk is sent to the other players (`hk` message) and plays with that player's own honk sound, including the jellyfish one.
+- The jellyfish bell now follows the real jelly soft body (squashes and wobbles on bonks and landings like the other jelly skins), flies faster and steers more easily, and swims much faster in water. Head admins get the Avatars tab too, without the jellyfish (owner only).
