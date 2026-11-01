@@ -1882,8 +1882,17 @@
     state = 'mgmenu';
     const box = $('mgList');
     box.innerHTML = '';
+    // with so many games: a search box, a random pick and a "not played yet" pick
+    const tools = document.createElement('div'); tools.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:0 0 8px;grid-column:1/-1;width:100%';
+    const q = document.createElement('input'); q.type = 'search'; q.placeholder = '🔎 Search ' + window.Minigames.list.length + ' games'; q.style.cssText = 'flex:1;min-width:150px;font-size:15px;padding:7px 10px;border-radius:12px;border:2px solid #1f2a36';
+    const rnd = document.createElement('button'); rnd.className = 'big small-btn'; rnd.textContent = '🎲 Random';
+    const unp = document.createElement('button'); unp.className = 'sec'; unp.textContent = '🆕 Not played yet';
+    rnd.addEventListener('click', () => { const l = window.Minigames.list; audio(); startMinigame(l[(Math.random() * l.length) | 0].id); });
+    unp.addEventListener('click', () => { const l = window.Minigames.list.filter((m) => save.best[m.id] == null); if (!l.length) { toast('You have played every minigame!', 2.5); return; } audio(); startMinigame(l[(Math.random() * l.length) | 0].id); });
+    tools.append(q, rnd, unp); box.appendChild(tools);
+    q.addEventListener('input', () => { const t = q.value.trim().toLowerCase(); box.querySelectorAll('.mgcard').forEach((c) => { c.style.display = !t || c.dataset.s.includes(t) ? '' : 'none'; }); });
     window.Minigames.list.forEach((m) => {
-      const el = document.createElement('div');
+      const el = document.createElement('div'); el.dataset.s = (m.name + ' ' + m.desc).toLowerCase();
       el.className = 'mgcard';
       const best = save.best[m.id];
       el.innerHTML = '<div class="mgi">' + m.icon + '</div><b>' + m.name + '</b><p>' + m.desc + '</p><span>' + (best != null ? 'Best: ' + m.fmt(best) : 'Not played yet') + '</span>';

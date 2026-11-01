@@ -160,3 +160,4 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - **Jellyfish colours**: Silver, Rose, Aqua, Void and Rainbow (colour-cycling) jellyfish join the golden one in the owner Avatars tab (owner only, same flying, jelly physics and honk).
 - Minigame instruction text now wraps into two short lines so it is not hidden behind the on-screen buttons.
 - **More stuff 5 (js/more9.js)**: 16 skins (Snow Tiger, Leopard, Giraffe, Circuit, Matrix, Aurora, Pearl...), 14 clothes (crown, samurai helmet, mushroom cap, space suit, knit jumper, bandana, slippers, heels...) and 5 board and arcade minigames: ⭕ Tic-Tac-Toe and 🔴 Connect Four against a fox, 🔢 Bread 2048, 🏓 Beak Pong and 🔡 Hangman.
+- **Minigame menu**: a search box, a 🎲 Random game button and a 🆕 Not played yet button (there are now 70+ games). Six more achievements for the newest games (51 in total).

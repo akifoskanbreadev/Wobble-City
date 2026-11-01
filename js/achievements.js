@@ -56,6 +56,12 @@
     ['mgFlip', '🔃', 'Upside Down', 'Last 25 s in Gravity Flip.', (s) => best(s, 'm8flip'), 250, 50],
     ['mgLights', '💡', 'Bright Spark', 'Score 250 in Lights Out.', (s) => best(s, 'm8lights'), 250, 50],
     ['mgSweep', '🍞', 'Toast Defuser', 'Clear Bread Sweeper in good time (250+).', (s) => best(s, 'm8sweep'), 250, 80],
+    ['mgTTT', '⭕', 'Fox Beater', 'Score 80 in Tic-Tac-Toe.', (s) => best(s, 'm9ttt'), 80, 50],
+    ['mgC4', '🔴', 'Four in a Row', 'Beat the fox in Connect Four (score 100+).', (s) => best(s, 'm9c4'), 100, 60],
+    ['mg2048', '🔢', 'Big Bake', 'Score 3000 in Bread 2048.', (s) => best(s, 'm9b2048'), 3000, 80],
+    ['mgPong', '🏓', 'Paddle Pro', 'Win a game of Beak Pong (score 100+).', (s) => best(s, 'm9pong'), 100, 60],
+    ['mgHang', '🔡', 'Word Saver', 'Score 60 in Hangman.', (s) => best(s, 'm9hang'), 60, 50],
+    ['mg45', '🧠', 'Game Collector', 'Play 45 different minigames.', mgPlayed, 45, 400],
     // special
     ['avatar', '🪼', 'Jelly Time', 'Use a jellyfish avatar.', (s) => (/_jelly$/.test(s.skin || '') ? 1 : 0), 1, 50],
     ['unlockmg', '🔓', 'All Unlocked', 'Unlock the minigames.', (s) => (s.mg || s.allDone ? 1 : 0), 1, 30],
