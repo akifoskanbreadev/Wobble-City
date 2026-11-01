@@ -57,7 +57,7 @@
     ['mgLights', '💡', 'Bright Spark', 'Score 250 in Lights Out.', (s) => best(s, 'm8lights'), 250, 50],
     ['mgSweep', '🍞', 'Toast Defuser', 'Clear Bread Sweeper in good time (250+).', (s) => best(s, 'm8sweep'), 250, 80],
     // special
-    ['avatar', '🪼', 'Jelly Time', 'Use the golden jellyfish avatar.', (s) => (s.skin === 'golden_jelly' ? 1 : 0), 1, 50],
+    ['avatar', '🪼', 'Jelly Time', 'Use a jellyfish avatar.', (s) => (/_jelly$/.test(s.skin || '') ? 1 : 0), 1, 50],
     ['unlockmg', '🔓', 'All Unlocked', 'Unlock the minigames.', (s) => (s.mg || s.allDone ? 1 : 0), 1, 30],
     ['hard', '😈', 'Brave Goose', 'Switch the difficulty above normal.', (s) => (['hard', 'insane', 'noodle'].includes(s.diff) ? 1 : 0), 1, 30],
   ].map(([id, icon, name, desc, val, goal, reward]) => ({ id, icon, name, desc, val, goal, reward }));

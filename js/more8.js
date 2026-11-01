@@ -46,7 +46,7 @@
   const onPtr = (host, type, fn) => { const cv = host.ctx.canvas, h = (e) => { if (type === 'pointerdown' && e.pointerType === 'mouse' && e.button !== 0) return; fn(e); }; cv.addEventListener(type, h); return () => cv.removeEventListener(type, h); };
   const say = (c, text, x, y, size, col) => { c.save(); c.font = '800 ' + size + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(255,255,255,.9)'; c.strokeText(text, x, y); c.fillStyle = col || INK; c.fillText(text, x, y); c.restore(); };
   const emo = (c, e, x, y, size) => { c.font = size + 'px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(e, x, y); c.textBaseline = 'alphabetic'; };
-  const note = (c, s, col) => { c.fillStyle = col || INK; c.font = '700 15px system-ui'; c.textAlign = 'center'; c.fillText(s, 400, 472); };
+  const note = (c, s, col) => { c.fillStyle = col || INK; c.font = '700 14px system-ui'; c.textAlign = 'center'; if (s.length < 52) { c.fillText(s, 400, 470); return; } let m = s.lastIndexOf(' ', s.length / 2 + 6); if (m < 0) m = s.indexOf(' '); c.fillText(s.slice(0, m), 400, 452); c.fillText(s.slice(m + 1), 400, 470); };   // two short lines so it never sits behind the on-screen buttons
   const box = (c, x, y, w, h, fill) => { c.fillStyle = fill; c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.rect(x, y, w, h); c.fill(); c.stroke(); };
 
   // ------------------------------------------------------------ 🐔 Lane Crosser

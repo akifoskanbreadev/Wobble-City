@@ -15,9 +15,22 @@
   const def = {
     id: 'golden_jelly', name: 'Golden Jellyfish', price: 0, hidden: true, jellyfish: true, fly: true, neck: 0.3, honkSrc: SRC,
     shape: { leg: 0.15 }, jelly: { c: 0.02, k: 1500 }, legW: 0.8, legC: '#ffd24a', body: '#ffd24a', neckC: '#ffd24a', headC: '#ffe27a', wing: '#fff1a0', jellyC: ['#ffd24a', '#fff1a0'],
+    pal: { a: '#fff6b8', b: '#ffd43b', c: '#e8a317', line: '#a86a00', t1: '#ffcf33', t2: '#ffe27a', glow: '255,214,70' },
   };
   S.LIST.push(def); S.BY_ID[def.id] = def;
   const PRESETS = [{ id: 'preset-golden-jelly', name: 'Golden Jellyfish', skin: 'golden_jelly', equip: {}, tint: {}, preset: true }];
+  // colour variants of the same flying jellyfish (honk, flight and physics are identical)
+  for (const [id, name, pal, body] of [
+    ['silver_jelly', 'Silver Jellyfish', { a: '#ffffff', b: '#d8dde6', c: '#9aa5b8', line: '#5a6578', t1: '#c8d0dc', t2: '#eef2f8', glow: '210,220,240' }, '#d8dde6'],
+    ['rose_jelly', 'Rose Jellyfish', { a: '#ffe0ec', b: '#ff8ab8', c: '#d8487a', line: '#8a1f48', t1: '#ff7aa8', t2: '#ffc0d8', glow: '255,130,180' }, '#ff8ab8'],
+    ['aqua_jelly', 'Aqua Jellyfish', { a: '#d8fff8', b: '#4fe0d0', c: '#1a98a8', line: '#0a5a68', t1: '#3ad0c8', t2: '#9af0e8', glow: '70,230,215' }, '#4fe0d0'],
+    ['void_jelly', 'Void Jellyfish', { a: '#b8a0ff', b: '#6a3ad8', c: '#2a1a78', line: '#120a40', t1: '#7a4ae8', t2: '#b898ff', glow: '120,70,255' }, '#6a3ad8'],
+    ['rainbow_jelly', 'Rainbow Jellyfish', 'rainbow', '#ff8ac8'],
+  ]) {
+    const d = Object.assign({}, def, { id, name, pal, body, neckC: body, headC: body, legC: body, jellyC: [body, '#ffffff'] }); S.LIST.push(d); S.BY_ID[id] = d;
+    PRESETS.push({ id: 'preset-' + id, name, skin: id, equip: {}, tint: {}, preset: true });
+  }
+  const palOf = (sk) => { const p = sk.pal; if (p !== 'rainbow') return p; const h = (performance.now() / 18) % 360; return { a: 'hsl(' + h + ',100%,90%)', b: 'hsl(' + (h + 40) % 360 + ',95%,62%)', c: 'hsl(' + (h + 90) % 360 + ',90%,50%)', line: 'hsl(' + (h + 200) % 360 + ',70%,28%)', t1: 'hsl(' + (h + 120) % 360 + ',95%,60%)', t2: 'hsl(' + (h + 180) % 360 + ',100%,78%)', glow: '255,160,230' }; };
 
   // ---------------------------------------------------------------- honk sample
   let ac = null, buf = null, loading = false, failed = false;
@@ -90,18 +103,19 @@
     }
   }
   function draw(cx, g, sk) {
+    const P = palOf(sk);
     const c = g.center(), key = g.key || 'me';
     let s = ST[key]; if (!s) s = ST[key] = mkState();
     if (key === 'fake') { s.x = c.x; s.y = c.y; s.sq = 0; s.ang = 0; s.ph = 0.6; shape(s, g); hang(s, c); } else update(s, c, g, key);
     cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round';
     // soft golden glow
-    const gl = cx.createRadialGradient(c.x, c.y - 6, 6, c.x, c.y - 6, 78); gl.addColorStop(0, 'rgba(255,214,70,.30)'); gl.addColorStop(1, 'rgba(255,214,70,0)'); cx.fillStyle = gl; cx.beginPath(); cx.arc(c.x, c.y - 6, 78, 0, 7); cx.fill();
+    const gl = cx.createRadialGradient(c.x, c.y - 6, 6, c.x, c.y - 6, 78); gl.addColorStop(0, 'rgba(' + P.glow + ',.30)'); gl.addColorStop(1, 'rgba(' + P.glow + ',0)'); cx.fillStyle = gl; cx.beginPath(); cx.arc(c.x, c.y - 6, 78, 0, 7); cx.fill();
     // tentacles (behind the bell)
     for (const pass of [0, 1]) for (let i = 0; i < NS; i++) {
       const S0 = s.st[i], w0 = S0.arm ? 8 : 4.8;
       for (let j = 1; j <= SEGS; j++) {
         const a = S0.pts[j - 1], b = S0.pts[j], f = j / SEGS, w = w0 * (1 - f * 0.65);
-        cx.globalAlpha = 0.95 - f * 0.4; cx.strokeStyle = pass === 0 ? '#a86a00' : (S0.arm ? '#ffe27a' : '#ffcf33'); cx.lineWidth = pass === 0 ? w + 3 : w;
+        cx.globalAlpha = 0.95 - f * 0.4; cx.strokeStyle = pass === 0 ? P.line : (S0.arm ? P.t2 : P.t1); cx.lineWidth = pass === 0 ? w + 3 : w;
         cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke();
       }
     }
@@ -112,8 +126,8 @@
     cx.beginPath(); cx.moveTo(-R, LIP); cx.bezierCurveTo(-R, -H * 1.35, R, -H * 1.35, R, LIP);
     for (let k = 0; k < n; k++) { const x = R - k * step; cx.quadraticCurveTo(x - step / 2, LIP + 9, x - step, LIP); }
     cx.closePath();
-    const gr = cx.createRadialGradient(-4, -16, 2, 0, -4, 46); gr.addColorStop(0, '#fff6b8'); gr.addColorStop(0.45, '#ffd43b'); gr.addColorStop(1, '#e8a317');
-    cx.fillStyle = gr; cx.fill(); cx.strokeStyle = '#a86a00'; cx.lineWidth = 3; cx.stroke();
+    const gr = cx.createRadialGradient(-4, -16, 2, 0, -4, 46); gr.addColorStop(0, P.a); gr.addColorStop(0.45, P.b); gr.addColorStop(1, P.c);
+    cx.fillStyle = gr; cx.fill(); cx.strokeStyle = P.line; cx.lineWidth = 3; cx.stroke();
     cx.save(); cx.clip();
     cx.strokeStyle = 'rgba(255,255,255,.42)'; cx.lineWidth = 2; for (let k = -2; k <= 2; k++) { cx.beginPath(); cx.moveTo(k * 5, -32 + Math.abs(k) * 2); cx.quadraticCurveTo(k * 17, -14, k * 13, LIP + 2); cx.stroke(); }
     cx.fillStyle = 'rgba(255,255,205,.32)'; cx.beginPath(); cx.ellipse(0, -6, 25, 16, 0, 0, 7); cx.fill();
@@ -121,7 +135,7 @@
     cx.fillStyle = 'rgba(255,255,255,.65)'; cx.beginPath(); cx.ellipse(-15, -23, 10, 4.2, -0.5, 0, 7); cx.fill();
     cx.restore();
     // honk rings
-    if (g.honkT > 0) { const t = 1 - g.honkT / 0.35; cx.save(); cx.strokeStyle = '#ffd43b'; cx.lineWidth = 3; for (let r = 0; r < 3; r++) { cx.globalAlpha = Math.max(0, (1 - t) * 0.55 - r * 0.1); cx.beginPath(); cx.arc(c.x, c.y - 6, 40 + t * 70 + r * 14, 0, 7); cx.stroke(); } cx.restore(); }
+    if (g.honkT > 0) { const t = 1 - g.honkT / 0.35; cx.save(); cx.strokeStyle = P.b; cx.lineWidth = 3; for (let r = 0; r < 3; r++) { cx.globalAlpha = Math.max(0, (1 - t) * 0.55 - r * 0.1); cx.beginPath(); cx.arc(c.x, c.y - 6, 40 + t * 70 + r * 14, 0, 7); cx.stroke(); } cx.restore(); }
   }
   root.Avatars = { draw, honk, PRESETS, SRC, def };
 })(typeof window !== 'undefined' ? window : globalThis);

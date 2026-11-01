@@ -84,6 +84,7 @@
   const toL = (host, f, e) => { const r = host.ctx.canvas.getBoundingClientRect(); return { x: (e.clientX - r.left - f.ox) / f.s, y: (e.clientY - r.top - f.oy) / f.s }; };
   const onPtr = (host, type, fn) => { const cv = host.ctx.canvas, h = (e) => { if (type === 'pointerdown' && e.pointerType === 'mouse' && e.button !== 0) return; fn(e); }; cv.addEventListener(type, h); return () => cv.removeEventListener(type, h); };
   const say = (c, text, x, y, size, col) => { c.save(); c.font = '800 ' + size + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(255,255,255,.9)'; c.strokeText(text, x, y); c.fillStyle = col || INK; c.fillText(text, x, y); c.restore(); };
+  const note = (c, s, col) => { c.fillStyle = col || INK; c.font = '700 14px system-ui'; c.textAlign = 'center'; if (s.length < 52) { c.fillText(s, 400, 470); return; } let m = s.lastIndexOf(' ', s.length / 2 + 6); if (m < 0) m = s.indexOf(' '); c.fillText(s.slice(0, m), 400, 452); c.fillText(s.slice(m + 1), 400, 470); };   // two short lines so it never sits behind the on-screen buttons
   const emo = (c, e, x, y, size) => { c.font = size + 'px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(e, x, y); c.textBaseline = 'alphabetic'; };
   const mkGoose = (c, x, y, s, f, t) => {
     c.save(); c.translate(x, y); c.scale(s * f, s); c.lineJoin = 'round'; c.lineCap = 'round';
@@ -125,7 +126,7 @@
           if (h.up > 0 || h.hit > 0) { const k = h.hit > 0 ? 0.6 : Math.min(1, h.up * 6); c.save(); c.beginPath(); c.rect(h.x - 60, h.y - 70, 120, 82); c.clip(); emo(c, h.hit > 0 ? '💥' : h.kind === 'bread' ? '🍞' : h.kind === 'gold' ? '⭐' : '🔥', h.x, h.y + 40 - k * 56, 52); c.restore(); }
         }
         if (flash > 0) { c.fillStyle = 'rgba(230,57,70,' + flash * 0.5 + ')'; c.fillRect(0, 0, 800, 480); }
-        c.fillStyle = INK; c.font = '700 15px system-ui'; c.textAlign = 'center'; c.fillText('Tap the bread 🍞 (⭐ = 5!). Do NOT tap the burnt toast 🔥.', 400, 466); c.restore();
+        note(c, 'Tap the bread 🍞 (⭐ = 5!). Do NOT tap the burnt toast 🔥.'); c.restore();
       },
     };
   }
@@ -155,7 +156,7 @@
         const f = frame(host, 800, 480); host.drawSky(0, 0); c.save(); c.translate(f.ox, f.oy); c.scale(f.s, f.s);
         for (const it of items) emo(c, it.k === 'rock' ? '🪨' : it.k === 'gold' ? '🌟' : '🍞', it.x, it.y, 38);
         mkGoose(c, gx, 430 + (bump > 0 ? Math.sin(bump * 40) * 4 : 0), 1.15, tx < gx - 4 ? -1 : 1, t);
-        c.fillStyle = INK; c.font = '700 15px system-ui'; c.textAlign = 'center'; c.fillText('Drag (or arrow keys) to move the goose. Catch bread, dodge the rocks!', 400, 470); c.restore();
+        note(c, 'Drag (or arrow keys) to move the goose. Catch bread, dodge the rocks!'); c.restore();
       },
     };
   }
@@ -184,7 +185,7 @@
       draw() {
         const f = frame(host, 800, 480); host.drawSky(0, 0); c.save(); c.translate(f.ox, f.oy); c.scale(f.s, f.s);
         for (let i = 0; i < 4; i++) { const q = pad(i); c.fillStyle = cols[i]; c.globalAlpha = lit === i ? 1 : 0.45; c.strokeStyle = INK; c.lineWidth = 4; c.beginPath(); c.roundRect ? c.roundRect(q.x, q.y, q.w, q.h, 22) : c.rect(q.x, q.y, q.w, q.h); c.fill(); c.stroke(); c.globalAlpha = 1; }
-        say(c, state === 'input' ? 'Your turn!' : 'Watch…', 400, 70, 34, '#1f2a36'); c.fillStyle = INK; c.font = '700 15px system-ui'; c.textAlign = 'center'; c.fillText('Copy the pattern by tapping the pads (or keys 1 to 4).', 400, 466); c.restore();
+        say(c, state === 'input' ? 'Your turn!' : 'Watch…', 400, 70, 34, '#1f2a36'); note(c, 'Copy the pattern by tapping the pads (or keys 1 to 4).'); c.restore();
       },
     };
   }
@@ -214,7 +215,7 @@
         layers.forEach((l, i) => { c.fillStyle = 'hsl(' + ((i * 22) % 360) + ',75%,60%)'; c.strokeStyle = INK; c.lineWidth = 3; c.fillRect(l.x, Y(i), l.w, H); c.strokeRect(l.x, Y(i), l.w, H); });
         if (cut && cut.t < 1) { c.globalAlpha = 1 - cut.t; c.fillStyle = '#999'; c.fillRect(cut.x, Y(cut.y) + cut.t * 300, cut.w, H); c.globalAlpha = 1; }
         if (!over) { c.fillStyle = 'hsl(' + ((layers.length * 22) % 360) + ',75%,60%)'; c.strokeStyle = INK; c.fillRect(cur.x, Y(layers.length), cur.w, H); c.strokeRect(cur.x, Y(layers.length), cur.w, H); }
-        c.fillStyle = INK; c.font = '700 15px system-ui'; c.textAlign = 'center'; c.fillText('Tap to drop the block. Overhang gets chopped off. Line it up!', 400, 470); c.restore();
+        note(c, 'Tap to drop the block. Overhang gets chopped off. Line it up!'); c.restore();
       },
     };
   }
@@ -242,7 +243,7 @@
         const f = frame(host, 800, 480); c.save(); c.translate(f.ox, f.oy); c.scale(f.s, f.s);
         c.fillStyle = state === 'go' ? '#2fbf71' : state === 'early' ? '#e8a33a' : '#d94b4b'; c.fillRect(-400, -400, 1600, 1300);
         say(c, state === 'go' ? 'HONK NOW!' : state === 'wait' ? 'Wait for green…' : msg, 400, 230, 56, '#1f2a36'); if (state === 'go') emo(c, '🪿', 400, 330, 90);
-        c.fillStyle = '#fff'; c.font = '700 15px system-ui'; c.textAlign = 'center'; c.fillText('Tap the moment the screen turns green. Too early = 0 points.', 400, 466); c.restore();
+        note(c, 'Tap the moment the screen turns green. Too early = 0 points.', '#fff'); c.restore();
       },
     };
   }
