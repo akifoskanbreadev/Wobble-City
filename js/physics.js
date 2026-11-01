@@ -255,7 +255,7 @@
       this.neckAng = L.ang != null ? L.ang : -98; this.neckBend = L.bend != null ? L.bend : 4.2; this.neckStiff = L.stiff || 1;
       this.hipFrac = L.hip || [-13 / 28, 13 / 28];
       this.jelly = opt.jelly ? Object.assign({ k: 5200, c: 0.0009, damp: 6 }, opt.jelly) : null;   // soft-body pressure model (JellyCar-style)
-      this.bounce = opt.bounce || 0; this.hop = opt.hop || 0; this.slip = opt.slip || 1; this.glide = opt.glide || 0; this.hopT = 0;   // shop body physics: landing boing, auto-hop, grip, parachute
+      this.bounce = opt.bounce || 0; this.hop = opt.hop || 0; this.slip = opt.slip || 1; this.chute = opt.glide || 0; this.hopT = 0;   // shop body physics: landing boing, auto-hop, grip, parachute
       this.sw = opt.shapeW || 1; this.sh = opt.shapeH || 1; this.lm = opt.legM || 1;   // shape skins: body width/height and leg length multipliers
       this.legless = !!opt.legless;                        // Neck mode: no legs, drag yourself along with the neck
       this.chaos = !!opt.chaos;                            // Spaghetti mode: haunted neck steering + random whiplash
@@ -390,7 +390,7 @@
       }
       this.prevVy = v.y;
       if (this.hop && this.grounded && this.move !== 0 && (this.hopT -= dt) <= 0) { this.hopT = 0.42; for (const q of body.concat(this.hips, this.feet)) q.vy = Math.min(q.vy, -this.hop); }
-      if (this.glide && !this.grounded && v.y > 90) for (const q of body) q.vy -= (q.vy - 90) * Math.min(1, dt * this.glide * 6) * 0.5;
+      if (this.chute && !this.grounded && v.y > 90) for (const q of body) q.vy -= (q.vy - 90) * Math.min(1, dt * this.chute * 6) * 0.5;   // parachute: falls slowly (this was wired to the flap-glide flag before, so it never worked)
       this.swimming = body.filter((b) => b.wet > 0.3).length >= 2;
       this.airT = this.grounded || this.swimming ? 0 : this.airT + dt;
 

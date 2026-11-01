@@ -124,7 +124,7 @@
   }
   function applyFxLive() {
     if (world) world.gscale = gravK();
-    if (goose) { const o = gooseOpts(); goose.speed = o.speed; goose.flapK = o.flapK; goose.bounce = o.bounce; goose.hop = o.hop; goose.slip = o.slip; goose.glide = o.glide; }
+    if (goose) { const o = gooseOpts(); goose.speed = o.speed; goose.flapK = o.flapK; goose.bounce = o.bounce; goose.hop = o.hop; goose.slip = o.slip; goose.chute = o.glide; }
   }
   const lookEquip = () => (save.tint && Object.keys(save.tint).length ? Object.assign({}, save.equip, { _tint: save.tint }) : save.equip);
 
