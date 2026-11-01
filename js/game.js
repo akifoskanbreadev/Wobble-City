@@ -83,9 +83,10 @@
     lol: 'All minigames', levels: 'All levels', speed: 'Super speed', neck: 'Long neck', money: 'Infinite bread', flaps: 'Infinite flaps',
     moon: 'Moon gravity', rainbow: 'Rainbow trail', disco: 'Disco sky', shield: 'Spike shield (no hazard deaths)', zoom: 'Wide zoom-out camera',
     admin: 'Admin console (codes are NOT switched on automatically)',
+    bouncy: 'Bouncy ball goose', pogo: 'Pogo goose (hops by itself)', ice: 'Ice skater (very slippery)', chute: 'Parachute (floaty falls)', jumpy: 'Super flaps (60% stronger)',
   };
   // one-shot codes: they give you something once instead of toggling
-  const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread' };
+  const GIFTS = { skins: 'Every skin unlocked', clothes: 'Every cosmetic unlocked', bread: '+500 bread', gold: '+2000 bread', jackpot: '+5000 bread' };
   const has = (k) => !mpOn() && !(window.Battle && window.Battle.active()) && !!save.cheats[k] && !(window.Owner && window.Owner.blocks(k));   // codes are off during multiplayer games (admin no longer switches them on)   // admin switches on every code
   zoomMul = has('zoom') ? 0.7 : 1; resize();
   const tier3 = () => LEVELS.tier3 || 1e9;
@@ -99,8 +100,17 @@
   const money = () => (rich() ? '∞' : save.bread);
   const physItem = () => { const id = save.equip && save.equip.phys; const it = id && BY_ID[id]; return (it && it.phys) || {}; };
   const FX = () => (window.Owner && window.Owner.fx) || { time: 1, speed: 1, flap: 1, grav: 1, bounce: 0 };
-  const gravK = () => (window.Tweaks ? window.Tweaks.v('gravity') : 1) * (has('moon') ? 0.4 : 1) * (physItem().grav || 1) * FX().grav;
-  function gooseOpts() {
+  const gravK = () => (window.Tweaks ? window.Tweaks.v('gravity') : 1) * (has('moon') ? 0.4 : 1) * (has('chute') ? 0.85 : 1) * (has('bouncy') ? 0.9 : 1) * (physItem().grav || 1) * FX().grav;
+  function gooseOpts() {   // the base options plus the fun physics codes (bouncy, pogo, ice, chute, jumpy)
+    const o = gooseOpts0();
+    if (has('bouncy')) o.bounce = Math.max(o.bounce, 0.95);
+    if (has('pogo')) o.hop = Math.max(o.hop, 560);
+    if (has('ice')) { o.slip = Math.min(o.slip, 0.28); o.speed *= 1.15; }
+    if (has('chute')) o.glide = Math.max(o.glide, 1);
+    if (has('jumpy')) o.flapK *= 1.6;
+    return o;
+  }
+  function gooseOpts0() {
     const d = diff(), PH = physItem();
     return { wobble: d.wobble * (PH.wobble || 1), tremor: d.tremor, chaos: !!d.chaos, speed: (window.Tweaks ? window.Tweaks.v('speed') : 1) * (has('speed') ? 2.3 : 1) * (PH.speed || 1) * FX().speed * ((SKINS.BY_ID[save.skin].phys || {}).speed || 1), flapK: ((SKINS.BY_ID[save.skin].phys || {}).flap || 1) * (PH.flap || 1) * FX().flap, neck: (SKINS.BY_ID[save.skin].neck || 1) * ((SKINS.BY_ID[save.skin].shape || {}).neck || 1) * (has('neck') ? 2.2 : 1) * (window.Tweaks ? window.Tweaks.v('neck') : 1), infFlaps: has('flaps'), legless: !!save.neckMode && !diffOverride,
       layout: SKINS.BY_ID[save.skin].shape || {}, jelly: physItem().jelly || SKINS.BY_ID[save.skin].jelly || null, bounce: Math.max(physItem().bounce || 0, FX().bounce || 0), hop: physItem().hop || 0, slip: physItem().slip || 1, glide: physItem().glide || 0,
@@ -1388,6 +1398,8 @@
       if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true;
       if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true;
       if (c === 'bread') save.bread += 500;
+      if (c === 'gold') save.bread += 2000;
+      if (c === 'jackpot') save.bread += 5000;
       persist(); refreshMenu(); snd.egg(); say('🎁 ' + c + ': ' + GIFTS[c], true);
     } else if (CHEATS[c]) {
       const turnOn = !save.cheats[c];
@@ -1425,7 +1437,7 @@
     code(c, on) {
       c = String(c || '').toLowerCase(); if (['akif', 'sync', 'admin', 'god', 'codes'].includes(c)) return 'not allowed';
       if (window.Owner && window.Owner.blocks(c)) return 'locked by the owner';
-      if (GIFTS[c]) { if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true; if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true; if (c === 'bread') save.bread += 500; persist(); refreshMenu(); snd.egg(); return 'ok'; }
+      if (GIFTS[c]) { if (c === 'skins') for (const k of SKINS.LIST) save.skins[k.id] = true; if (c === 'clothes') for (const it of ITEMS) save.owned[it.id] = true; if (c === 'bread') save.bread += 500; if (c === 'gold') save.bread += 2000; if (c === 'jackpot') save.bread += 5000; persist(); refreshMenu(); snd.egg(); return 'ok'; }
       if (CHEATS[c]) { const want = on !== false; if (want) save.cheats[c] = true; else delete save.cheats[c]; applyCodes(); return 'ok'; }
       return 'unknown code';
     },
