@@ -44,7 +44,7 @@
     if (!quick) qSlot = 0;
     word = slug(w);
     if (!word) return status('Type a word first (any word you and your friends agree on).', true);
-    if (!root.Peer) return status('Could not load the matchmaking library (are you offline?).', true);
+    if (!root.Peer) { if (root.loadPeer) root.loadPeer(); return status('Multiplayer is still loading, or this network blocks it. Try again in a few seconds.', true); }
     if (connected) disconnect();
     try { localStorage.setItem('wobble.lastRoom', word); } catch (e) { /* ignore */ }
     tries = 0; status('Looking for the room “' + word + '”…'); tryHost();
@@ -103,7 +103,7 @@
   }
   function dropPlayer(id) {
     if (!conns.has(id)) return;
-    conns.delete(id); delete roster[id]; delete ghosts[id];
+    conns.delete(id); delete roster[id]; delete ghosts[id]; if (root.Rounds) root.Rounds.onDrop(id);
     sendRoster();
     if (M.mode) {
       M.ids = M.ids.filter((x) => x !== id);
@@ -128,6 +128,7 @@
       case 'look': if (isHost && roster[from]) { roster[from].skin = m.skin; roster[from].equip = m.equip || {}; sendRoster(); } break;
       case 'hk': { if (isHost) { m.id = from; toAll(m, from); } const r = roster[m.id]; if (m.id !== myId && api && api.honk) api.honk(r && r.skin, r && r.equip ? r.equip.voice || null : null); break; }
       case 'em': { if (isHost) { m.id = from; toAll(m, from); } if (m.id !== myId && api && api.emote && typeof m.e === 'string' && m.e.length < 20) api.emote(m.id, m.e); break; }
+      case 'r': if (root.Rounds) root.Rounds.onNet(from, m.d); break;
       case 'ready': if (isHost && roster[from]) { roster[from].ready = !!m.v; sendRoster(); } break;
       case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {}, ready: !!r.ready }; }); if (m.sel) sel = m.sel; for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
       case 'chat': if (isHost) { m.id = from; toAll(m, from); } chatIn(m); break;
@@ -228,11 +229,13 @@
     else if (m.mode === 'brawl') { M.countdown = 3; const lv = arenaLevel('brawl', m.arg | 0, idx, n); api.startCustom(lv); if (root.Battle) root.Battle.startNet({ kind: 'brawl', ids: M.ids, myId, host: isHost, seed: m.seed, lv }); }
     else if (m.mode === 'coop') { M.countdown = 3; api.startCustom(arenaLevel('brawl', 0, idx, n)); if (root.Battle) root.Battle.startNet({ kind: 'coop', ids: M.ids, myId, host: isHost, seed: m.seed }); }
     else if (m.mode === 'free') { M.countdown = 0; api.startLevel(m.arg | 0); }
+    else if (m.mode === 'rounds') { M.countdown = 0; if (root.Rounds) root.Rounds.startNet({ host: isHost, myId, seed: m.seed, target: +m.arg || 3, players: M.ids.map((id) => ({ id, skin: (roster[id] && roster[id].skin) || 'goose', equip: (roster[id] && roster[id].equip) || {}, name: 'P' + (id + 1) + (id === myId ? ' (you)' : '') })) }); }
     else if (m.mode === 'duel') { M.countdown = 0; M.saveRandom = Math.random; Math.random = mulberry(m.seed); api.startMinigame(m.arg); }
     ui();
   }
   function stopMode(silent) {
     if ((M.mode === 'brawl' || M.mode === 'coop') && root.Battle && root.Battle.active()) root.Battle.stop();
+    if (M.mode === 'rounds' && root.Rounds) root.Rounds.stop();
     if (M.saveRandom) { Math.random = M.saveRandom; M.saveRandom = null; }
     if (M.mode && !silent) api.setDiff(null);
     M.mode = null; M.over = false; M.countdown = 0; M.phase = '';
@@ -246,7 +249,7 @@
   }
   function endShow(winners, text) {
     if (!M.mode || M.over) return;
-    M.over = true;
+    M.over = true; if (root.Rounds) root.Rounds.stop();
     const win = winners.includes(myId);
     if (win) api.award(20);
     $('mpDoneTitle').textContent = !winners.length ? 'Game over' : win ? 'You win! 🏆' : 'You lose 😢';
@@ -321,7 +324,7 @@
     else if ((M.mode === 'brawl' || M.mode === 'coop') && root.Battle) t = root.Battle.banner();
     else if (M.mode === 'free') t = '🌍 Free play · ' + M.ids.length + ' geese · press Enter to chat';
     else if (M.mode === 'hide') t = (M.seekers.includes(myId) ? '🔍 Seeker' : '🫣 Hider') + ' · ' + (M.phase === 'hide' ? 'hiding ' : 'seeking ') + Math.max(0, M.left).toFixed(0) + 's';
-    b.textContent = t;
+    b.textContent = t; if (M.mode === 'rounds') b.classList.add('hidden');
   }
   function onEgg() {                                    // game.js: you touched the egg in a multiplayer race
     if (M.mode !== 'race') return false;
@@ -419,12 +422,13 @@
   }
 
   // ------------------------------------------------------------ UI
-  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel'], ['brawl', '🥊', 'Battle Arena (players + bots)'], ['coop', '🗼', 'Co-op Battle Tower'], ['free', '🌍', 'Free play (any normal level, together)']];
+  const MODES = [['race', '🏁', 'Race'], ['tag', '🏃', 'Tag'], ['hide', '🫣', 'Hide & Seek'], ['duel', '⚔️', 'Minigame duel'], ['brawl', '🥊', 'Battle Arena (players + bots)'], ['coop', '🗼', 'Co-op Battle Tower'], ['free', '🌍', 'Free play (any normal level, together)'], ['rounds', '🎴', 'Goose Rounds (card duel, up to 4)']];
   function mapsFor(mode) {
     if (mode === 'race') return (root.Levels.race || []).map((l, i) => ['r:' + i, '🏁 ' + l.name]).concat(api.levels.map((l, i) => [String(i), (i + 1) + '. ' + l.name]));
     if (mode === 'free') return api.levels.map((l, i) => [String(i), (i + 1) + '. ' + l.name]);
     if (mode === 'duel') return (root.Minigames ? root.Minigames.list : []).map((m) => [m.id, m.icon + ' ' + m.name]);
     if (mode === 'coop') return [['0', '🗼 Floor 1 and up']];
+    if (mode === 'rounds') return [['3', '🎴 First to 3 wins'], ['5', '🎴 First to 5 wins'], ['2', '🎴 Quick: first to 2']];
     return [['-1', '🎲 Random map']].concat(MAPS[mode].map((m, i) => [String(i), m.name]));
   }
   function selLabel() {
@@ -528,7 +532,7 @@
   }
 
   const peersList = () => Object.keys(ghosts).map(Number).filter((id) => id !== myId && M.ids.includes(id)).map((id) => { const t = ghosts[id].cur || ghosts[id].tgt, n = t.n || []; return { id, c: t.c, hd: n.length ? n[n.length - 1] : t.c, f: t.f }; });
-  root.MP = { relook, honked, emote: (e) => { if (connected) broadcast({ t: 'em', e }); }, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
+  root.MP = { rsend: (d) => { if (connected && !isHost) toHost({ t: 'r', d }); }, rall: (d) => { if (connected && isHost) toAll({ t: 'r', d }); }, roundsEnd: (w, text) => { if (isHost && M.mode === 'rounds') { toAll({ t: 'end', winners: [w], text }); endShow([w], text); } }, relook, honked, emote: (e) => { if (connected) broadcast({ t: 'em', e }); }, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
               bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
               peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, arenaQuick, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };

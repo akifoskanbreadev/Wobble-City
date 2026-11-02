@@ -32,7 +32,7 @@
     function join(w) {
       word = slug(w);
       if (!word) return status('Type a word first (any word you and your friends agree on).', true);
-      if (!root.Peer) return status('Could not load the matchmaking library (are you offline?).', true);
+      if (!root.Peer) { if (root.loadPeer) root.loadPeer(); return status('Multiplayer is still loading, or this network blocks it. Try again in a few seconds.', true); }
       leave(true); tries = 0; status('Looking for the room “' + word + '”…'); tryHost(gen);
     }
     function tryHost(g) {
