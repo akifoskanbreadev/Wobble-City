@@ -25,7 +25,7 @@
   function generate(level, idx, diffKey) {
     const list = [];
     if (idx < 1) return list;                              // the very first level stays peaceful
-    const R = rng(1000 + idx * 77), R2 = rng(5000 + idx * 31), theme = level.theme || 'meadow';
+    const R = rng(1000 + idx * 77), R2 = rng(5000 + idx * 31), R3 = rng(9000 + idx * 13), theme = level.theme || 'meadow';
     const dens = DENSITY[diffKey] || 0.7;
     if (level.sea) return seaLife(level, idx, dens, R2);
     const stretches = [];
@@ -63,6 +63,14 @@
         else if (q < 0.68 && flatPatrol(mid - 70, mid + 70, s.y)) { e0.kind = 'hopper'; e0.sp = 46; e0.amp = Math.max(e0.amp, 70); }
         else if (len >= 260) { e0.kind = 'turret'; e0.cx = mid; e0.dir = -1; e0.per = 3.4 - Math.min(1, idx / 130) * 0.7; e0.amp = 0; }
       }
+      // newer creatures replace some plain walkers (own rng so older layouts stay put)
+      if (e0.kind === 'blob' && idx >= 3 && R3() < Math.min(0.7, 0.34 + idx * 0.004) && !level.sea) {
+        const q = R3();
+        if (q < 0.4 && flatPatrol(mid - 70, mid + 70, s.y)) { e0.kind = 'beachball'; e0.amp = Math.max(e0.amp, 70); e0.sp = 70; }
+        else if (q < 0.72 && idx >= 5 && len >= 240 && flatPatrol(mid - 90, mid + 90, s.y)) { e0.kind = 'fox'; e0.amp = Math.max(e0.amp, 90); e0.sp = 40; }
+        else if (idx >= 8 && len >= 260 && flatPatrol(mid - 95, mid + 95, s.y)) { e0.kind = 'swan'; e0.amp = Math.max(e0.amp, 95); e0.sp = 44; }
+      }
+      if (e0.kind === 'charger' && idx >= 10 && R3() < 0.5) e0.kind = 'swan';
       list.push(e0);
     }
     // a few bats floating over the course
@@ -71,7 +79,8 @@
       if (R() > dens) continue;
       const g = groundAt(level, x);
       if (g === null || inWater(x) || blockedAt(x, g - 130, 40) || blockedAt(x - 110, g - 130, 20) || blockedAt(x + 110, g - 130, 20)) continue;
-      list.push({ kind: idx >= 8 && R2() < 0.45 ? 'diver' : 'bat', cx: x, y: g - 120 - R() * 50, amp: 110, sp: 1.1 + R() * 0.6, ph: R() * 6, hue: 0, theme });
+      const bk = idx >= 8 && R2() < 0.45 ? 'diver' : 'bat';
+      list.push({ kind: bk === 'bat' && idx >= 6 && R3() < 0.35 ? 'swooper' : bk, cx: x, y: g - 120 - R() * 50, amp: 110, sp: 1.1 + R() * 0.6, ph: R() * 6, hue: 0, theme });
     }
     for (const e of list) { e.id = list.indexOf(e); }
     return list;
@@ -116,19 +125,28 @@
       const s = (((t / 1.3 + e.ph) % 1) + 1) % 1, u2 = (t * e.sp) / (2 * e.amp) + e.ph;
       return { x: e.cx + tri(u2) * e.amp, y: e.y - 4 * s * (1 - s) * 90, dir: tri(u2 + 0.01) > tri(u2) ? 1 : -1 };
     }
-    if (e.kind === 'charger') {  // 5 s cycle: patrol 3 s, shake 0.7 s (telegraph), dash 1.3 s at 3.2x speed
-      const C = 5, k = Math.floor((t + e.ph) / C), s = (t + e.ph) - k * C, dist = 3 * e.sp + 1.3 * e.sp * 3.2;
+    if (e.kind === 'beachball') {   // rolls along, bouncing 100 px high every 1.1 s
+      const s = (((t / 1.1 + e.ph) % 1) + 1) % 1, u2 = (t * e.sp) / (2 * e.amp) + e.ph;
+      return { x: e.cx + tri(u2) * e.amp, y: e.y - 4 * s * (1 - s) * 100 - 0, dir: tri(u2 + 0.01) > tri(u2) ? 1 : -1, ang: t * 5 * (tri(u2 + 0.01) > tri(u2) ? 1 : -1) };
+    }
+    if (e.kind === 'swooper') {     // sweeps side to side, dipping 95 px at each pass
+      const u = t * e.sp * 0.8 + e.ph;
+      return { x: e.cx + Math.sin(u) * e.amp * 1.3, y: e.y + 95 * (0.5 - 0.5 * Math.cos(u * 2)), dir: Math.cos(u) >= 0 ? 1 : -1, dive: Math.sin(u * 2) > 0.5 };
+    }
+    if (e.kind === 'charger' || e.kind === 'swan' || e.kind === 'fox') {  // 5 s cycle: patrol 3 s, shake 0.7 s (telegraph), dash 1.3 s at 3.2x speed
+      const C = e.kind === 'swan' ? 4.4 : 5, k = Math.floor((t + e.ph) / C), s = (t + e.ph) - k * C, dist = 3 * e.sp + 1.3 * e.sp * 3.2;
       const part = s < 3 ? s * e.sp : s < 3.7 ? 3 * e.sp : 3 * e.sp + (s - 3.7) * e.sp * 3.2 * (s < 5 ? 1 : 0);
       const tau = k * dist + Math.min(part, dist), u2 = tau / (2 * e.amp);
-      return { x: e.cx + tri(u2) * e.amp, y: e.y, dir: tri(u2 + 0.002) > tri(u2) ? 1 : -1, wind: s >= 3 && s < 3.7, dash: s >= 3.7 };
+      const arc = e.kind === 'fox' && s >= 3.7 && s < 4.5 ? 4 * ((s - 3.7) / 0.8) * (1 - (s - 3.7) / 0.8) * 70 : 0;   // the fox pounces in an arc
+      return { x: e.cx + tri(u2) * e.amp, y: e.y - arc, dir: tri(u2 + 0.002) > tri(u2) ? 1 : -1, wind: s >= 3 && s < 3.7, dash: s >= 3.7 };
     }
     const u = (t * e.sp) / (2 * e.amp) + e.ph;
     const x = e.cx + tri(u) * e.amp;
     const dir = tri(u + 0.01) > tri(u) ? 1 : -1;
     return { x, y: e.y, dir };
   }
-  const RADIUS = { diver: 22, blob: 26, urchin: 24, bat: 20, charger: 28, hopper: 22, turret: 26, jelly: 26, puffer: 22, eel: 18, shark: 40 };
-  const FLYERS = { diver: 1, bat: 1, jelly: 1, puffer: 1, eel: 1, shark: 1 };
+  const RADIUS = { diver: 22, blob: 26, urchin: 24, bat: 20, charger: 28, hopper: 22, turret: 26, beachball: 26, fox: 24, swan: 30, swooper: 20, jelly: 26, puffer: 22, eel: 18, shark: 40 };
+  const FLYERS = { swooper: 1, diver: 1, bat: 1, jelly: 1, puffer: 1, eel: 1, shark: 1 };
   const SEA = { jelly: 1, puffer: 1, eel: 1, shark: 1 };
   const radiusAt = (e, t) => {
     if (e.kind === 'puffer') { const s = (((t + e.ph) % 4) + 4) % 4; return 22 + 24 * (s < 2 ? 0 : s < 2.5 ? (s - 2) * 2 : s < 3.5 ? 1 : (4 - s) * 2); }
@@ -248,6 +266,40 @@
       c.fillStyle = '#39414b'; c.save(); c.translate(0, -30); c.fillRect(-6 + rec * 0.5, -9, 38 - rec, 18); c.strokeRect(-6 + rec * 0.5, -9, 38 - rec, 18); c.restore();
       c.fillStyle = ph > 0.82 ? '#ff4a2a' : '#f2c14a'; c.beginPath(); c.arc(-6, -14, 5, 0, 7); c.fill(); c.stroke();
       c.fillStyle = '#cfd6de'; for (const x of [-16, 16]) { c.beginPath(); c.arc(x, -6, 2.4, 0, 7); c.fill(); }
+    },
+    beachball(c, e, t, p) { // striped beach ball, spins
+      c.translate(0, -26); c.rotate(p.ang || 0); const cols = ['#e63946', '#fff', '#ffd23f', '#fff', '#3a86ff', '#fff'];
+      for (let i = 0; i < 6; i++) { c.fillStyle = cols[i]; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 26, i * Math.PI / 3, (i + 1) * Math.PI / 3); c.closePath(); c.fill(); }
+      c.beginPath(); c.arc(0, 0, 26, 0, 7); c.stroke(); c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 4, 0, 7); c.fill(); c.stroke();
+      c.rotate(-(p.ang || 0)); eyes(c, 6, -2, 7, 3.6, 1); brows(c, 6, -2, 7, 5);
+    },
+    fox(c, e, t, p) { // sneaky fox: crouches, then pounces
+      const sh = p.wind ? Math.sin(t * 60) * 1.6 : 0, run = Math.sin(t * (p.dash ? 30 : 9)) * 3, cr = p.wind ? 6 : 0; c.translate(sh, cr);
+      c.fillStyle = '#e8801a'; c.beginPath(); c.moveTo(-18, -20); c.quadraticCurveTo(-46, -34 + run, -40, -8); c.quadraticCurveTo(-30, -14, -18, -12); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.moveTo(-40, -8); c.quadraticCurveTo(-46, -34 + run, -42, -26); c.lineTo(-34, -12); c.closePath(); c.fill();
+      c.fillStyle = '#5a3016'; for (const dx of [-12, 12]) { c.beginPath(); c.ellipse(dx + run * Math.sign(dx) * 0.6, -3, 5, 4, 0, 0, 7); c.fill(); c.stroke(); }
+      c.fillStyle = '#e8801a'; c.beginPath(); c.ellipse(0, -17, 22, 13, 0, 0, 7); c.fill(); c.stroke();
+      c.beginPath(); c.arc(20, -24, 11, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#fff'; c.beginPath(); c.moveTo(24, -18); c.lineTo(36, -22); c.lineTo(24, -12); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#e8801a'; for (const x of [13, 22]) { c.beginPath(); c.moveTo(x - 3, -32); c.lineTo(x + 1, -44); c.lineTo(x + 5, -32); c.closePath(); c.fill(); c.stroke(); }
+      c.fillStyle = p.wind || p.dash ? '#ff3a2e' : OUT; c.beginPath(); c.arc(22, -26, 2.4, 0, 7); c.fill(); c.fillStyle = OUT; c.beginPath(); c.arc(36, -22, 2.2, 0, 7); c.fill(); brows(c, 22, -26, 0, 5);
+    },
+    swan(c, e, t, p) { // angry swan: honks, then charges
+      const sh = p.wind ? Math.sin(t * 60) * 2 : 0, run = Math.sin(t * (p.dash ? 28 : 8)) * 3; c.translate(sh, 0);
+      c.fillStyle = '#ff9b2f'; for (const dx of [-8, 8]) { c.beginPath(); c.ellipse(dx + run * Math.sign(dx) * 0.7, -3, 6, 3.4, 0, 0, 7); c.fill(); c.stroke(); }
+      c.fillStyle = '#fff'; c.beginPath(); c.ellipse(-2, -20, 26, 15, 0, 0, 7); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(-26, -24); c.lineTo(-40, -32); c.lineTo(-24, -16); c.closePath(); c.fill(); c.stroke();
+      c.lineWidth = 9; c.strokeStyle = OUT; c.beginPath(); c.moveTo(14, -26); c.quadraticCurveTo(26, -44, 20, -56 + (p.dash ? 8 : 0)); c.stroke();
+      c.lineWidth = 5.6; c.strokeStyle = '#fff'; c.beginPath(); c.moveTo(14, -26); c.quadraticCurveTo(26, -44, 20, -56 + (p.dash ? 8 : 0)); c.stroke(); c.lineWidth = 2.6; c.strokeStyle = OUT;
+      const hy = -56 + (p.dash ? 8 : 0); c.fillStyle = '#fff'; c.beginPath(); c.arc(21, hy, 7, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = '#ff7a1a'; c.beginPath(); c.moveTo(26, hy - 2); c.lineTo(38 + (p.wind ? 4 : 0), hy + 2); c.lineTo(26, hy + 5); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = p.wind || p.dash ? '#ff3a2e' : OUT; c.beginPath(); c.arc(22, hy - 2, 2.2, 0, 7); c.fill(); brows(c, 22, hy - 2, 0, 5);
+    },
+    swooper(c, e, t, p) { // swooping bat: red eyes when diving
+      const f = Math.sin(t * 18 + e.id) * 0.7; c.fillStyle = p.dive ? '#8a2a3a' : '#3f3a5a';
+      for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 6, -2); c.lineTo(s2 * 38, -18 - f * 14); c.lineTo(s2 * 28, -2); c.lineTo(s2 * 20, 6 - f * 6); c.lineTo(s2 * 12, 1); c.closePath(); c.fill(); c.stroke(); }
+      body(c, 11, 13, '#4a4470', '#8a80b0'); c.beginPath(); c.ellipse(0, 2, 10, 13, 0, 0, 7); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(-7, -8); c.lineTo(-6, -19); c.lineTo(-1, -10); c.moveTo(7, -8); c.lineTo(6, -19); c.lineTo(1, -10); c.fill(); c.stroke();
+      c.fillStyle = p.dive ? '#ff3a2e' : '#ffe14a'; c.beginPath(); c.arc(-4, 0, 3, 0, 7); c.arc(4, 0, 3, 0, 7); c.fill(); c.fillStyle = '#fff'; c.fillRect(-3, 8, 2, 4); c.fillRect(2, 8, 2, 4);
     },
     jelly(c, e, t) { // jellyfish
       const w = Math.sin(t * 5 + e.id) * 3; c.globalAlpha = 0.92;

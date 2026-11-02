@@ -194,15 +194,16 @@
 
   let decor = null, flyOn = null;
   let chasers = [], trailP = [], enemies = [], enemyDead = {}, levelClock = 0, hitCd = 0, prevCy = 0, lastVy = 0;
-  let bolt = null, nextBolt = 6, hailOn = false;
+  let bolt = null, nextBolt = 6, hailOn = false, dailyLv = null;
   let mech = null, boss = null, bossPhase = null, eggPos = null, wxInfo = { a: 0, warn: 0, dir: 0 };
   function loadLevel(i, custom) {
+    if (i === -7 && dailyLv) custom = dailyLv;
     levelIdx = i; level = custom || LEVELS[i];
     world = new World();
     world.gscale = gravK(); flyOn = null;
     trailP = [];
     decor = window.Decor.generate(level, custom ? 0 : i);
-    enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? -1 : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
+    enemies = (save.enemies !== false) ? ENEMIES.generate(level, custom ? (custom.daily ? custom.dailyIdx : -1) : i, dKey()) : []; enemyDead = {}; levelClock = 0; hitCd = 0; prevCy = 0;
     chasers = (level.life || []).filter((l) => l.kind === 'chaser').map((l) => ({ x: l.trig - 700, y: l.y, r: l.r, v: l.v0, acc: l.acc, vmax: l.vmax, trig: l.trig, xEnd: l.xEnd, on: false, gone: false, ph: 0 }));
     extras = buildLevel(world, level);
     const d = diff();
@@ -418,7 +419,7 @@
         snd.boing(); toast('Stomp! +1 🍞', 0.9); persist();
       } else if (hitCd <= 0 && !has('shield') && !(save.cheats.admin && save.cheats.god && !mpOn())) {
         // enemies are deadly unless you stomp them from above
-        hitCd = 1.2; deaths++; snd.ouch(); toast(e.kind === 'urchin' ? 'Ouch! Spikes!' : e.kind === 'turret' ? 'Ouch! Armoured: jump over it.' : e.kind === 'charger' ? 'Run! Or jump on its head.' : ({ jelly: 'Zap! Jellyfish sting.', puffer: 'Prickly! Pufferfish.', eel: 'Zap! Eel.', shark: 'Chomp!' })[e.kind] || 'Gotcha! Stomp them from above.', 1.8); respawn();
+        hitCd = 1.2; deaths++; snd.ouch(); toast(e.kind === 'urchin' ? 'Ouch! Spikes!' : e.kind === 'turret' ? 'Ouch! Armoured: jump over it.' : e.kind === 'charger' ? 'Run! Or jump on its head.' : e.kind === 'swan' ? 'HONK! Angry swan. Jump on its head.' : e.kind === 'fox' ? 'The fox pounced! Stomp it first.' : e.kind === 'beachball' ? 'Boing! Stomp the beach ball.' : e.kind === 'swooper' ? 'Swoosh! Stomp the swooper.' : ({ jelly: 'Zap! Jellyfish sting.', puffer: 'Prickly! Pufferfish.', eel: 'Zap! Eel.', shark: 'Chomp!' })[e.kind] || 'Gotcha! Stomp them from above.', 1.8); respawn();
       }
     }
   }
@@ -517,7 +518,36 @@
     }
   }
 
+  const dayKey = () => new Date().toISOString().slice(0, 10);
+  function finishDaily() {
+    state = 'done'; snd.egg();
+    const d = diff(), key = level.dailyKey, D = save.daily = save.daily || { streak: 0, last: '', best: {}, total: 0 };
+    const fmtT = (t) => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + '.' + Math.floor((t % 1) * 10);
+    const first = D.last !== key; let reward = 0, extra = '';
+    if (first) {
+      const y = new Date(Date.parse(key) - 864e5).toISOString().slice(0, 10);
+      D.streak = D.last === y ? D.streak + 1 : 1; D.last = key; D.total = (D.total | 0) + 1;
+      reward = (40 + breadGot * 2 + Math.min(D.streak, 10) * 10) * d.mult; save.bread += reward;
+      extra = '\n🔥 Streak: ' + D.streak + (D.streak === 1 ? ' day' : ' days') + ' · come back tomorrow!';
+    } else extra = '\nAlready claimed today. Replay for a better time!';
+    const prev = D.best[key], newBest = prev == null || levelClock < prev; if (newBest) D.best[key] = levelClock;
+    const ks = Object.keys(D.best).sort(); if (ks.length > 40) for (const k of ks.slice(0, ks.length - 40)) delete D.best[k];
+    persist(); refreshMenu();
+    $('doneTitle').textContent = '📅 Daily complete!';
+    $('doneText').textContent = '⏱ ' + fmtT(levelClock) + (newBest ? ' 🏆 best today!' : ' (best ' + fmtT(prev) + ')') + '\nBread ' + breadGot + '/' + bread.length + (deaths ? '  ·  Falls ' + deaths : '') + (reward ? '\n+' + reward + ' 🍞 (' + d.name + (d.mult > 1 ? ' ×' + d.mult : '') + ')' : '') + extra;
+    $('nextBtn').textContent = 'Play again';
+    $('done').classList.remove('hidden');
+  }
+  function startDaily() {
+    audio(); if (mpOn && mpOn()) return;
+    stopMinigame(); hideAll();
+    dailyLv = LEVELS.makeDaily(dayKey());
+    loadLevel(-7);
+    state = 'play'; setMode('std', 'level');
+    toast('📅 ' + level.name + ' · ' + level.theme + ' · ' + dayKey(), 4);
+  }
   function finishLevel() {
+    if (level && level.daily) return finishDaily();
     state = 'done'; snd.egg();
     const d = diff(), last = levelIdx === LEVELS.length - 1, champ = levelIdx === (LEVELS.weather || LEVELS.length) - 1;
     const reward = (breadGot + 10) * d.mult;
@@ -881,7 +911,8 @@
     cx.restore();
   }
 
-  function drawGoose(cx, g, equip, skin) {
+  function drawGoose(cx, g, equip, skin) { drawGoose0(cx, g, equip, skin); if (window.Emotes && g.key !== 'fake') { try { window.Emotes.drawOn(cx, g); } catch (e) { /* ignore */ } } }
+  function drawGoose0(cx, g, equip, skin) {
     equip = equip || {};
     const sk = typeof skin === 'object' && skin ? skin : (SKINS.BY_ID[skin] || SKINS.BY_ID.goose);
     if (sk.jellyfish && window.Avatars) { window.Avatars.draw(cx, g, sk); return; }
@@ -1350,6 +1381,7 @@
   $('startBtn').addEventListener('click', () => { audio(); startLevel(pick); });
   $('nextBtn').addEventListener('click', () => {
     audio();
+    if (level && level.daily) { startDaily(); return; }
     const next = levelIdx + 1 >= LEVELS.length ? 0 : levelIdx + 1;
     startLevel(next);
   });
@@ -1531,7 +1563,7 @@
     if (window[m] && window[m].init) window[m].init({ save: () => save, Skins: SKINS, award: (n) => { save.bread += n; persist(); refreshMenu(); }, isOwner: () => !!(window.Owner && window.Owner.authed()) });
     $(b).addEventListener('click', () => { audio(); if (window[m] && window[m].open) window[m].open(); });
   });
-  window.MP.init({ honk: (sk, vo) => snd.honk(sk, vo), save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
+  window.MP.init({ emote: (id, e) => { if (window.Emotes) window.Emotes.show('p' + id, e); }, honk: (sk, vo) => snd.honk(sk, vo), save: () => save, levels: LEVELS, goose: () => goose, startLevel, startCustom, startMinigame, showMenu, toast, drawGoose: (c, g, e, sk) => drawGoose(c, g, e, sk),
     setDiff: (k) => { diffOverride = k; }, award: (n) => { save.bread += n; persist(); refreshMenu(); },
     appendMgText: (t) => { $('mgDoneText').textContent += t; } });
   $('codeBtn').addEventListener('click', () => { audio(); openCode(); });
@@ -1703,7 +1735,7 @@
       c.strokeStyle = INK; c.lineWidth = 8.5; c.beginPath(); c.moveTo(0, -26); c.lineTo(0, 0); c.stroke();
       c.strokeStyle = '#ff9b2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(0, -26); c.lineTo(0, 0); c.stroke();
       c.rotate(-Math.PI / 2); item.draw(c);
-    } else if (item.cat === 'voice' || item.cat === 'phys') {
+    } else if (item.cat === 'voice' || item.cat === 'phys' || item.cat === 'emote') {
       c.font = '34px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(item.emoji || '🔊', 24, 26);
     } else {
       c.translate(20, 22); c.scale(1.7, 1.7);
@@ -1745,7 +1777,7 @@
       tryOn = {}; selectedItem = null; persist(); snd.tick(); renderStore();
     });
     tb('🧹 Take everything off', () => { save.equip = {}; save.tint = {}; tryOn = {}; selectedItem = null; persist(); applyPhys(); snd.tick(); renderStore(); });
-    const tintable = !isSkinTab && storeCat !== 'voice' && storeCat !== 'phys' && storeCat !== 'trail' && (save.equip[storeCat] || tryOn[storeCat]);
+    const tintable = !isSkinTab && storeCat !== 'voice' && storeCat !== 'phys' && storeCat !== 'emote' && storeCat !== 'trail' && (save.equip[storeCat] || tryOn[storeCat]);
     if (tintable) {
       const row = document.createElement('div'); row.className = 'tintRow';
       const lab = document.createElement('span'); lab.textContent = 'Colour:'; row.appendChild(lab);
@@ -1854,6 +1886,7 @@
     btn(g, 'Clear all', () => { enemies = []; });
     btn(g, 'Spawn blob here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: 'blob', cx: c.x + 150, y: c.y + 30, amp: 90, sp: 50, ph: 0, hue: 200 }); } });
     btn(g, 'Spawn bat here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: 'bat', cx: c.x + 150, y: c.y - 60, amp: 100, sp: 1.3, ph: 0, hue: 0 }); } });
+    for (const [k, lab, dy, sp] of [['beachball', 'beach ball', 30, 70], ['fox', 'fox', 30, 40], ['swan', 'swan', 30, 44], ['swooper', 'swooper', -100, 1.2]]) btn(g, 'Spawn ' + lab + ' here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: k, cx: c.x + 150, y: c.y + dy, amp: 95, sp, ph: 0, hue: 0, theme: 'meadow' }); } });
     btn(g, 'Spawn urchin here', () => { if (goose) { const c = goose.center(); enemies.push({ id: enemies.length + 100, kind: 'urchin', cx: c.x + 150, y: c.y + 30, amp: 90, sp: 50, ph: 0, hue: 0 }); } });
     g = sec('Economy & unlocks');
     const num = document.createElement('input'); num.type = 'number'; num.value = save.bread; num.style.width = '90px';
@@ -1993,7 +2026,7 @@
   showMenu();
   requestAnimationFrame(frame);
 
-  window.__wobble = {
+  window.__wobble = { startDaily, dayKey, openEmoteShop: () => { openStore(); storeCat = 'emote'; selectedItem = null; renderStore(); },
     get goose() { return goose; }, get state() { return state; }, get save() { return save; }, input, host,
     startLevel, showMenu, openStore, openMgMenu, startMinigame, openCode, persist,
     get inst() { return mgInst; }, get level() { return level; }, drawGoose, fakeGoose, SKINS,

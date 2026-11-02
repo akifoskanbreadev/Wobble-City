@@ -127,6 +127,7 @@
       case 'hi': if (isHost) { roster[from] = { skin: m.skin, equip: m.equip || {}, ready: false }; sendRoster(); } break;
       case 'look': if (isHost && roster[from]) { roster[from].skin = m.skin; roster[from].equip = m.equip || {}; sendRoster(); } break;
       case 'hk': { if (isHost) { m.id = from; toAll(m, from); } const r = roster[m.id]; if (m.id !== myId && api && api.honk) api.honk(r && r.skin, r && r.equip ? r.equip.voice || null : null); break; }
+      case 'em': { if (isHost) { m.id = from; toAll(m, from); } if (m.id !== myId && api && api.emote && typeof m.e === 'string' && m.e.length < 20) api.emote(m.id, m.e); break; }
       case 'ready': if (isHost && roster[from]) { roster[from].ready = !!m.v; sendRoster(); } break;
       case 'roster': for (const k of Object.keys(roster)) delete roster[k]; m.list.forEach((r) => { roster[r.id] = { skin: r.skin, equip: r.equip || {}, ready: !!r.ready }; }); if (m.sel) sel = m.sel; for (const k of Object.keys(ghosts)) if (!roster[k]) delete ghosts[k]; ui(); break;
       case 'chat': if (isHost) { m.id = from; toAll(m, from); } chatIn(m); break;
@@ -527,7 +528,7 @@
   }
 
   const peersList = () => Object.keys(ghosts).map(Number).filter((id) => id !== myId && M.ids.includes(id)).map((id) => { const t = ghosts[id].cur || ghosts[id].tgt, n = t.n || []; return { id, c: t.c, hd: n.length ? n[n.length - 1] : t.c, f: t.f }; });
-  root.MP = { relook, honked, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
+  root.MP = { relook, honked, emote: (e) => { if (connected) broadcast({ t: 'em', e }); }, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
               bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
               peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, arenaQuick, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };

@@ -168,3 +168,9 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 
 ### More stuff 7
 12 more skins (Zebra, Tiger, Cow, Picnic, Chocolate, Mint, Lava, Frosty, Candy Cane, Nebula, Banana, Berry), 6 pets, neck items, shoes, tails, held items, 3 trails and Spinning Planets.
+
+### New enemies, Daily Challenge, Emotes
+- **Enemies:** Beach Ball (bounces, stompable), Fox (crouches then pounces), Angry Swan (honks then charges) and Swooping Bat. They replace some plain walkers and bats in the normal levels, and the head admin spawn buttons have all four.
+- **📅 Daily Challenge** (main menu): a level generated from today's date, the same for everyone. The first finish each day pays bread plus a streak bonus (up to 10 days). Replays record a best time.
+- **😀 Emotes:** tap 😀 (or press E) in a level. Emotes pop a bubble over your goose and everyone in multiplayer sees them. 6 are free, 29 more are in the shop's Emotes tab.
+- **More stuff 8:** 12 skins plus hats, eyewear, face bits, a jetpack, cape, held items, 4 pets, 3 auras and 3 trails.

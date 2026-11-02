@@ -756,6 +756,23 @@
   D2('Coral Gates', 'Find the button to open each gate, then slip through the kelp doors.', [S.gates(), S.kelpgates(4), S.whirl(), S.mines(4), S.reef(1), S.wreck(900), S.gates()], { dense: 0.9 });
   D2('The Abyss', 'The deepest, darkest level. A huge monster hunts you here. Everything lives in the dark.', [S.wreck(1000), S.kelpgates(4), S.whirl(), S.chase(2100, 380), S.current(1000, -1), S.bubbles(5), S.mines(6), S.secret(), S.reef(1), S.chase(2400, 420)], { dark: true, dense: 1.2 });
 
+
+  // ------------------------------------------------------------------ the daily challenge: one level per date, the same for everybody
+  LEVELS.makeDaily = function (key) {
+    let h = 2166136261; for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    let a = h >>> 0; const R = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const ri = (lo, hi) => lo + Math.floor(R() * (hi - lo + 1)), pk = (arr) => arr[Math.floor(R() * arr.length)];
+    const theme = pk(['meadow', 'desert', 'snow', 'sunset', 'night', 'candy', 'lava']);
+    const pool = [() => s.hills(ri(2, 4), ri(60, 100)), () => s.pond(ri(300, 500)), () => s.stones(ri(4, 7)), () => s.walls(ri(3, 4), ri(90, 120)), () => s.gap(ri(3, 4), ri(80, 130)),
+      () => s.movers(ri(3, 4), R() < 0.5), () => s.ice(ri(450, 600), ri(260, 320)), () => s.bounceUp(ri(250, 350)), () => s.climb(ri(3, 4), ri(70, 90)), () => s.tower(ri(5, 6)), () => s.gorge()];
+    const secs = [s.hills(2, 70)]; const n = ri(4, 6); let last = -1;
+    for (let i = 0; i < n; i++) { let k; do { k = Math.floor(R() * pool.length); } while (k === last); last = k; secs.push(pool[k]()); }
+    const adj = ['Wobbly', 'Sneaky', 'Soggy', 'Sunny', 'Spooky', 'Bouncy', 'Frosty', 'Crumbly', 'Grumpy', 'Giddy'], noun = ['Dash', 'Gauntlet', 'Trail', 'Scramble', 'Run', 'Ramble', 'Rush', 'Hop'];
+    const lv = compose(pk(adj) + ' ' + pk(noun), 'Today\'s challenge. Same level for everyone, new one tomorrow!', theme, secs);
+    lv.daily = true; lv.dailyIdx = ri(8, 24); lv.dailyKey = key;
+    return lv;
+  };
+
   // ------------------------------------------------------------------ dedicated multiplayer race tracks
   const RACE = [];
   LEVELS.race = RACE;
