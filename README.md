@@ -165,3 +165,6 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 
 ### More stuff 6
 12 new skins (Pride, Sunrise, Starlight, Toxic, Sakura, Royal, Treasure and more) and 24 new clothes: hats, eyes, face bits, wings, cloak, laser sword, cocoa, kite, lantern, butterflies, rain cloud, embers and 3 trails. The shop Parachute and the `chute` code now actually slow your fall.
+
+### More stuff 7
+12 more skins (Zebra, Tiger, Cow, Picnic, Chocolate, Mint, Lava, Frosty, Candy Cane, Nebula, Banana, Berry), 6 pets, neck items, shoes, tails, held items, 3 trails and Spinning Planets.
