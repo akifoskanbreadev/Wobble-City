@@ -187,3 +187,6 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 
 ## Connection check
 Type the code `check` in the code box to see which online parts (game files, accounts/sync, multiplayer library, multiplayer server, direct connection) this network allows. Handy for school filters.
+
+### Rounds: wall cling and wall jump
+Push into the side of any solid block while in the air to slide down it slowly, and press jump to kick off the wall. Chain wall jumps to climb up pillars.

@@ -85,14 +85,14 @@
   const R = (p) => 20 * p.st.size;
 
   function collide(p, solids) {
-    const r = R(p); p.onG = false;
+    const r = R(p); p.onG = false; p.wall = 0;
     for (let it = 0; it < 3; it++) for (const s of solids) {
       const nx = clamp(p.x, s[0], s[0] + s[2]), ny = clamp(p.y, s[1], s[1] + s[3]); let dx = p.x - nx, dy = p.y - ny, d = Math.hypot(dx, dy);
       if (d < r) {
         if (d < 0.001) { dx = 0; dy = -1; d = 1; const pu = p.y - s[1], pd = s[1] + s[3] - p.y; if (pd < pu) dy = 1; }
         const px = dx / d, py = dy / d; p.x += px * (r - d); p.y += py * (r - d);
         const vn = p.vx * px + p.vy * py; if (vn < 0) { p.vx -= vn * px; p.vy -= vn * py; }
-        if (py < -0.5) p.onG = true;
+        if (py < -0.5) p.onG = true; else if (Math.abs(px) > 0.7 && Math.abs(py) < 0.6) p.wall = px > 0 ? -1 : 1;   // touching the side of a solid: -1 wall on the left, 1 on the right
       }
     }
   }
@@ -142,12 +142,13 @@
       if (p.bot && p.alive) botThink(o, p, dt);
       if (!p.alive) continue;
       const st = p.st, inp = p.inp, canAct = o.ph !== 'over';
-      const tgt = (canAct ? inp.mx : 0) * 270 * st.move, acc = p.onG ? 3200 : 1900;
+      const tgt = (p.wl > 0 ? -p.wd : (canAct ? inp.mx : 0)) * 270 * st.move, acc = p.onG ? 3200 : 1900;
       p.vx += clamp(tgt - p.vx, -acc * dt, acc * dt);
       p.vy += 1500 * st.grav * dt; if (p.vy > 1100) p.vy = 1100;
+      p.wl = (p.wl || 0) - dt; if (p.wall && !p.onG && p.vy > 130 && canAct && inp.mx === p.wall) p.vy = 130;   // cling to a wall and slide slowly
       if (inp.mx) p.face = inp.mx;
       p.coy = p.onG ? 0.1 : p.coy - dt; if (p.onG) p.air = st.air;
-      if (canAct && inp.jump && !p.jh) { if (p.coy > 0) { p.vy = -590 * st.jump; p.coy = 0; o.ev.push(['jump', p.x, p.y]); } else if (p.air > 0) { p.vy = -540 * st.jump; p.air--; o.ev.push(['jump', p.x, p.y]); } }
+      if (canAct && inp.jump && !p.jh) { if (p.coy > 0) { p.vy = -590 * st.jump; p.coy = 0; o.ev.push(['jump', p.x, p.y]); } else if (p.wall && !p.onG) { p.vy = -600 * st.jump; p.vx = -p.wall * 300; p.wd = p.wall; p.wl = 0.16; p.face = -p.wall; o.ev.push(['jump', p.x, p.y]); } else if (p.air > 0) { p.vy = -540 * st.jump; p.air--; o.ev.push(['jump', p.x, p.y]); } }
       p.jh = inp.jump; if (!inp.jump && p.vy < -200 && p.vy > -590 * st.jump + 20) p.vy *= 1 - dt * 4;   // short hop when released
       p.x += p.vx * dt; p.y += p.vy * dt; collide(p, solids);
       const r = R(p); if (p.x < r) { p.x = r; p.vx = Math.max(0, p.vx); } if (p.x > W - r) { p.x = W - r; p.vx = Math.min(0, p.vx); } if (p.y < -380) { p.y = -380; p.vy = Math.max(0, p.vy); }
