@@ -20,10 +20,13 @@
     { name: 'The Gap', bg: ['#b8a8ff', '#e8e0ff'], pit: true, solids: [[0, 480, 330, 60], [630, 480, 330, 60], [380, 380, 200, 20], [120, 300, 170, 20], [670, 300, 170, 20], [400, 220, 160, 20]], sp: [[100, 420], [860, 420], [180, 240], [780, 240]] },
     { name: 'Staircase', bg: ['#a8f0d0', '#e0ffe8'], solids: [[0, 500, 960, 40], [0, 430, 150, 70], [150, 360, 150, 140], [300, 290, 130, 24], [530, 290, 130, 24], [660, 360, 150, 140], [810, 430, 150, 70], [390, 190, 180, 22]], sp: [[60, 380], [900, 380], [220, 300], [740, 300]] },
     { name: 'Floating Islands', bg: ['#7ab8ff', '#cfe8ff'], pit: true, solids: [[60, 440, 220, 24], [680, 440, 220, 24], [370, 400, 220, 24], [180, 290, 160, 20], [620, 290, 160, 20], [400, 180, 160, 20]], sp: [[120, 380], [800, 380], [440, 340], [240, 230]] },
+    { name: 'Pillar Pit', bg: ['#ffb8a8', '#ffe8d8'], pit: true, solids: [[0, 480, 200, 60], [760, 480, 200, 60], [300, 420, 40, 120], [620, 420, 40, 120], [400, 330, 160, 20], [100, 250, 150, 20], [710, 250, 150, 20]], sp: [[90, 420], [870, 420], [170, 190], [790, 190]] },
+    { name: 'Sky Ladder', bg: ['#8ad0ff', '#f0f8ff'], solids: [[0, 500, 960, 40], [120, 420, 160, 20], [680, 420, 160, 20], [300, 340, 140, 20], [520, 340, 140, 20], [120, 260, 160, 20], [680, 260, 160, 20], [400, 180, 160, 20]], sp: [[80, 440], [880, 440], [200, 200], [760, 200]] },
+    { name: 'The Cage', bg: ['#c8c8d8', '#eeeef4'], solids: [[0, 500, 960, 40], [200, 380, 20, 120], [740, 380, 20, 120], [200, 360, 220, 20], [540, 360, 220, 20], [400, 230, 160, 20], [60, 250, 120, 20], [780, 250, 120, 20]], sp: [[100, 440], [860, 440], [300, 300], [660, 300]] },
   ];
 
   // ---- cards: each tweaks a goose's stats
-  const BASE = () => ({ dmg: 22, bspd: 720, br: 5, bounce: 0, shots: 1, spread: 0, rate: 1, hp: 100, move: 1, jump: 1, air: 0, vamp: 0, blast: 0, home: 0, shield: 0, dot: 0, size: 1, grav: 1, kb: 1, regen: 0 });
+  const BASE = () => ({ dmg: 22, bspd: 720, br: 5, bounce: 0, shots: 1, spread: 0, rate: 1, hp: 100, move: 1, jump: 1, air: 0, vamp: 0, blast: 0, home: 0, shield: 0, dot: 0, size: 1, grav: 1, kb: 1, regen: 0, pierce: 0, revive: 0, thorns: 0 });
   const CARDS = {
     big:    { icon: '🔴', name: 'Big Bullets', desc: 'Bigger, harder-hitting, slower shots.', f: (s) => { s.dmg *= 1.5; s.br *= 1.6; s.bspd *= 0.8; s.rate *= 0.85; } },
     quick:  { icon: '⚡', name: 'Quick Draw', desc: 'Shoot much faster.', f: (s) => { s.rate *= 1.5; s.bspd *= 1.15; } },
@@ -45,6 +48,14 @@
     sniper: { icon: '🔭', name: 'Sniper', desc: 'Fast, strong, slow-firing shots.', f: (s) => { s.bspd *= 1.8; s.dmg *= 1.5; s.rate *= 0.6; } },
     tiny:   { icon: '🐣', name: 'Tiny Goose', desc: 'Smaller and quicker, 20% less health.', f: (s) => { s.size *= 0.72; s.move *= 1.12; s.hp *= 0.8; } },
   };
+  Object.assign(CARDS, {
+    pierce: { icon: '🏹', name: 'Piercing', desc: 'Bullets pass through one goose.', f: (s) => { s.pierce += 1; s.dmg *= 0.9; } },
+    heavy:  { icon: '🪨', name: 'Heavy Hitters', desc: 'Harder knockback and +25% damage, a bit slower.', f: (s) => { s.dmg *= 1.25; s.kb *= 1.6; s.move *= 0.92; } },
+    revive: { icon: '🍀', name: 'Second Wind', desc: 'Come back once per round with 40% health.', f: (s) => { s.revive += 1; } },
+    thorns: { icon: '🌵', name: 'Thorns', desc: 'Geese that hit you take 30% of the damage back.', f: (s) => { s.thorns += 0.3; } },
+    wings:  { icon: '🪽', name: 'Little Wings', desc: 'Two extra air jumps and floatier falls.', f: (s) => { s.air += 2; s.grav *= 0.9; } },
+    sharp:  { icon: '🔎', name: 'Sharpshooter', desc: 'Faster, stronger shots.', f: (s) => { s.bspd *= 1.3; s.dmg *= 1.15; } },
+  });
   const CARD_IDS = Object.keys(CARDS);
   const statsOf = (cards) => { const s = BASE(); for (const c of cards) CARDS[c].f(s); return s; };
 
@@ -67,7 +78,7 @@
     const pl = opts.players.map((p, i) => ({ id: p.id, slot: i, bot: !!p.bot, cards: [], st: BASE(), score: 0, inp: { mx: 0, jump: 0, ax: 1, ay: 0, fire: 0 }, x: 0, y: 0, vx: 0, vy: 0, hp: 100, alive: true, face: 1, shieldUp: 0, cd: 0, onG: false, coy: 0, airLeft: 0, jh: 0, poison: 0, pOwner: -1, ai: { t: 0, jt: 0, mx: 0, err: 0 }, left: false }));
     const o = { rng, pl, bl: [], ph: 'count', t: 3, rnd: 0, map: 0, target: opts.target || 3, pk: [], offers: {}, winner: -1, pickT: 0, msg: '', endT: 0, ended: false, over: false };
     o.reset = () => { o.rnd++; o.map = (opts.mapOrder ? opts.mapOrder[(o.rnd - 1) % opts.mapOrder.length] : Math.floor(rng() * MAPS.length)); const sp = MAPS[o.map].sp.slice(); for (let i = sp.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [sp[i], sp[j]] = [sp[j], sp[i]]; }
-      o.pl.forEach((p, i) => { p.st = statsOf(p.cards); p.hp = p.st.hp; p.alive = !p.left; p.x = sp[i % 4][0]; p.y = sp[i % 4][1]; p.vx = p.vy = 0; p.shieldUp = p.st.shield; p.cd = 0.4; p.poison = 0; p.face = p.x < W / 2 ? 1 : -1; p.air = p.st.air; });
+      o.pl.forEach((p, i) => { p.st = statsOf(p.cards); p.hp = p.st.hp; p.alive = !p.left; p.x = sp[i % 4][0]; p.y = sp[i % 4][1]; p.vx = p.vy = 0; p.shieldUp = p.st.shield; p.reviveLeft = p.st.revive; p.cd = 0.4; p.poison = 0; p.face = p.x < W / 2 ? 1 : -1; p.air = p.st.air; });
       o.bl = []; o.ph = 'count'; o.t = 2.6; o.winner = -1; };
     o.reset(); o.rnd = 1; return o;
   }
@@ -90,13 +101,15 @@
     if (p.shieldUp > 0) { p.shieldUp--; o.ev.push(['sh', p.x, p.y]); return; }
     p.hp -= dmg; p.vx += kx; p.vy += ky; o.ev.push(['hit', p.x, p.y]);
     const a = o.pl.find((q) => q.id === from); if (a && a.st.vamp) a.hp = Math.min(a.st.hp, a.hp + dmg * a.st.vamp);
+    if (p.st.thorns && a && a !== p && a.alive) { a.hp -= dmg * p.st.thorns; if (a.hp <= 0) { a.alive = false; o.ev.push(['die', a.x, a.y, a.slot]); } }
+    if (p.hp <= 0 && p.reviveLeft > 0) { p.reviveLeft--; p.hp = p.st.hp * 0.4; p.shieldUp = Math.max(p.shieldUp, 1); o.ev.push(['sh', p.x, p.y]); return; }
     if (p.hp <= 0) { p.alive = false; o.ev.push(['die', p.x, p.y, p.slot]); }
   }
   function shoot(o, p) {
     const st = p.st, base = Math.atan2(p.inp.ay, p.inp.ax);
     for (let k = 0; k < st.shots; k++) {
       const a = base + (st.shots > 1 ? (k - (st.shots - 1) / 2) * st.spread : 0) + (st.shots === 1 ? (o.rng() - 0.5) * st.spread : (o.rng() - 0.5) * 0.04);
-      o.bl.push({ x: p.x + Math.cos(a) * (R(p) + 6), y: p.y + Math.sin(a) * (R(p) + 6) - 4, vx: Math.cos(a) * st.bspd, vy: Math.sin(a) * st.bspd, own: p.id, dmg: st.dmg, r: st.br, bounce: st.bounce, blast: st.blast, home: st.home, dot: st.dot, kb: st.kb, life: 4 });
+      o.bl.push({ x: p.x + Math.cos(a) * (R(p) + 6), y: p.y + Math.sin(a) * (R(p) + 6) - 4, vx: Math.cos(a) * st.bspd, vy: Math.sin(a) * st.bspd, own: p.id, dmg: st.dmg, r: st.br, bounce: st.bounce, blast: st.blast, home: st.home, dot: st.dot, kb: st.kb, pierce: st.pierce, hits: [], life: 4 });
     }
     p.cd = 0.5 / st.rate; p.vx -= Math.cos(base) * 40; o.ev.push(['shot', p.x, p.y]);
   }
@@ -153,10 +166,12 @@
         break;
       }
       if (b.dead) continue;
-      for (const q of o.pl) if (q.alive && q.id !== b.own && Math.hypot(q.x - b.x, q.y - b.y) < R(q) + b.r) {
+      for (const q of o.pl) if (q.alive && q.id !== b.own && !(b.hits && b.hits.includes(q.id)) && Math.hypot(q.x - b.x, q.y - b.y) < R(q) + b.r) {
         const sp = Math.hypot(b.vx, b.vy) || 1; hurt(o, q, b.dmg, b.own, (b.vx / sp) * 190 * b.kb, (b.vy / sp) * 120 * b.kb - 60);
         if (b.dot) { q.poison = 3; q.pDps = b.dot / 8; }
-        if (b.blast) explode(o, b, q); b.dead = true; break;
+        if (b.blast) explode(o, b, q);
+        if (b.pierce > 0) { b.pierce--; b.hits.push(q.id); continue; }
+        b.dead = true; break;
       }
     }
     o.bl = o.bl.filter((b) => !b.dead);

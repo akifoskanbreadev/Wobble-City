@@ -15,7 +15,7 @@
     ['pleading', '🥺', 'Please?', 30, 'pop'], ['bread', '🍞', 'Bread!', 30, 'bounce'], ['egg', '🥚', 'Egg', 30, 'spin'], ['music', '🎵', 'Jam', 40, 'float'], ['dance', '💃', 'Dance', 60, 'spin'],
     ['crown', '👑', 'Royal', 90, 'pop'], ['rainbow', '🌈', 'Rainbow', 70, 'float'], ['star', '⭐', 'Star', 50, 'spin'], ['gg', '🤝', 'Good Game', 40, 'pop'], ['ghost', '👻', 'Boo', 55, 'float'],
     ['alien', '👽', 'Alien', 80, 'spin'], ['rocket', '🚀', 'Zoom', 75, 'float'], ['diamond', '💎', 'Bling', 120, 'spin'], ['unicorn', '🦄', 'Magical', 100, 'bounce'], ['poop', '💩', 'Oops', 45, 'bounce'],
-    ['sparkle', '✨', 'Sparkle', 50, 'spin'], ['rich', '🤑', 'Rich', 85, 'bounce'], ['salute', '🫡', 'Salute', 35, 'pop'], ['melt', '🫠', 'Melting', 55, 'float'],
+    ['sparkle', '✨', 'Sparkle', 50, 'spin'], ['pizza', '🍕', 'Pizza Time', 40, 'bounce'], ['trophy', '🏆', 'Champion', 110, 'pop'], ['wink', '😉', 'Wink', 25, 'pop'], ['hundred', '💯', 'Perfect', 60, 'bounce'], ['cat', '😺', 'Meow', 35, 'shake'], ['moon', '🌙', 'Goodnight', 45, 'float'], ['bomb', '💣', 'Boom', 65, 'shake'], ['eyes', '👀', 'Watching', 30, 'shake'], ['rich', '🤑', 'Rich', 85, 'bounce'], ['salute', '🫡', 'Salute', 35, 'pop'], ['melt', '🫠', 'Melting', 55, 'float'],
   ];
   const BY = {};
   if (C) {

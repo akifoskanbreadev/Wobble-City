@@ -176,6 +176,9 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 - **More stuff 8:** 12 skins plus hats, eyewear, face bits, a jetpack, cape, held items, 4 pets, 3 auras and 3 trails.
 
 ### Goose Rounds and Pet Pal
-- **🎴 Goose Rounds** (multiplayer mode, up to 4 players, or play vs 3 bots from the main menu): shoot the other geese, last goose standing wins the round, then everyone who lost picks one of three power-up cards. 19 cards, 5 arenas, first to 2, 3 or 5 wins. Controls: A/D move, W jump, mouse aim + click (touch: left buttons, drag on the right to aim and shoot).
-- **🐾 Pet Pal** (minigame): hatch an egg (4 rarities, 12 species), feed, play, clean and put your pet to bed. Time keeps running while the game is closed. If you do not feed it for 24 hours it runs away. Pets grow baby > kid > adult, adults get a happy or grumpy form from how well you cared, and there is a Pet Dex and daily care gift.
+- **🎴 Goose Rounds** (multiplayer mode, up to 4 players, or play vs 3 bots from the main menu): shoot the other geese, last goose standing wins the round, then everyone who lost picks one of three power-up cards. 25 cards, 8 arenas, first to 2, 3 or 5 wins. Controls: A/D move, W jump, mouse aim + click (touch: left buttons, drag on the right to aim and shoot).
+- **🐾 Pet Pal** (minigame): hatch an egg (4 rarities, 16 species), feed, play, clean and put your pet to bed. Time keeps running while the game is closed. If you do not feed it for 24 hours it runs away. Pets grow baby > kid > adult, adults get a happy or grumpy form from how well you cared, and there is a Pet Dex and daily care gift.
 - The multiplayer library now loads in the background after the game starts, so a school network that blocks it can no longer stop the game from running.
+
+### More stuff 9
+12 skins (Sushi, Taco, Hacker, Sunflower, Glacier, Wooden, Aurora, Circuit, Graph Paper, Lemon, Camo, Mirrorball), 26 clothes (hats, eyewear, face bits, neck, capes, tails, held items, 4 pets, 3 auras, 3 trails), 8 more emotes, 6 more Goose Rounds cards (Piercing, Heavy Hitters, Second Wind, Thorns, Little Wings, Sharpshooter), 3 more Rounds arenas and 4 more Pet Pal species (Panda, Fox, Unicorn, Phoenix).

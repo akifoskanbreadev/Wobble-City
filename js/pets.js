@@ -25,12 +25,16 @@
     octopus: { name: 'Octopus', tier: 2, col: '#c85ab8', col2: '#ffb0e8' },
     dragon:  { name: 'Dragon',  tier: 3, col: '#e04a3a', col2: '#ffb02a' },
     alien:   { name: 'Alien',   tier: 3, col: '#9aff6a', col2: '#2a8a2a' },
+    panda:   { name: 'Panda',   tier: 0, col: '#ffffff', col2: '#222222' },
+    fox:     { name: 'Fox',     tier: 1, col: '#e8801a', col2: '#ffffff' },
+    unicorn: { name: 'Unicorn', tier: 2, col: '#fff0fa', col2: '#d08aff' },
+    phoenix: { name: 'Phoenix', tier: 3, col: '#ff7a1a', col2: '#ffe14a' },
   };
   const TIERS = [
-    { name: 'Common Egg', icon: '🥚', price: 40, rare: 'Chick · Bunny · Hamster · Frog' },
-    { name: 'Spotted Egg', icon: '🥚', price: 120, rare: 'Kitten · Puppy · Penguin · Slime' },
-    { name: 'Glowing Egg', icon: '🔮', price: 300, rare: 'Ghost · Octopus' },
-    { name: 'Legendary Egg', icon: '🌟', price: 800, rare: 'Dragon · Alien' },
+    { name: 'Common Egg', icon: '🥚', price: 40, rare: 'Chick · Bunny · Hamster · Frog · Panda' },
+    { name: 'Spotted Egg', icon: '🥚', price: 120, rare: 'Kitten · Puppy · Penguin · Slime · Fox' },
+    { name: 'Glowing Egg', icon: '🔮', price: 300, rare: 'Ghost · Octopus · Unicorn' },
+    { name: 'Legendary Egg', icon: '🌟', price: 800, rare: 'Dragon · Alien · Phoenix' },
   ];
   const FOODS = [
     { id: 'bread', icon: '🍞', name: 'Bread', cost: 0, full: 30, joy: 0 },
@@ -91,8 +95,8 @@
     const by = -ry - 6;   // body centre
     const part = (fn) => { c.save(); fn(); c.restore(); };
     // behind the body
-    if (p.sp === 'dragon') part(() => { c.fillStyle = sp.col2; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 30 * sc, by - 10); c.quadraticCurveTo(s * 110 * sc, by - 70 - Math.sin(t * 4) * 10, s * 80 * sc, by + 10); c.quadraticCurveTo(s * 60 * sc, by - 10, s * 30 * sc, by + 10); c.fill(); c.stroke(); } c.fillStyle = col; c.beginPath(); c.moveTo(rx * 0.8, by + 20); c.quadraticCurveTo(rx * 1.7, by + 40 + Math.sin(t * 3) * 8, rx * 1.4, by - 10); c.lineTo(rx * 0.8, by); c.fill(); c.stroke(); });
-    if (p.sp === 'kitten') part(() => { c.strokeStyle = INK; c.lineWidth = 14 * sc; c.beginPath(); c.moveTo(rx * 0.8, by + 20); c.quadraticCurveTo(rx * 1.5, by - 10 + Math.sin(t * 3) * 14, rx * 1.2, by - 60 * sc); c.stroke(); c.strokeStyle = col; c.lineWidth = 8 * sc; c.stroke(); });
+    if (p.sp === 'dragon' || p.sp === 'phoenix') part(() => { c.fillStyle = sp.col2; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 30 * sc, by - 10); c.quadraticCurveTo(s * 110 * sc, by - 70 - Math.sin(t * 4) * 10, s * 80 * sc, by + 10); c.quadraticCurveTo(s * 60 * sc, by - 10, s * 30 * sc, by + 10); c.fill(); c.stroke(); } c.fillStyle = col; c.beginPath(); c.moveTo(rx * 0.8, by + 20); c.quadraticCurveTo(rx * 1.7, by + 40 + Math.sin(t * 3) * 8, rx * 1.4, by - 10); c.lineTo(rx * 0.8, by); c.fill(); c.stroke(); });
+    if (p.sp === 'kitten' || p.sp === 'fox') part(() => { c.strokeStyle = INK; c.lineWidth = 14 * sc; c.beginPath(); c.moveTo(rx * 0.8, by + 20); c.quadraticCurveTo(rx * 1.5, by - 10 + Math.sin(t * 3) * 14, rx * 1.2, by - 60 * sc); c.stroke(); c.strokeStyle = col; c.lineWidth = 8 * sc; c.stroke(); if (p.sp === 'fox') { c.strokeStyle = '#fff'; c.lineWidth = 6 * sc; c.beginPath(); c.moveTo(rx * 1.3, by - 40 * sc); c.lineTo(rx * 1.2, by - 60 * sc); c.stroke(); } });
     if (p.sp === 'puppy') part(() => { c.strokeStyle = INK; c.lineWidth = 12 * sc; c.beginPath(); c.moveTo(rx * 0.85, by + 14); c.quadraticCurveTo(rx * 1.4, by - 10 + Math.sin(t * 12) * 12, rx * 1.3, by - 40 * sc); c.stroke(); c.strokeStyle = col; c.lineWidth = 6 * sc; c.stroke(); });
     if (p.sp === 'octopus') part(() => { c.strokeStyle = INK; for (let i = -2; i <= 2; i++) { c.lineWidth = 16 * sc; c.beginPath(); c.moveTo(i * 20 * sc, by + ry * 0.6); c.quadraticCurveTo(i * 26 * sc + Math.sin(t * 3 + i) * 10, by + ry * 1.1, i * 30 * sc + Math.sin(t * 3 + i * 2) * 14, -4); c.stroke(); c.strokeStyle = col; c.lineWidth = 10 * sc; c.stroke(); c.strokeStyle = INK; } });
     if (p.sp === 'penguin') part(() => { c.fillStyle = '#ff9b2f'; for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 22 * sc, -2, 16 * sc, 7, 0, 0, 7); c.fill(); c.stroke(); } });
@@ -103,13 +107,16 @@
     else if (p.sp === 'slime') { const w = Math.sin(t * 4) * 4; c.globalAlpha = 0.9; c.beginPath(); c.moveTo(-rx * 1.1, -4); c.quadraticCurveTo(-rx * 1.1, by - ry * 1.3 - w, 0, by - ry * 1.15 - w); c.quadraticCurveTo(rx * 1.1, by - ry * 1.3 - w, rx * 1.1, -4); c.quadraticCurveTo(0, 6, -rx * 1.1, -4); c.fill(); c.stroke(); c.globalAlpha = 1; c.fillStyle = 'rgba(255,255,255,.45)'; c.beginPath(); c.ellipse(-rx * 0.5, by - ry * 0.6, 10 * sc, 18 * sc, 0.5, 0, 7); c.fill(); }
     else { c.beginPath(); c.ellipse(0, by, rx * sq, ry / sq, 0, 0, 7); c.fill(); c.stroke(); }
     // belly
-    if (p.sp === 'penguin' || p.sp === 'kitten' || p.sp === 'bunny' || p.sp === 'hamster' || p.sp === 'frog' || p.sp === 'dragon') { c.fillStyle = sp.col2; c.beginPath(); c.ellipse(0, by + ry * 0.35, rx * 0.62, ry * 0.58, 0, 0, 7); c.fill(); }
+    if (p.sp === 'penguin' || p.sp === 'fox' || p.sp === 'unicorn' || p.sp === 'phoenix' || p.sp === 'kitten' || p.sp === 'bunny' || p.sp === 'hamster' || p.sp === 'frog' || p.sp === 'dragon') { c.fillStyle = sp.col2; c.beginPath(); c.ellipse(0, by + ry * 0.35, rx * 0.62, ry * 0.58, 0, 0, 7); c.fill(); }
     if (p.sp === 'puppy') { c.fillStyle = sp.col2; c.beginPath(); c.ellipse(-rx * 0.45, by - ry * 0.45, 14 * sc, 17 * sc, 0.3, 0, 7); c.fill(); }
     // ears / horns / antenna
     part(() => {
       c.fillStyle = col; c.lineWidth = 4;
       if (p.sp === 'bunny') for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 20 * sc, by - ry - 26 * sc, 11 * sc, 34 * sc, s * 0.15, 0, 7); c.fill(); c.stroke(); c.fillStyle = sp.col2; c.beginPath(); c.ellipse(s * 20 * sc, by - ry - 26 * sc, 5 * sc, 22 * sc, s * 0.15, 0, 7); c.fill(); c.fillStyle = col; }
-      if (p.sp === 'kitten') for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 14 * sc, by - ry + 6); c.lineTo(s * 38 * sc, by - ry - 28 * sc); c.lineTo(s * 40 * sc, by - ry + 14); c.closePath(); c.fill(); c.stroke(); }
+      if (p.sp === 'panda') { c.fillStyle = '#222'; for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 36 * sc, by - ry * 0.8, 13 * sc, 0, 7); c.fill(); c.stroke(); } }
+      if (p.sp === 'unicorn') { c.fillStyle = '#d08aff'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(-rx * 0.5 - i * 5 * sc, by - ry * (0.9 - i * 0.2), 9 * sc, 14 * sc, 0.4, 0, 7); c.fill(); } c.fillStyle = '#fff4a8'; c.beginPath(); c.moveTo(-4 * sc, by - ry + 2); c.lineTo(2, by - ry - 34 * sc); c.lineTo(8 * sc, by - ry + 2); c.closePath(); c.fill(); c.stroke(); }
+      if (p.sp === 'phoenix') { c.fillStyle = '#ffe14a'; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(i * 9 * sc - 6, by - ry + 4); c.quadraticCurveTo(i * 12 * sc, by - ry - 36 * sc - Math.sin(t * 8 + i) * 6, i * 9 * sc + 6, by - ry + 4); c.fill(); c.stroke(); } }
+      if (p.sp === 'kitten' || p.sp === 'fox') for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 14 * sc, by - ry + 6); c.lineTo(s * 38 * sc, by - ry - 28 * sc); c.lineTo(s * 40 * sc, by - ry + 14); c.closePath(); c.fill(); c.stroke(); }
       if (p.sp === 'puppy') for (const s of [-1, 1]) { c.fillStyle = sp.col2; c.beginPath(); c.ellipse(s * (rx * 0.85), by - ry * 0.35, 13 * sc, 28 * sc, s * 0.25, 0, 7); c.fill(); c.stroke(); }
       if (p.sp === 'hamster') for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 34 * sc, by - ry * 0.85, 12 * sc, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#ffb0b8'; c.beginPath(); c.arc(s * 34 * sc, by - ry * 0.85, 6 * sc, 0, 7); c.fill(); c.fillStyle = col; }
       if (p.sp === 'dragon') for (const s of [-1, 1]) { c.fillStyle = '#fff0b8'; c.beginPath(); c.moveTo(s * 18 * sc, by - ry + 4); c.lineTo(s * 26 * sc, by - ry - 28 * sc); c.lineTo(s * 36 * sc, by - ry + 8); c.closePath(); c.fill(); c.stroke(); }
@@ -265,7 +272,7 @@
         if (mode === 'dex') {
           c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, 800, 480); c.fillStyle = '#fff8e8'; c.strokeStyle = INK; c.lineWidth = 4; rr(c, 60, 50, 680, 380, 20); c.fill(); c.stroke();
           c.fillStyle = INK; c.font = '900 24px system-ui'; c.textAlign = 'center'; c.fillText('📖 Pet Dex · ' + Object.keys(d.dex).length + '/' + Object.keys(SPECIES).length + ' raised to adult', 400, 90);
-          Object.keys(SPECIES).forEach((k, i) => { const x = 130 + (i % 6) * 110, y = 200 + Math.floor(i / 6) * 130, got = d.dex[k]; c.save(); c.translate(x, y); c.scale(0.5, 0.5); if (got) drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, t, { stage: 'adult' }); else { c.globalAlpha = 0.35; c.filter = 'brightness(0)'; drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, 0, { stage: 'adult' }); c.filter = 'none'; } c.restore(); c.fillStyle = INK; c.font = '700 13px system-ui'; c.textAlign = 'center'; c.fillText(got ? SPECIES[k].name + (got > 1 ? ' ×' + got : '') : '???', x, y + 22); });
+          Object.keys(SPECIES).forEach((k, i) => { const x = 118 + (i % 8) * 80, y = 215 + Math.floor(i / 8) * 130, got = d.dex[k]; c.save(); c.translate(x, y); c.scale(0.4, 0.4); if (got) drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, t, { stage: 'adult' }); else { c.globalAlpha = 0.35; c.filter = 'brightness(0)'; drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, 0, { stage: 'adult' }); c.filter = 'none'; } c.restore(); c.fillStyle = INK; c.font = '700 13px system-ui'; c.textAlign = 'center'; c.fillText(got ? SPECIES[k].name + (got > 1 ? ' ×' + got : '') : '???', x, y + 22); });
           c.font = '600 13px system-ui'; c.fillText('Tap anywhere to close', 400, 416);
         }
         if (toastT > 0) { c.globalAlpha = Math.min(1, toastT); c.fillStyle = 'rgba(31,42,54,.9)'; c.font = '800 16px system-ui'; const w = c.measureText(toast).width + 34; rr(c, 400 - w / 2, 372 - 0, w, 34, 17); c.fill(); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(toast, 400, 395); c.globalAlpha = 1; }
@@ -276,7 +283,7 @@
     function say0(cc, s, x, y, col) { cc.save(); cc.font = '900 22px system-ui'; cc.textAlign = 'center'; cc.lineWidth = 6; cc.strokeStyle = 'rgba(255,255,255,.9)'; cc.strokeText(s, x, y); cc.fillStyle = col || INK; cc.fillText(s, x, y); cc.restore(); }
   }
 
-  MG.list.push({ id: 'petpal', name: 'Pet Pal', icon: '🐾', desc: 'Hatch and raise a pet. Feed it every day or it runs away! 12 species, evolutions and a pet dex.', theme: 'meadow', deco: 'farm', fmt: (s) => s + ' care pts', reward: (s) => Math.min(30, s), create });
+  MG.list.push({ id: 'petpal', name: 'Pet Pal', icon: '🐾', desc: 'Hatch and raise a pet. Feed it every day or it runs away! 16 species, evolutions and a pet dex.', theme: 'meadow', deco: 'farm', fmt: (s) => s + ' care pts', reward: (s) => Math.min(30, s), create });
 
   // achievements + helper hooks
   setTimeout(() => {
@@ -286,7 +293,7 @@
     add('pet1', '🐣', 'Egg Sitter', 'Hatch your first pet.', (s) => P(s).hatched, 1, 20);
     add('pet2', '🐾', 'Good Parent', 'Raise a pet to adulthood.', (s) => P(s).adults, 1, 100);
     add('pet5', '📖', 'Pet Collector', 'Raise 5 different species to adults.', (s) => Object.keys(P(s).dex).length, 5, 250);
-    add('pet12', '🏅', 'Gotta Raise Them All', 'Raise all 12 species to adults.', (s) => Object.keys(P(s).dex).length, 12, 800);
+    add('pet12', '🏅', 'Gotta Raise Them All', 'Raise all 16 species to adults.', (s) => Object.keys(P(s).dex).length, 16, 800);
     add('petday7', '🗓️', 'Week of Care', 'Get the daily care gift 7 days.', (s) => P(s).days || 0, 7, 120);
   }, 400);
   root.Pets = { SPECIES, TIERS, newPet, tick, sync, stageOf, load, _setNow: (f) => { nowFn = f || (() => Date.now()); }, _drawPet: drawPet };
