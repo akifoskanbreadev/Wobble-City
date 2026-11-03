@@ -35,9 +35,13 @@
   }
   function fail(msg) { disconnect(); status(msg, true); }
 
-  let qPre = 'q-play-', arenaAuto = false, autoTm = null;
+  let qPre = 'q-play-', arenaAuto = false, autoTm = null, autoMode = 'brawl';
   function joinQuick(pre) { qPre = typeof pre === 'string' ? pre : 'q-play-'; qSlot = 1; join(qPre + '1', true); }
-  function arenaQuick() {                    // find real players for the Battle Arena: the host starts it a few seconds after someone joins
+  function roundsQuick() {                   // find real players for Goose Rounds
+    open(); arenaAuto = true; autoMode = 'rounds'; joinQuick('q-rounds-'); sel = { mode: 'rounds', arg: '3' }; fillMaps(); ui();
+  }
+  function arenaQuick() {
+    autoMode = 'brawl';                    // find real players for the Battle Arena: the host starts it a few seconds after someone joins
     open(); arenaAuto = true; joinQuick('q-arena-'); sel = { mode: 'brawl', arg: null }; fillMaps(); ui();
   }
   function join(w, quick) {
@@ -462,7 +466,7 @@
       $('mpSel').textContent = 'Next game: ' + selLabel();
       status(ids.length + '/' + MAX + ' players' + (isHost ? (ids.length < 2 ? ' · share the invite link or word with friends' : allReady ? ' · everyone is ready!' : ' · waiting for everyone to press Ready') : ' · the host picks the game'));
       $('mpModes').style.display = isHost ? '' : 'none';
-      if (isHost && arenaAuto && !M.mode) { if (ids.length >= 2) { if (!autoTm) { let n = 8; status('Arena starts in ' + n + '…'); autoTm = setInterval(() => { n--; if (!isHost || !connected || M.mode || Object.keys(roster).length < 2) { clearInterval(autoTm); autoTm = null; return; } if (n <= 0) { clearInterval(autoTm); autoTm = null; hostStartMode('brawl', -1); } else status('Arena starts in ' + n + '…'); }, 1000); } } else if (autoTm) { clearInterval(autoTm); autoTm = null; } }
+      if (isHost && arenaAuto && !M.mode) { if (ids.length >= 2) { if (!autoTm) { let n = 8; status((autoMode === 'rounds' ? 'Rounds starts in ' : 'Arena starts in ') + n + '…'); autoTm = setInterval(() => { n--; if (!isHost || !connected || M.mode || Object.keys(roster).length < 2) { clearInterval(autoTm); autoTm = null; return; } if (n <= 0) { clearInterval(autoTm); autoTm = null; hostStartMode(autoMode, autoMode === 'rounds' ? '3' : -1); } else status((autoMode === 'rounds' ? 'Rounds starts in ' : 'Arena starts in ') + n + '…'); }, 1000); } } else if (autoTm) { clearInterval(autoTm); autoTm = null; } }
       $('mpBots').style.display = isHost && arenaAuto && ids.length < 2 ? '' : 'none';
       $('mpReady').style.display = isHost ? 'none' : '';
       if (!isHost && roster[myId]) $('mpReady').textContent = roster[myId].ready ? '✅ Ready (tap to undo)' : '👍 I’m ready';
@@ -511,7 +515,7 @@
     };
     $('mpJoinBtn').onclick = () => join($('mpWord').value);
     $('mpWord').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join($('mpWord').value); });
-    $('mpBots').onclick = () => { $('mpMenu').classList.add('hidden'); disconnect(); if (root.Battle) root.Battle.startBrawl(); };
+    $('mpBots').onclick = () => { $('mpMenu').classList.add('hidden'); disconnect(); if (root.Battle) (autoMode === 'rounds' && root.Rounds) ? root.Rounds.startSolo() : root.Battle.startBrawl(); };
     $('mpClose').onclick = () => $('mpMenu').classList.add('hidden');
     $('mpDisc').onclick = () => { disconnect(); status('Left the room.'); };
     $('mpRematch').onclick = () => { if (isHost) hostStartMode(M.mode, M.arg); };
@@ -532,7 +536,7 @@
   }
 
   const peersList = () => Object.keys(ghosts).map(Number).filter((id) => id !== myId && M.ids.includes(id)).map((id) => { const t = ghosts[id].cur || ghosts[id].tgt, n = t.n || []; return { id, c: t.c, hd: n.length ? n[n.length - 1] : t.c, f: t.f }; });
-  root.MP = { rsend: (d) => { if (connected && !isHost) toHost({ t: 'r', d }); }, rall: (d) => { if (connected && isHost) toAll({ t: 'r', d }); }, roundsEnd: (w, text) => { if (isHost && M.mode === 'rounds') { toAll({ t: 'end', winners: [w], text }); endShow([w], text); } }, relook, honked, emote: (e) => { if (connected) broadcast({ t: 'em', e }); }, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
+  root.MP = { roundsQuick, rsend: (d) => { if (connected && !isHost) toHost({ t: 'r', d }); }, rall: (d) => { if (connected && isHost) toAll({ t: 'r', d }); }, roundsEnd: (w, text) => { if (isHost && M.mode === 'rounds') { toAll({ t: 'end', winners: [w], text }); endShow([w], text); } }, relook, honked, emote: (e) => { if (connected) broadcast({ t: 'em', e }); }, chatSay, kick, isHost: () => isHost, others: () => Object.keys(roster).map(Number).filter((i) => i !== myId), bsend: (d) => { if (isHost) { if (root.Battle) root.Battle.onNet(0, d); } else toHost({ t: 'b', d }); }, ball: (d) => { if (isHost) toAll({ t: 'b', d }); },
               bto: (id, d) => { if (!isHost) return; if (id === 0) { if (root.Battle) root.Battle.onNet(0, d); } else { const c = conns.get(id); if (c && c.open) { try { c.send({ t: 'b', d }); } catch (e) { /* ignore */ } } } },
               peers: peersList, finish: (w, t) => { if (isHost) declare(w, t); }, arenaLevel, myId: () => myId, init, open, active: () => !!M.mode, connected: () => connected, frozen, tick, drawWorld, drawOverlay, onEgg, onMgEnd, stopMode: leaveGame,
               _join: join, arenaQuick, _start: hostStartMode, _maps: MAPS, _state: M, _me: () => myId, _roster: roster };

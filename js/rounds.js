@@ -62,7 +62,7 @@
   // ---- shared state
   let S = null, host = null, running = false, cv = null, cx = null, ui = null, raf = 0, lastT = 0, acc = 0;
   let mine = { mx: 0, jump: 0, ax: 1, ay: 0, fire: 0 }, keys = {}, mouse = { x: 480, y: 270, has: false }, touchAim = null, sendT = 0, lastSent = '';
-  let offerT = 0, sim = null, view = {}, snap = null, offer = null, picked = false, parts = [], shake = 0, au = null;
+  let btnAim = null, offerT = 0, sim = null, view = {}, snap = null, offer = null, picked = false, parts = [], shake = 0, au = null;
 
   const blip = (f, d, type, v) => {
     try {
@@ -217,6 +217,7 @@
     const me = snap && snap.pl.find((p) => p[0] === host.myId); let ax = mine.ax, ay = mine.ay, fire = 0;
     if (touchAim) { ax = touchAim.ax; ay = touchAim.ay; fire = touchAim.fire; }
     else if (mouse.has && me) { const dx = mouse.x - me[1], dy = mouse.y - me[2], d = Math.hypot(dx, dy) || 1; ax = dx / d; ay = dy / d; fire = mouse.down ? 1 : 0; }
+    if (k.tF) { fire = 1; if (btnAim) { ax = btnAim.ax; ay = btnAim.ay; } else if (!touchAim && me) { ax = me[5] || 1; ay = 0; } }
     if (k.KeyJ || k.KeyK || k.Enter) fire = 1;
     mine = { mx, jump: (k.ArrowUp || k.KeyW || k.Space || k.tJ) ? 1 : 0, ax: +ax.toFixed(2), ay: +ay.toFixed(2), fire };
     if (!mouse.has && !touchAim && me) { mine.ax = me[5] || 1; mine.ay = (k.ArrowUp || k.KeyW) ? -0.3 : 0; }
@@ -282,8 +283,14 @@
     ui = document.createElement('div'); ui.style.cssText = 'position:fixed;inset:0;z-index:870;background:#10141c;touch-action:none;user-select:none;-webkit-user-select:none';
     cv = document.createElement('canvas'); cv.style.cssText = 'position:absolute;left:0;top:0'; ui.appendChild(cv); cx = cv.getContext('2d');
     const btn = (txt, css, k) => { const b = document.createElement('div'); b.textContent = txt; b.style.cssText = 'position:absolute;width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.55);border:3px solid #1f2a36;font:900 26px system-ui;display:flex;align-items:center;justify-content:center;color:#1f2a36;touch-action:none;' + css; const on = (e) => { keys[k] = 1; e.preventDefault(); b.style.background = 'rgba(255,255,255,.9)'; }, off = (e) => { keys[k] = 0; e && e.preventDefault(); b.style.background = 'rgba(255,255,255,.55)'; }; b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off); ui.appendChild(b); return b; };
-    ui.tb = [btn('◀', 'left:10px;bottom:14px', 'tL'), btn('▶', 'left:86px;bottom:14px', 'tR'), btn('⤊', 'left:48px;bottom:90px', 'tJ')];
-    const leave = document.createElement('button'); leave.textContent = '✖ Leave'; leave.style.cssText = 'position:absolute;right:10px;bottom:10px;padding:6px 12px;border-radius:12px;border:2px solid #fff;background:rgba(0,0,0,.5);color:#fff;font:800 13px system-ui;cursor:pointer'; leave.addEventListener('click', () => { stop(); try { root.__wobble.showMenu(); } catch (e) { /* ignore */ } }); ui.appendChild(leave);
+    ui.tb = [btn('◀', 'left:10px;bottom:14px', 'tL'), btn('▶', 'left:86px;bottom:14px', 'tR'), btn('⤊', 'right:10px;bottom:14px;width:72px;height:72px', 'tJ')];
+    // shoot button: hold to fire; drag from it to aim (without dragging you shoot the way you are facing)
+    const sb = document.createElement('div'); sb.textContent = '🔫'; sb.style.cssText = 'position:absolute;right:92px;bottom:14px;width:72px;height:72px;border-radius:50%;background:rgba(255,120,90,.65);border:3px solid #1f2a36;font:900 28px system-ui;display:flex;align-items:center;justify-content:center;touch-action:none';
+    let so = null; const sOff = (e) => { keys.tF = 0; btnAim = null; so = null; sb.style.background = 'rgba(255,120,90,.65)'; if (e) e.preventDefault(); };
+    sb.addEventListener('pointerdown', (e) => { keys.tF = 1; so = { x: e.clientX, y: e.clientY, id: e.pointerId }; sb.style.background = 'rgba(255,120,90,.95)'; try { sb.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ } e.preventDefault(); });
+    sb.addEventListener('pointermove', (e) => { if (!so || so.id !== e.pointerId) return; const dx = e.clientX - so.x, dy = e.clientY - so.y, d = Math.hypot(dx, dy); if (d > 14) btnAim = { ax: dx / d, ay: dy / d }; });
+    sb.addEventListener('pointerup', sOff); sb.addEventListener('pointercancel', sOff); ui.appendChild(sb); ui.tb.push(sb);
+    const leave = ui.leave = document.createElement('button'); leave.textContent = '✖ Leave'; leave.style.cssText = 'position:absolute;right:10px;bottom:10px;padding:6px 12px;border-radius:12px;border:2px solid #fff;background:rgba(0,0,0,.5);color:#fff;font:800 13px system-ui;cursor:pointer'; leave.addEventListener('click', () => { stop(); try { root.__wobble.showMenu(); } catch (e) { /* ignore */ } }); ui.appendChild(leave);
     ui.hint = document.createElement('div'); ui.hint.style.cssText = 'position:absolute;left:0;right:0;bottom:6px;text-align:center;color:rgba(255,255,255,.7);font:600 12px system-ui;pointer-events:none'; ui.hint.textContent = 'A/D move · W jump · mouse aim + click shoot (touch: drag on the right side to aim and shoot)'; ui.appendChild(ui.hint);
     ui.cards = document.createElement('div'); ui.cards.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;background:rgba(10,14,24,.78);padding:12px'; ui.appendChild(ui.cards);
     ui.end = document.createElement('div'); ui.end.style.cssText = 'position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(10,14,24,.8);color:#fff;font:800 22px system-ui;text-align:center;padding:12px'; ui.appendChild(ui.end);
@@ -367,7 +374,7 @@
   function begin(o) {
     stop(); host = o; running = true; keys = {}; mouse = { x: 480, y: 270, has: false }; touchAim = null; view = {}; snap = null; offer = null; picked = false; parts = []; lastSent = ''; sendT = 0; acc = 0;
     mkUI(); addEventListener('keydown', kd); addEventListener('keyup', ku);
-    const touch = matchMedia && matchMedia('(pointer:coarse)').matches; for (const b of ui.tb) b.style.display = touch ? 'flex' : 'none'; ui.hint.style.display = touch ? 'none' : '';
+    const touch = matchMedia && matchMedia('(pointer:coarse)').matches; for (const b of ui.tb) b.style.display = touch ? 'flex' : 'none'; if (touch) { ui.leave.style.right = 'auto'; ui.leave.style.left = '50%'; ui.leave.style.transform = 'translateX(-50%)'; } ui.hint.style.display = touch ? 'none' : '';
     if (o.host) { sim = newSim({ seed: o.seed, players: o.players, target: o.target }); }
     lastT = performance.now(); raf = requestAnimationFrame(loop);
   }
@@ -388,9 +395,24 @@
     try { const h = document.getElementById('title'); if (h) h.classList.add('hidden'); } catch (e) { /* ignore */ }
     begin({ host: true, myId: 0, seed: (Math.random() * 1e9) | 0, target: cfg.target, players, solo: true, opts: cfg, send: () => {}, all: () => {} });
   }
+  function pickMode() {
+    let d = document.getElementById('roundsPick');
+    if (!d) {
+      d = document.createElement('div'); d.id = 'roundsPick'; d.className = 'overlay';
+      d.innerHTML = '<div class="card" style="max-width:420px"><h2>🎴 Goose Rounds</h2><p class="small">Shoot the other geese. The loser of each round picks a power-up card. Up to 4 players.</p>' +
+        '<div class="row" style="flex-direction:column;gap:8px"><button class="big" id="rpOnline">🌐 Play online (random players)</button><button class="big" id="rpFriends">👥 Play with friends (room word)</button><button class="big" id="rpBots">🤖 Solo vs 3 bots</button><button class="sec" id="rpClose">Back</button></div></div>';
+      document.body.appendChild(d);
+      const close = () => d.classList.add('hidden');
+      document.getElementById('rpOnline').onclick = () => { close(); if (root.MP && root.MP.roundsQuick) root.MP.roundsQuick(); };
+      document.getElementById('rpFriends').onclick = () => { close(); if (root.MP) root.MP.open(); };
+      document.getElementById('rpBots').onclick = () => { close(); startSolo(); };
+      document.getElementById('rpClose').onclick = close;
+    }
+    d.classList.remove('hidden');
+  }
   function init() {
     const code = document.getElementById('codeBtn');
-    if (code && !document.getElementById('roundsBtn')) { const b = document.createElement('button'); b.className = 'sec'; b.id = 'roundsBtn'; b.textContent = '🎴 Goose Rounds (vs bots)'; b.addEventListener('click', () => startSolo()); code.parentNode.insertBefore(b, code); }
+    if (code && !document.getElementById('roundsBtn')) { const b = document.createElement('button'); b.className = 'sec'; b.id = 'roundsBtn'; b.textContent = '🎴 Goose Rounds'; b.addEventListener('click', pickMode); code.parentNode.insertBefore(b, code); }
   }
   root.Rounds = { startNet, startSolo, stop, onNet, onDrop, active: () => running, CARDS, MAPS, _sim: () => sim, _mkSnap: mkSnap, _step: stepSim, _newSim: newSim };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.Rounds;
