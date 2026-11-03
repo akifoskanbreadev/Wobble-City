@@ -1442,6 +1442,8 @@
     } else if (c === 'sync') {
       $('codeModal').classList.add('hidden');
       window.Sync.open(syncCtx);
+    } else if (c === 'check' && window.ConnCheck) {
+      $('codeModal').classList.add('hidden'); window.ConnCheck.open();
     } else if (c === 'codes') {
       renderCodes(); $('codeList').classList.remove('hidden'); say(activeCodes().length ? 'Your active codes:' : 'You have no active codes yet.');
     } else {

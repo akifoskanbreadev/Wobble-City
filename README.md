@@ -184,3 +184,6 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 12 skins (Sushi, Taco, Hacker, Sunflower, Glacier, Wooden, Aurora, Circuit, Graph Paper, Lemon, Camo, Mirrorball), 26 clothes (hats, eyewear, face bits, neck, capes, tails, held items, 4 pets, 3 auras, 3 trails), 8 more emotes, 6 more Goose Rounds cards (Piercing, Heavy Hitters, Second Wind, Thorns, Little Wings, Sharpshooter), 3 more Rounds arenas and 4 more Pet Pal species (Panda, Fox, Unicorn, Phoenix).
 
 - **Goose Rounds online:** the main menu button now asks Online (random players, auto-starts a few seconds after someone joins), Friends (room word) or Solo vs bots. On touch the jump button is bottom-right with a 🔫 shoot button next to it (hold to fire, drag from it to aim).
+
+## Connection check
+Type the code `check` in the code box to see which online parts (game files, accounts/sync, multiplayer library, multiplayer server, direct connection) this network allows. Handy for school filters.
