@@ -1442,6 +1442,13 @@
     } else if (c === 'sync') {
       $('codeModal').classList.add('hidden');
       window.Sync.open(syncCtx);
+    } else if (c === 'akifo') {
+      const lock = (k) => (window.Owner && window.Owner.blocks && window.Owner.blocks(k) ? ' 🔒' : '');
+      const m = $('codeMsg'); m.className = 'ok'; m.style.whiteSpace = 'pre-wrap'; m.style.textAlign = 'left'; m.style.maxHeight = '45vh'; m.style.overflow = 'auto';
+      m.textContent = '🎁 Gifts\n' + Object.keys(GIFTS).map((k) => k + lock(k) + ' - ' + GIFTS[k]).join('\n')
+        + '\n\n🧪 Cheats (type again to turn off)\n' + Object.keys(CHEATS).map((k) => k + lock(k) + ' - ' + CHEATS[k]).join('\n')
+        + '\n\n🛠 Other\nsync - cloud save\ncodes - your active codes\ncheck - connection check\nakif - owner panel (password)';
+      snd.egg();
     } else if (c === 'check' && window.ConnCheck) {
       $('codeModal').classList.add('hidden'); window.ConnCheck.open();
     } else if (c === 'codes') {
