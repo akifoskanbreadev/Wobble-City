@@ -228,8 +228,8 @@
     const wb = root.__wobble; if (!wb) return;
     const info = host.players.find((q) => q.id === p[0]) || {}, skin = info.skin || 'goose', equip = info.equip || {};
     const size = (p[4] && snap) ? sizeOf(p[0]) : 1, sc = 0.5 * size;
-    const g = wb.fakeGoose(t, skin); g.facing = p[5] || 1;
-    cx.save(); cx.translate(p[1], p[2]); cx.scale(sc, sc); try { wb.drawGoose(cx, g, equip, skin); } catch (e) { /* ignore */ } cx.restore();
+    const g = wb.fakeGoose(t, skin); g.facing = 1;   // the fake goose is built facing right, so mirror the whole picture to turn it
+    cx.save(); cx.translate(p[1], p[2]); cx.scale((p[5] < 0 ? -1 : 1) * sc, sc); try { wb.drawGoose(cx, g, equip, skin); } catch (e) { /* ignore */ } cx.restore();
   }
   const sizeOf = (id) => { const q = snap.pl.find((x) => x[0] === id); return statsOf(q[11]).size; };
   function drawFrame(t) {
