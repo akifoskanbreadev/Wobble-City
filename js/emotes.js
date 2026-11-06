@@ -16,6 +16,11 @@
     ['crown', '👑', 'Royal', 90, 'pop'], ['rainbow', '🌈', 'Rainbow', 70, 'float'], ['star', '⭐', 'Star', 50, 'spin'], ['gg', '🤝', 'Good Game', 40, 'pop'], ['ghost', '👻', 'Boo', 55, 'float'],
     ['alien', '👽', 'Alien', 80, 'spin'], ['rocket', '🚀', 'Zoom', 75, 'float'], ['diamond', '💎', 'Bling', 120, 'spin'], ['unicorn', '🦄', 'Magical', 100, 'bounce'], ['poop', '💩', 'Oops', 45, 'bounce'],
     ['sparkle', '✨', 'Sparkle', 50, 'spin'], ['pizza', '🍕', 'Pizza Time', 40, 'bounce'], ['trophy', '🏆', 'Champion', 110, 'pop'], ['wink', '😉', 'Wink', 25, 'pop'], ['hundred', '💯', 'Perfect', 60, 'bounce'], ['cat', '😺', 'Meow', 35, 'shake'], ['moon', '🌙', 'Goodnight', 45, 'float'], ['bomb', '💣', 'Boom', 65, 'shake'], ['eyes', '👀', 'Watching', 30, 'shake'], ['rich', '🤑', 'Rich', 85, 'bounce'], ['salute', '🫡', 'Salute', 35, 'pop'], ['melt', '🫠', 'Melting', 55, 'float'],
+    // part 15
+    ['sob', '😭', 'Sob', 25, 'shake'], ['sleepy', '😴', 'Zzz', 25, 'float'], ['sweat', '😅', 'Phew', 25, 'shake'], ['zany', '🤪', 'Zany', 35, 'spin'], ['love', '😍', 'Smitten', 40, 'pop'], ['salute2', '🫡', 'Salute', 35, 'pop'],
+    ['muscle', '💪', 'Strong', 45, 'bounce'], ['peace', '✌️', 'Peace', 30, 'pop'], ['peek', '👀', 'Looking', 30, 'shake'], ['boom', '💣', 'Boom', 55, 'shake'], ['zap', '⚡', 'Zap', 50, 'bounce'], ['snow', '❄️', 'Brrr', 40, 'float'],
+    ['goodnight', '🌙', 'Goodnight', 45, 'float'], ['sun', '☀️', 'Sunny', 45, 'spin'], ['cake', '🎂', 'Cake Day', 60, 'bounce'], ['burger', '🍔', 'Burger', 40, 'bounce'], ['coffee', '☕', 'Coffee', 35, 'shake'], ['duck', '🦆', 'Quack', 60, 'bounce'],
+    ['swan', '🦢', 'Elegant', 85, 'float'], ['dino', '🦖', 'Rawr', 90, 'shake'], ['wizard', '🧙', 'Magic', 100, 'spin'], ['ufo', '🛸', 'Abducted', 110, 'float'], ['cash', '🤑', 'Rich', 95, 'bounce'], ['gem2', '🏅', 'Medal', 70, 'pop'],
   ];
   const BY = {};
   if (C) {
@@ -101,6 +106,7 @@
       add('daily7', '🔥', 'Week of Wobble', 'Reach a 7 day daily streak.', (s2) => (s2.daily && s2.daily.streak) || 0, 7, 150);
       add('daily30', '🌋', 'Daily Legend', 'Finish 30 daily challenges.', (s2) => (s2.daily && s2.daily.total) || 0, 30, 300);
       add('emote5', '😀', 'Chatty Goose', 'Own 5 extra emotes.', (s2) => Object.keys(s2.owned || {}).filter((k) => /^em_/.test(k) && s2.owned[k]).length, 5, 40);
+      add('emote40', '🎪', 'Emoji Master', 'Own 40 extra emotes.', (s2) => Object.keys(s2.owned || {}).filter((k) => /^em_/.test(k) && s2.owned[k]).length, 40, 300);
       add('emote20', '🎭', 'Drama Goose', 'Own 20 extra emotes.', (s2) => Object.keys(s2.owned || {}).filter((k) => /^em_/.test(k) && s2.owned[k]).length, 20, 150);
     }
   }

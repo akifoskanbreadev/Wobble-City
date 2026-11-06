@@ -194,3 +194,6 @@ Push into the side of any solid block while in the air to slide down it slowly, 
 ## More stuff, part 14
 - 10 new skins (Pizza, Nebula, Cactus, Candy Cane, Denim, Magma, Cow, Pastel, Circuit, Golden Deluxe) and 25 new cosmetics (hats, glasses, face, neck, back, tail, held items, pets, auras, trails).
 - Goose Rounds: 11 new cards (35 total) and 4 new arenas (12 total): Mushroom Grove, Skyscrapers, The Bridge and Zigzag.
+
+### Emotes, part 15
+24 more emotes in the emote shop (Sob, Zzz, Strong, Boom, Quack, Rawr, Abducted and more), plus an "Emoji Master" achievement for owning 40.
