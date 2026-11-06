@@ -215,7 +215,7 @@
   const creds = () => { const c = root.Account && root.Account.cred ? root.Account.cred() : null; return c ? { hname: c.name, hph: c.ph } : {}; };   // a head admin signs in with their account instead of the PIN
   const own = (op, extra) => call(Object.assign({ op, pin: get(LS.pin) || '' }, creds(), extra || {}));
   let pf = { q: '', f: 'all' };
-  const WORKER_EXPECTED = 8;
+  const WORKER_EXPECTED = 9;
   async function serverCheck() {            // { state: 'ok'|'old'|'down', ver, ai, kv }
     try { const r = await call({ op: 'ver' }); if (!r || typeof r.ver !== 'number') return { state: 'old' }; return { state: r.ver >= WORKER_EXPECTED && r.ai && r.kv ? 'ok' : 'old', ver: r.ver, ai: !!r.ai, kv: !!r.kv }; } catch (e) { return { state: /http400|http404|http405/.test(e.message) ? 'old' : 'down' }; }
   }

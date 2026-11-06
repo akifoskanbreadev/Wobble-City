@@ -4,7 +4,7 @@
 //  3) Accounts: name + password (stored only as a hash), bans, per-player locks and owner pranks. Uses the same SYNC binding.
 // The game sends everything it needs, so improving the game never needs a new copy of this file.
 // VERSION goes up whenever the game needs new worker features; the owner/head admin panel warns when this copy is older.
-const VERSION = 8;
+const VERSION = 9;
 const ALLOW_ORIGIN = 'https://akifoskanbreadev.github.io';
 const BIG = '@cf/meta/llama-3.3-70b-instruct-fp8-fast', SMALL = '@cf/meta/llama-3.1-8b-instruct';
 export default {
@@ -176,9 +176,9 @@ export default {
     let shot = '';
     if (typeof body.image === 'string' && body.image.length > 200 && body.image.length < 450000) {
       try {
-        const bin = atob(body.image), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const r = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', { image: Array.from(bytes), prompt: 'This is a screenshot of a cartoon goose video game. Describe what is on screen: menus, buttons, text, characters, obstacles, and where things are.', max_tokens: 280 });
-        shot = String(r.description || r.response || '').slice(0, 1200);
+        // Moondream 3.1 replaces llava (llava is retired by Cloudflare on 20 Nov 2026). It takes the picture as a base64 data URI.
+        const r = await env.AI.run('@cf/moondream/moondream3.1-9B-A2B', { task: 'query', image: 'data:image/jpeg;base64,' + body.image, question: 'This is a screenshot of a cartoon goose video game. Describe what is on screen: menus, buttons, text, characters, obstacles, and where things are.', reasoning: false, max_tokens: 280 });
+        shot = String(r.answer || r.description || r.response || '').slice(0, 1200);
       } catch (e) { shot = ''; }
     }
     messages.push({ role: 'user', content: shot ? user + '\n\n[Screenshot description from a vision model, may be imperfect]\n' + shot : user });
