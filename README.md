@@ -190,3 +190,7 @@ Type the code `check` in the code box to see which online parts (game files, acc
 
 ### Rounds: wall cling and wall jump
 Push into the side of any solid block while in the air to slide down it slowly, and press jump to kick off the wall. Chain wall jumps to climb up pillars.
+
+## More stuff, part 14
+- 10 new skins (Pizza, Nebula, Cactus, Candy Cane, Denim, Magma, Cow, Pastel, Circuit, Golden Deluxe) and 25 new cosmetics (hats, glasses, face, neck, back, tail, held items, pets, auras, trails).
+- Goose Rounds: 11 new cards (35 total) and 4 new arenas (12 total): Mushroom Grove, Skyscrapers, The Bridge and Zigzag.

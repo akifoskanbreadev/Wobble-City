@@ -22,6 +22,10 @@
     { name: 'Floating Islands', bg: ['#7ab8ff', '#cfe8ff'], pit: true, solids: [[60, 440, 220, 24], [680, 440, 220, 24], [370, 400, 220, 24], [180, 290, 160, 20], [620, 290, 160, 20], [400, 180, 160, 20]], sp: [[120, 380], [800, 380], [440, 340], [240, 230]] },
     { name: 'Pillar Pit', bg: ['#ffb8a8', '#ffe8d8'], pit: true, solids: [[0, 480, 200, 60], [760, 480, 200, 60], [300, 420, 40, 120], [620, 420, 40, 120], [400, 330, 160, 20], [100, 250, 150, 20], [710, 250, 150, 20]], sp: [[90, 420], [870, 420], [170, 190], [790, 190]] },
     { name: 'Sky Ladder', bg: ['#8ad0ff', '#f0f8ff'], solids: [[0, 500, 960, 40], [120, 420, 160, 20], [680, 420, 160, 20], [300, 340, 140, 20], [520, 340, 140, 20], [120, 260, 160, 20], [680, 260, 160, 20], [400, 180, 160, 20]], sp: [[80, 440], [880, 440], [200, 200], [760, 200]] },
+    { name: 'Mushroom Grove', bg: ['#b8e0a0', '#f0ffd8'], solids: [[0, 500, 960, 40], [200, 400, 60, 100], [700, 400, 60, 100], [140, 380, 180, 22], [640, 380, 180, 22], [380, 300, 200, 22], [430, 180, 100, 20]], sp: [[80, 440], [880, 440], [170, 320], [730, 320]] },
+    { name: 'Skyscrapers', bg: ['#a0b8e8', '#e8f0ff'], pit: true, solids: [[0, 420, 200, 120], [300, 360, 120, 180], [540, 300, 120, 240], [760, 400, 200, 140], [220, 240, 100, 20], [700, 200, 120, 20]], sp: [[90, 360], [860, 340], [360, 300], [600, 240]] },
+    { name: 'The Bridge', bg: ['#ffc8a0', '#fff0e0'], pit: true, solids: [[0, 480, 260, 60], [700, 480, 260, 60], [260, 400, 440, 20], [380, 300, 200, 20], [100, 300, 120, 20], [740, 300, 120, 20]], sp: [[80, 420], [880, 420], [160, 240], [800, 240]] },
+    { name: 'Zigzag', bg: ['#e0b8ff', '#f8e8ff'], solids: [[0, 500, 960, 40], [100, 420, 200, 20], [660, 340, 200, 20], [100, 260, 200, 20], [660, 180, 200, 20], [380, 300, 200, 20]], sp: [[60, 440], [900, 440], [200, 200], [760, 120]] },
     { name: 'The Cage', bg: ['#c8c8d8', '#eeeef4'], solids: [[0, 500, 960, 40], [200, 380, 20, 120], [740, 380, 20, 120], [200, 360, 220, 20], [540, 360, 220, 20], [400, 230, 160, 20], [60, 250, 120, 20], [780, 250, 120, 20]], sp: [[100, 440], [860, 440], [300, 300], [660, 300]] },
   ];
 
@@ -55,6 +59,16 @@
     thorns: { icon: '🌵', name: 'Thorns', desc: 'Geese that hit you take 30% of the damage back.', f: (s) => { s.thorns += 0.3; } },
     wings:  { icon: '🪽', name: 'Little Wings', desc: 'Two extra air jumps and floatier falls.', f: (s) => { s.air += 2; s.grav *= 0.9; } },
     sharp:  { icon: '🔎', name: 'Sharpshooter', desc: 'Faster, stronger shots.', f: (s) => { s.bspd *= 1.3; s.dmg *= 1.15; } },
+    twin:   { icon: '👯', name: 'Twin Barrels', desc: 'Two bullets per shot.', f: (s) => { s.shots += 1; s.spread = Math.max(s.spread, 0.12); s.dmg *= 0.8; } },
+    hop:    { icon: '🥾', name: 'Hop Boots', desc: 'Jump higher and run a bit faster.', f: (s) => { s.jump *= 1.1; s.move *= 1.15; } },
+    anchor: { icon: '⚓', name: 'Anchor', desc: '+50% health, heavy gravity, a bit slower.', f: (s) => { s.hp *= 1.5; s.grav *= 1.3; s.move *= 0.9; } },
+    rocket: { icon: '🚀', name: 'Rocket Rounds', desc: 'Faster bullets that explode.', f: (s) => { s.blast += 45; s.bspd *= 1.25; s.dmg *= 0.9; } },
+    leech:  { icon: '🩸', name: 'Leech', desc: 'Poison hits that also heal you.', f: (s) => { s.vamp += 0.3; s.dot += 5; } },
+    fort:   { icon: '🏰', name: 'Fortress', desc: 'A shield, +20% health, a bit slower.', f: (s) => { s.shield += 1; s.hp *= 1.2; s.move *= 0.92; } },
+    needle: { icon: '🪡', name: 'Needle Shots', desc: 'Tiny fast bullets that pierce 2 geese.', f: (s) => { s.pierce += 2; s.bspd *= 1.4; s.dmg *= 0.7; s.br *= 0.7; } },
+    pinball:{ icon: '🎱', name: 'Pinball', desc: 'Bullets bounce 5 times and move faster.', f: (s) => { s.bounce += 5; s.bspd *= 1.2; s.br *= 0.9; } },
+    glide:  { icon: '🪂', name: 'Glider', desc: 'One extra air jump and floaty falls.', f: (s) => { s.air += 1; s.grav *= 0.75; } },
+    ruth:   { icon: '😈', name: 'Ruthless', desc: '+35% damage and faster fire, 25% less health.', f: (s) => { s.dmg *= 1.35; s.rate *= 1.2; s.hp *= 0.75; } },
   });
   const CARD_IDS = Object.keys(CARDS);
   const statsOf = (cards) => { const s = BASE(); for (const c of cards) CARDS[c].f(s); return s; };
