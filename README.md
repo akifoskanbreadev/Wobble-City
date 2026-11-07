@@ -197,3 +197,7 @@ Push into the side of any solid block while in the air to slide down it slowly, 
 
 ### Emotes, part 15
 24 more emotes in the emote shop (Sob, Zzz, Strong, Boom, Quack, Rawr, Abducted and more), plus an "Emoji Master" achievement for owning 40.
+
+## More stuff, part 15
+- 8 new skins and 14 new cosmetics (more15).
+- Goose Rounds power-up crates: every 9-14 s a crate appears on a platform. Touch it for a boost: speed (👟), fast fire (⚡), big bullets (🔴), 40 health (❤️) or a shield (🔰). Boosts last 8 s and show above your goose. Bots grab nearby crates too.

@@ -93,10 +93,11 @@
     const o = { rng, pl, bl: [], ph: 'count', t: 3, rnd: 0, map: 0, target: opts.target || 3, pk: [], offers: {}, winner: -1, pickT: 0, msg: '', endT: 0, ended: false, over: false };
     o.reset = () => { o.rnd++; o.map = (opts.mapOrder ? opts.mapOrder[(o.rnd - 1) % opts.mapOrder.length] : Math.floor(rng() * MAPS.length)); const sp = MAPS[o.map].sp.slice(); for (let i = sp.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [sp[i], sp[j]] = [sp[j], sp[i]]; }
       o.pl.forEach((p, i) => { p.st = statsOf(p.cards); p.hp = p.st.hp; p.alive = !p.left; p.x = sp[i % 4][0]; p.y = sp[i % 4][1]; p.vx = p.vy = 0; p.shieldUp = p.st.shield; p.reviveLeft = p.st.revive; p.cd = 0.4; p.poison = 0; p.face = p.x < W / 2 ? 1 : -1; p.air = p.st.air; });
-      o.bl = []; o.ph = 'count'; o.t = 2.6; o.winner = -1; };
+      o.bl = []; o.cr = []; o.crT = 7 + rng() * 4; o.pl.forEach((p) => { p.buffT = 0; p.buffK = ''; }); o.ph = 'count'; o.t = 2.6; o.winner = -1; };
     o.reset(); o.rnd = 1; return o;
   }
   const R = (p) => 20 * p.st.size;
+  const CRATES = ['spd', 'rapid', 'big', 'heal', 'shield'], CRATE_ICON = { spd: '👟', rapid: '⚡', big: '🔴', heal: '❤️', shield: '🔰' };
 
   function collide(p, solids) {
     const r = R(p); p.onG = false; p.wall = 0;
@@ -123,15 +124,16 @@
     const st = p.st, base = Math.atan2(p.inp.ay, p.inp.ax);
     for (let k = 0; k < st.shots; k++) {
       const a = base + (st.shots > 1 ? (k - (st.shots - 1) / 2) * st.spread : 0) + (st.shots === 1 ? (o.rng() - 0.5) * st.spread : (o.rng() - 0.5) * 0.04);
-      o.bl.push({ x: p.x + Math.cos(a) * (R(p) + 6), y: p.y + Math.sin(a) * (R(p) + 6) - 4, vx: Math.cos(a) * st.bspd, vy: Math.sin(a) * st.bspd, own: p.id, dmg: st.dmg, r: st.br, bounce: st.bounce, blast: st.blast, home: st.home, dot: st.dot, kb: st.kb, pierce: st.pierce, hits: [], life: 4 });
+      o.bl.push({ x: p.x + Math.cos(a) * (R(p) + 6), y: p.y + Math.sin(a) * (R(p) + 6) - 4, vx: Math.cos(a) * st.bspd, vy: Math.sin(a) * st.bspd, own: p.id, dmg: st.dmg * (p.buffT > 0 && p.buffK === 'big' ? 1.6 : 1), r: st.br * (p.buffT > 0 && p.buffK === 'big' ? 1.4 : 1), bounce: st.bounce, blast: st.blast, home: st.home, dot: st.dot, kb: st.kb, pierce: st.pierce, hits: [], life: 4 });
     }
-    p.cd = 0.5 / st.rate; p.vx -= Math.cos(base) * 40; o.ev.push(['shot', p.x, p.y]);
+    p.cd = 0.5 / (st.rate * (p.buffT > 0 && p.buffK === 'rapid' ? 2 : 1)); p.vx -= Math.cos(base) * 40; o.ev.push(['shot', p.x, p.y]);
   }
   function botThink(o, p, dt) {
     const foes = o.pl.filter((q) => q.alive && q !== p); const ai = p.ai; ai.t -= dt; ai.jt -= dt;
     if (!foes.length) { p.inp.mx = 0; p.inp.fire = 0; return; }
     let tg = foes[0], bd = 1e9; for (const q of foes) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; tg = q; } }
     if (ai.t <= 0) { ai.t = 0.35 + o.rng() * 0.6; ai.err = (o.rng() - 0.5) * 0.18; const dir = Math.sign(tg.x - p.x) || 1; ai.mx = bd > 360 ? dir : bd < 160 ? -dir : (o.rng() < 0.5 ? dir : -dir) * (o.rng() < 0.6 ? 1 : 0); }
+    if (o.cr && o.cr.length) { let bc = null, bd2 = 1e9; for (const c of o.cr) { const d = Math.hypot(c.x - p.x, c.y - p.y); if (d < bd2) { bd2 = d; bc = c; } } if (bc && bd2 < 420 && ai.crate !== false) { ai.mx = Math.abs(bc.x - p.x) < 8 ? 0 : Math.sign(bc.x - p.x); if (bc.y < p.y - 30 && p.onG && ai.jt <= 0) { p.inp.jump = 1; ai.jt = 0.5; } } }
     p.inp.mx = ai.mx;
     const lead = bd / p.st.bspd, tx = tg.x + tg.vx * lead * 0.6, ty = tg.y + tg.vy * lead * 0.3 - 4 - 0.5 * 600 * lead * lead * 0 ;
     let a = Math.atan2(ty - p.y, tx - p.x) + ai.err; if (p.st.bspd < 900) a -= Math.min(0.18, bd / 5000);
@@ -150,13 +152,22 @@
     if (o.ph === 'count') { o.t -= dt; if (o.t <= 0) { o.ph = 'fight'; o.t = 0; o.ev.push(['go']); } }
     else if (o.ph === 'fight') {
       o.t += dt;
+      o.crT -= dt;   // power-up crates: stand on one to grab a short boost
+      if (o.crT <= 0) { o.crT = 9 + o.rng() * 5; if (o.cr.length < 2) { const ss = solids.filter((q) => q[2] >= 100), q = ss[Math.floor(o.rng() * ss.length)]; if (q) o.cr.push({ x: q[0] + 30 + o.rng() * (q[2] - 60), y: q[1] - 16, k: CRATES[Math.floor(o.rng() * CRATES.length)], life: 16 }); } }
+      for (const c of o.cr) for (const p of o.pl) if (!c.got && p.alive && Math.hypot(p.x - c.x, p.y - c.y) < R(p) + 14) {
+        c.got = true; o.ev.push(['crate', c.x, c.y]);
+        if (c.k === 'heal') p.hp = Math.min(p.st.hp, p.hp + 40); else if (c.k === 'shield') p.shieldUp += 1; else { p.buffK = c.k; p.buffT = 8; }
+      }
+      for (const c of o.cr) c.life -= dt;
+      o.cr = o.cr.filter((c) => !c.got && c.life > 0);
       if (o.t > 35) for (const p of o.pl) if (p.alive) { p.hp -= (6 + (o.t - 35) * 2) * dt; if (p.hp <= 0) { p.alive = false; o.ev.push(['die', p.x, p.y, p.slot]); } }   // sudden death
     }
     for (const p of o.pl) {
       if (p.bot && p.alive) botThink(o, p, dt);
       if (!p.alive) continue;
       const st = p.st, inp = p.inp, canAct = o.ph !== 'over';
-      const tgt = (p.wl > 0 ? -p.wd : (canAct ? inp.mx : 0)) * 270 * st.move, acc = p.onG ? 3200 : 1900;
+      if (p.buffT > 0) p.buffT -= dt;
+      const tgt = (p.wl > 0 ? -p.wd : (canAct ? inp.mx : 0)) * 270 * st.move * (p.buffT > 0 && p.buffK === 'spd' ? 1.5 : 1), acc = p.onG ? 3200 : 1900;
       p.vx += clamp(tgt - p.vx, -acc * dt, acc * dt);
       p.vy += 1500 * st.grav * dt; if (p.vy > 1100) p.vy = 1100;
       p.wl = (p.wl || 0) - dt; if (p.wall && !p.onG && p.vy > 130 && canAct && inp.mx === p.wall) p.vy = 130;   // cling to a wall and slide slowly
@@ -222,7 +233,8 @@
   // ============================================================ snapshots (what clients draw)
   function mkSnap(o) {
     return { ph: o.ph, t: +o.t.toFixed(2), rnd: o.rnd, map: o.map, target: o.target, win: o.winner, mw: o.matchWinner, msg: o.msg, pk: o.pk.slice(),
-      pl: o.pl.map((p) => [p.id, +p.x.toFixed(1), +p.y.toFixed(1), Math.round(p.hp), Math.round(p.st.hp), p.face, p.alive ? 1 : 0, p.shieldUp, +p.inp.ax.toFixed(2), +p.inp.ay.toFixed(2), p.score, p.cards, p.poison > 0 ? 1 : 0, p.slot]),
+      pl: o.pl.map((p) => [p.id, +p.x.toFixed(1), +p.y.toFixed(1), Math.round(p.hp), Math.round(p.st.hp), p.face, p.alive ? 1 : 0, p.shieldUp, +p.inp.ax.toFixed(2), +p.inp.ay.toFixed(2), p.score, p.cards, p.poison > 0 ? 1 : 0, p.slot, p.buffT > 0 ? p.buffK : ''] ),
+      cr: (o.cr || []).map((c) => [Math.round(c.x), Math.round(c.y), c.k]),
       bl: o.bl.map((b) => [Math.round(b.x), Math.round(b.y), b.r, o.pl.findIndex((q) => q.id === b.own)]), };
   }
 
@@ -259,6 +271,7 @@
     const bg = cx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, map.bg[0]); bg.addColorStop(1, map.bg[1]); cx.fillStyle = bg; cx.fillRect(0, 0, W, H);
     cx.fillStyle = 'rgba(255,255,255,.55)'; for (const [x, y, s] of [[120, 90, 1], [520, 60, 1.4], [800, 120, 0.9]]) { cx.beginPath(); cx.ellipse(x + Math.sin(t * 0.2 + x) * 10, y, 60 * s, 18 * s, 0, 0, 7); cx.ellipse(x + 30 * s, y - 10, 36 * s, 16 * s, 0, 0, 7); cx.fill(); }
     for (const s of map.solids) { cx.fillStyle = '#6b4a2e'; cx.fillRect(s[0], s[1], s[2], s[3]); cx.fillStyle = '#58c248'; cx.fillRect(s[0], s[1], s[2], Math.min(10, s[3])); cx.strokeStyle = '#2b2118'; cx.lineWidth = 3; cx.strokeRect(s[0], s[1], s[2], s[3]); }
+    for (const c of (snap.cr || [])) { const bob = Math.sin(t * 4 + c[0]) * 3; cx.fillStyle = '#ffd23f'; cx.strokeStyle = '#2b2118'; cx.lineWidth = 3; cx.beginPath(); cx.rect(c[0] - 14, c[1] - 14 + bob, 28, 28); cx.fill(); cx.stroke(); cx.fillStyle = '#2b2118'; cx.font = '18px system-ui'; cx.textAlign = 'center'; cx.fillText(CRATE_ICON[c[2]] || '?', c[0], c[1] + 6 + bob); }
     // geese
     for (const p of snap.pl) {
       const v = view[p[0]]; if (!v) continue; const q = [p[0], v.x, v.y, p[3], p[4], p[5], p[6]];
@@ -267,6 +280,7 @@
       cx.strokeStyle = COL[p[13] % 4]; cx.lineWidth = 3; cx.beginPath(); cx.ellipse(v.x, v.y + r - 2, r * 1.1, 6, 0, 0, 7); cx.stroke();
       drawGoose(q, t);
       if (p[7] > 0) { cx.strokeStyle = 'rgba(120,220,255,.9)'; cx.lineWidth = 3; cx.beginPath(); cx.arc(v.x, v.y, r + 8, 0, 7); cx.stroke(); }
+      if (p[14]) { cx.font = '16px system-ui'; cx.textAlign = 'center'; cx.fillText(CRATE_ICON[p[14]] || '', v.x, v.y - r - 58); }
       if (p[12]) { cx.fillStyle = '#7ad84a'; cx.font = '16px system-ui'; cx.textAlign = 'center'; cx.fillText('☠️', v.x, v.y - r - 52); }
       const ax = p[8], ay = p[9]; cx.strokeStyle = COL[p[13] % 4]; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(v.x + ax * (r + 6), v.y + ay * (r + 6)); cx.lineTo(v.x + ax * (r + 20), v.y + ay * (r + 20)); cx.stroke(); cx.fillStyle = COL[p[13] % 4]; cx.beginPath(); cx.arc(v.x + ax * (r + 24), v.y + ay * (r + 24), 3, 0, 7); cx.fill();
       const bw = 46, by = v.y - r - 40; cx.fillStyle = 'rgba(0,0,0,.45)'; cx.fillRect(v.x - bw / 2 - 1, by - 1, bw + 2, 8); cx.fillStyle = p[3] / p[4] > 0.35 ? '#5ad86a' : '#ff5a5a'; cx.fillRect(v.x - bw / 2, by, bw * clamp(p[3] / p[4], 0, 1), 6);
@@ -344,6 +358,7 @@
       else if (e[0] === 'sh') blip(900, 0.12, 'triangle', 0.05);
       else if (e[0] === 'die') { blip(110, 0.4, 'sawtooth', 0.09); shake = 0.7; for (let i = 0; i < 26; i++) parts.push({ x: e[1], y: e[2], vx: (Math.random() - 0.5) * 520, vy: (Math.random() - 0.8) * 420, l: 1.2, s: 2 + Math.random() * 4, c: i % 2 ? COL[(e[3] | 0) % 4] : '#fff' }); }
       else if (e[0] === 'boom') { blip(90, 0.3, 'sawtooth', 0.08); shake = 0.5; for (let i = 0; i < 18; i++) parts.push({ x: e[1], y: e[2], vx: (Math.random() - 0.5) * 420, vy: (Math.random() - 0.5) * 420, l: 0.7, s: 4, c: i % 2 ? '#ffd23f' : '#ff7a1a' }); }
+      else if (e[0] === 'crate') { blip(660, 0.18, 'triangle', 0.06); for (let i = 0; i < 10; i++) parts.push({ x: e[1], y: e[2], vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.8) * 300, l: 0.8, s: 3, c: '#ffd23f' }); }
       else if (e[0] === 'jump') blip(380, 0.08, 'sine', 0.03);
       else if (e[0] === 'go') blip(880, 0.3, 'triangle', 0.06);
     }
