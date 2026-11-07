@@ -189,7 +189,7 @@ Spin the Bottle now plays in a dark, cosy 3D wooden tavern (octagonal table with
 Type the code `check` in the code box to see which online parts (game files, accounts/sync, multiplayer library, multiplayer server, direct connection) this network allows. Handy for school filters.
 
 ### Rounds: wall cling and wall jump
-Push into the side of any solid block while in the air to slide down it slowly, and press jump to kick off the wall. Chain wall jumps to climb up pillars.
+Push into the side of any solid block to climb it: hold the direction towards the wall and hold jump to climb up (about 1.8 s per jump). Without jump you slide down slowly. To kick away from a wall, let go of the direction and press jump. Bots climb walls too and hop around when they get stuck.
 
 ## More stuff, part 14
 - 10 new skins (Pizza, Nebula, Cactus, Candy Cane, Denim, Magma, Cow, Pastel, Circuit, Golden Deluxe) and 25 new cosmetics (hats, glasses, face, neck, back, tail, held items, pets, auras, trails).

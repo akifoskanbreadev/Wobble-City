@@ -142,6 +142,9 @@
     const wantUp = tg.y < p.y - 60 || (p.onG && o.rng() < 0.012);
     if (ai.jt <= 0 && wantUp) { p.inp.jump = 1; ai.jt = 0.5; } else if (ai.jt < 0.38) p.inp.jump = 0;
     if (p.y > H - 10) p.inp.jump = 1;
+    // climb walls when going up or stuck; hop around when stuck in a pocket
+    if (Math.abs(p.x - (ai.lx || 0)) < 18 && Math.abs(p.y - (ai.ly || 0)) < 18) ai.stk = (ai.stk || 0) + dt; else { ai.stk = 0; ai.lx = p.x; ai.ly = p.y; }
+    if (p.wall && (ai.stk > 0.5 || wantUp || ai.mx === p.wall)) { p.inp.mx = p.wall; p.inp.jump = 1; } else if (ai.stk > 1.2) { p.inp.mx = p.face || 1; p.inp.jump = ai.stk % 0.6 < 0.3 ? 1 : 0; }
     // dodge: jump when a bullet is about to hit
     for (const b of o.bl) if (b.own !== p.id && Math.hypot(b.x - p.x, b.y - p.y) < 130 && Math.abs(b.vy) < 400 && ai.jt <= 0 && o.rng() < 0.08) { p.inp.jump = 1; ai.jt = 0.5; }
   }
@@ -170,10 +173,14 @@
       const tgt = (p.wl > 0 ? -p.wd : (canAct ? inp.mx : 0)) * 270 * st.move * (p.buffT > 0 && p.buffK === 'spd' ? 1.5 : 1), acc = p.onG ? 3200 : 1900;
       p.vx += clamp(tgt - p.vx, -acc * dt, acc * dt);
       p.vy += 1500 * st.grav * dt; if (p.vy > 1100) p.vy = 1100;
-      p.wl = (p.wl || 0) - dt; if (p.wall && !p.onG && p.vy > 130 && canAct && inp.mx === p.wall) p.vy = 130;   // cling to a wall and slide slowly
+      p.wl = (p.wl || 0) - dt; if (p.onG) p.clT = 1.8;
+      if (p.wall && canAct && inp.mx === p.wall) {   // push into a wall: hold jump to climb it, otherwise slide down slowly
+        if (inp.jump && (p.clT === undefined || p.clT > 0)) { if (p.vy > -200) p.vy = -200; p.clT = (p.clT === undefined ? 1.8 : p.clT) - dt; }
+        else if (!p.onG && p.vy > 130) p.vy = 130;
+      }
       if (inp.mx) p.face = inp.mx;
       p.coy = p.onG ? 0.1 : p.coy - dt; if (p.onG) p.air = st.air;
-      if (canAct && inp.jump && !p.jh) { if (p.coy > 0) { p.vy = -590 * st.jump; p.coy = 0; o.ev.push(['jump', p.x, p.y]); } else if (p.wall && !p.onG) { p.vy = -600 * st.jump; p.vx = -p.wall * 300; p.wd = p.wall; p.wl = 0.16; p.face = -p.wall; o.ev.push(['jump', p.x, p.y]); } else if (p.air > 0) { p.vy = -540 * st.jump; p.air--; o.ev.push(['jump', p.x, p.y]); } }
+      if (canAct && inp.jump && !p.jh) { if (p.coy > 0) { p.vy = -590 * st.jump; p.coy = 0; o.ev.push(['jump', p.x, p.y]); } else if (p.wall && !p.onG && inp.mx !== p.wall) { p.vy = -600 * st.jump; p.vx = -p.wall * 300; p.wd = p.wall; p.wl = 0.16; p.face = -p.wall; o.ev.push(['jump', p.x, p.y]); } else if (p.air > 0) { p.vy = -540 * st.jump; p.air--; o.ev.push(['jump', p.x, p.y]); } }
       p.jh = inp.jump; if (!inp.jump && p.vy < -200 && p.vy > -590 * st.jump + 20) p.vy *= 1 - dt * 4;   // short hop when released
       p.x += p.vx * dt; p.y += p.vy * dt; collide(p, solids);
       const r = R(p); if (p.x < r) { p.x = r; p.vx = Math.max(0, p.vx); } if (p.x > W - r) { p.x = W - r; p.vx = Math.min(0, p.vx); } if (p.y < -380) { p.y = -380; p.vy = Math.max(0, p.vy); }
