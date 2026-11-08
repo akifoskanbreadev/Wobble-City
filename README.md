@@ -201,3 +201,6 @@ Push into the side of any solid block to climb it: hold the direction towards th
 ## More stuff, part 15
 - 8 new skins and 14 new cosmetics (more15).
 - Goose Rounds power-up crates: every 9-14 s a crate appears on a platform. Touch it for a boost: speed (👟), fast fire (⚡), big bullets (🔴), 40 health (❤️) or a shield (🔰). Boosts last 8 s and show above your goose. Bots grab nearby crates too.
+
+### Pet Pal: 5 new species
+Turtle, Owl, Bee, Dino and Yeti join the egg pool (21 species in total). The Pet Dex grew to three rows and the "raise them all" achievement now counts every species.

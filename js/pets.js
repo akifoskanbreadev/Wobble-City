@@ -29,6 +29,11 @@
     fox:     { name: 'Fox',     tier: 1, col: '#e8801a', col2: '#ffffff' },
     unicorn: { name: 'Unicorn', tier: 2, col: '#fff0fa', col2: '#d08aff' },
     phoenix: { name: 'Phoenix', tier: 3, col: '#ff7a1a', col2: '#ffe14a' },
+    turtle:  { name: 'Turtle',  tier: 0, col: '#7ad06a', col2: '#c8a060' },
+    owl:     { name: 'Owl',     tier: 1, col: '#a07a50', col2: '#f0e0c0' },
+    bee:     { name: 'Bee',     tier: 1, col: '#ffd23f', col2: '#2a2a2a' },
+    dino:    { name: 'Dino',    tier: 2, col: '#5ac8a0', col2: '#ffb02a' },
+    yeti:    { name: 'Yeti',    tier: 3, col: '#e8f4ff', col2: '#8ac8f0' },
   };
   const TIERS = [
     { name: 'Common Egg', icon: '🥚', price: 40, rare: 'Chick · Bunny · Hamster · Frog · Panda' },
@@ -113,6 +118,11 @@
     part(() => {
       c.fillStyle = col; c.lineWidth = 4;
       if (p.sp === 'bunny') for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 20 * sc, by - ry - 26 * sc, 11 * sc, 34 * sc, s * 0.15, 0, 7); c.fill(); c.stroke(); c.fillStyle = sp.col2; c.beginPath(); c.ellipse(s * 20 * sc, by - ry - 26 * sc, 5 * sc, 22 * sc, s * 0.15, 0, 7); c.fill(); c.fillStyle = col; }
+      if (p.sp === 'turtle') { c.fillStyle = sp.col2; c.beginPath(); c.ellipse(0, by - ry * 0.15, rx * 0.78, ry * 0.62, 0, Math.PI, 0); c.fill(); c.stroke(); c.lineWidth = 2.5; c.beginPath(); c.moveTo(-rx * 0.35, by - ry * 0.15); c.lineTo(-rx * 0.15, by - ry * 0.7); c.moveTo(rx * 0.35, by - ry * 0.15); c.lineTo(rx * 0.15, by - ry * 0.7); c.moveTo(0, by - ry * 0.15); c.lineTo(0, by - ry * 0.74); c.stroke(); c.lineWidth = 4; }
+      if (p.sp === 'owl') { for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 20 * sc, by - ry + 6); c.lineTo(s * 40 * sc, by - ry - 22 * sc); c.lineTo(s * 44 * sc, by - ry + 12); c.closePath(); c.fill(); c.stroke(); } c.fillStyle = sp.col2; c.beginPath(); c.ellipse(0, by + ry * 0.35, rx * 0.55, ry * 0.5, 0, 0, 7); c.fill(); }
+      if (p.sp === 'bee') { c.save(); c.beginPath(); c.ellipse(0, by, rx, ry, 0, 0, 7); c.clip(); c.fillStyle = sp.col2; for (const x of [-rx * 0.5, rx * 0.1]) c.fillRect(x, by - ry, rx * 0.28, ry * 2); c.restore(); c.strokeStyle = INK; c.lineWidth = 3; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 12 * sc, by - ry + 4); c.lineTo(s * 24 * sc, by - ry - 26 * sc); c.stroke(); c.beginPath(); c.arc(s * 24 * sc, by - ry - 28 * sc, 4, 0, 7); c.fillStyle = INK; c.fill(); } c.globalAlpha = 0.7; c.fillStyle = '#d8f4ff'; c.lineWidth = 3; for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 26 * sc, by - ry - 6 + Math.sin(t * 30) * 3, 16 * sc, 26 * sc, s * 0.5, 0, 7); c.fill(); c.stroke(); } c.globalAlpha = 1; }
+      if (p.sp === 'dino') { c.fillStyle = sp.col2; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(i * 15 * sc - 7, by - ry + 4 + Math.abs(i) * 6); c.lineTo(i * 15 * sc, by - ry - 22 * sc + Math.abs(i) * 8); c.lineTo(i * 15 * sc + 7, by - ry + 4 + Math.abs(i) * 6); c.closePath(); c.fill(); c.stroke(); } }
+      if (p.sp === 'yeti') { c.fillStyle = sp.col2; for (let i = -2; i <= 2; i++) { c.beginPath(); c.arc(i * 17 * sc, by - ry + 4 + Math.abs(i) * 5, 9 * sc, 0, 7); c.fill(); c.stroke(); } c.fillStyle = '#fff'; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 30 * sc, by - ry + 10); c.lineTo(s * 40 * sc, by - ry - 14 * sc); c.lineTo(s * 46 * sc, by - ry + 16); c.closePath(); c.fill(); c.stroke(); } }
       if (p.sp === 'panda') { c.fillStyle = '#222'; for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 36 * sc, by - ry * 0.8, 13 * sc, 0, 7); c.fill(); c.stroke(); } }
       if (p.sp === 'unicorn') { c.fillStyle = '#d08aff'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(-rx * 0.5 - i * 5 * sc, by - ry * (0.9 - i * 0.2), 9 * sc, 14 * sc, 0.4, 0, 7); c.fill(); } c.fillStyle = '#fff4a8'; c.beginPath(); c.moveTo(-4 * sc, by - ry + 2); c.lineTo(2, by - ry - 34 * sc); c.lineTo(8 * sc, by - ry + 2); c.closePath(); c.fill(); c.stroke(); }
       if (p.sp === 'phoenix') { c.fillStyle = '#ffe14a'; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(i * 9 * sc - 6, by - ry + 4); c.quadraticCurveTo(i * 12 * sc, by - ry - 36 * sc - Math.sin(t * 8 + i) * 6, i * 9 * sc + 6, by - ry + 4); c.fill(); c.stroke(); } }
@@ -272,7 +282,7 @@
         if (mode === 'dex') {
           c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, 800, 480); c.fillStyle = '#fff8e8'; c.strokeStyle = INK; c.lineWidth = 4; rr(c, 60, 50, 680, 380, 20); c.fill(); c.stroke();
           c.fillStyle = INK; c.font = '900 24px system-ui'; c.textAlign = 'center'; c.fillText('📖 Pet Dex · ' + Object.keys(d.dex).length + '/' + Object.keys(SPECIES).length + ' raised to adult', 400, 90);
-          Object.keys(SPECIES).forEach((k, i) => { const x = 118 + (i % 8) * 80, y = 215 + Math.floor(i / 8) * 130, got = d.dex[k]; c.save(); c.translate(x, y); c.scale(0.4, 0.4); if (got) drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, t, { stage: 'adult' }); else { c.globalAlpha = 0.35; c.filter = 'brightness(0)'; drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, 0, { stage: 'adult' }); c.filter = 'none'; } c.restore(); c.fillStyle = INK; c.font = '700 13px system-ui'; c.textAlign = 'center'; c.fillText(got ? SPECIES[k].name + (got > 1 ? ' ×' + got : '') : '???', x, y + 22); });
+          Object.keys(SPECIES).forEach((k, i) => { const x = 118 + (i % 8) * 80, y = 215 + Math.floor(i / 8) * 112, got = d.dex[k]; c.save(); c.translate(x, y); c.scale(0.4, 0.4); if (got) drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, t, { stage: 'adult' }); else { c.globalAlpha = 0.35; c.filter = 'brightness(0)'; drawPet(c, { sp: k, born: 0, hatchAt: 0, full: 80, joy: 80, clean: 90, energy: 90, form: 'normal', care: 70, poops: 0 }, 0, { stage: 'adult' }); c.filter = 'none'; } c.restore(); c.fillStyle = INK; c.font = '700 13px system-ui'; c.textAlign = 'center'; c.fillText(got ? SPECIES[k].name + (got > 1 ? ' ×' + got : '') : '???', x, y + 22); });
           c.font = '600 13px system-ui'; c.fillText('Tap anywhere to close', 400, 416);
         }
         if (toastT > 0) { c.globalAlpha = Math.min(1, toastT); c.fillStyle = 'rgba(31,42,54,.9)'; c.font = '800 16px system-ui'; const w = c.measureText(toast).width + 34; rr(c, 400 - w / 2, 372 - 0, w, 34, 17); c.fill(); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(toast, 400, 395); c.globalAlpha = 1; }
@@ -293,7 +303,7 @@
     add('pet1', '🐣', 'Egg Sitter', 'Hatch your first pet.', (s) => P(s).hatched, 1, 20);
     add('pet2', '🐾', 'Good Parent', 'Raise a pet to adulthood.', (s) => P(s).adults, 1, 100);
     add('pet5', '📖', 'Pet Collector', 'Raise 5 different species to adults.', (s) => Object.keys(P(s).dex).length, 5, 250);
-    add('pet12', '🏅', 'Gotta Raise Them All', 'Raise all 16 species to adults.', (s) => Object.keys(P(s).dex).length, 16, 800);
+    add('pet12', '🏅', 'Gotta Raise Them All', 'Raise every species to adults.', (s) => Object.keys(P(s).dex).length, Object.keys(SPECIES).length, 800);
     add('petday7', '🗓️', 'Week of Care', 'Get the daily care gift 7 days.', (s) => P(s).days || 0, 7, 120);
   }, 400);
   root.Pets = { SPECIES, TIERS, newPet, tick, sync, stageOf, load, _setNow: (f) => { nowFn = f || (() => Date.now()); }, _drawPet: drawPet };
